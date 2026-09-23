@@ -1,0 +1,154 @@
+[
+  {
+    "seconds": 5,
+    "mode": "raw_delta",
+    "n": 50,
+    "H2": {
+      "MAE": 665.427028,
+      "RMSE": 1089.9280440025232,
+      "R2": 0.9767514885023334,
+      "R2_null_reason": null,
+      "NMAE": 0.027726126166666663,
+      "NRMSE": 0.045413668500105135,
+      "MAPE_percent": 5.236085224999999,
+      "MAPE_null_reason": null
+    },
+    "NH3": {
+      "MAE": 0.7834555999999998,
+      "RMSE": 1.0920750387954663,
+      "R2": 0.9932237051684084,
+      "R2_null_reason": null,
+      "NMAE": 0.019586389999999995,
+      "NRMSE": 0.027301875969886657,
+      "MAPE_percent": 3.623719196666666,
+      "MAPE_null_reason": null
+    },
+    "NO2": {
+      "MAE": 0.2840298080000001,
+      "RMSE": 0.3753751849782967,
+      "R2": 0.9815798826739319,
+      "R2_null_reason": null,
+      "NMAE": 0.03550372600000001,
+      "NRMSE": 0.04692189812228709,
+      "MAPE_percent": 7.333850250000001,
+      "MAPE_null_reason": null
+    },
+    "macro_NMAE": 0.027605414055555555,
+    "macro_MAPE_percent": 5.397884890555555,
+    "macro_MAPE_null_reason": null
+  },
+  {
+    "seconds": 5,
+    "mode": "delta",
+    "n": 50,
+    "H2": {
+      "MAE": 919.9234520000001,
+      "RMSE": 1150.5340994492385,
+      "R2": 0.9740941117783326,
+      "R2_null_reason": null,
+      "NMAE": 0.03833014383333334,
+      "NRMSE": 0.047938920810384936,
+      "MAPE_percent": 6.682753233333333,
+      "MAPE_null_reason": null
+    },
+    "NH3": {
+      "MAE": 1.4072503100000007,
+      "RMSE": 1.8591341402866137,
+      "R2": 0.9803614786842089,
+      "R2_null_reason": null,
+      "NMAE": 0.035181257750000014,
+      "NRMSE": 0.046478353507165344,
+      "MAPE_percent": 6.038397570000001,
+      "MAPE_null_reason": null
+    },
+    "NO2": {
+      "MAE": 0.5114741679999999,
+      "RMSE": 0.646696081643733,
+      "R2": 0.9453284064508788,
+      "R2_null_reason": null,
+      "NMAE": 0.06393427099999999,
+      "NRMSE": 0.08083701020546663,
+      "MAPE_percent": 11.022882349999998,
+      "MAPE_null_reason": null
+    },
+    "macro_NMAE": 0.04581522419444445,
+    "macro_MAPE_percent": 7.914677717777778,
+    "macro_MAPE_null_reason": null
+  },
+  {
+    "seconds": 10,
+    "mode": "raw_delta",
+    "n": 50,
+    "H2": {
+      "MAE": 654.80631,
+      "RMSE": 870.5365939534236,
+      "R2": 0.9851688932276266,
+      "R2_null_reason": null,
+      "NMAE": 0.027283596250000004,
+      "NRMSE": 0.03627235808139265,
+      "MAPE_percent": 4.779589333333333,
+      "MAPE_null_reason": null
+    },
+    "NH3": {
+      "MAE": 0.8121080999999998,
+      "RMSE": 1.0345273840097324,
+      "R2": 0.9939190516575794,
+      "R2_null_reason": null,
+      "NMAE": 0.020302702499999995,
+      "NRMSE": 0.02586318460024331,
+      "MAPE_percent": 3.5547589033333336,
+      "MAPE_null_reason": null
+    },
+    "NO2": {
+      "MAE": 0.26964253000000005,
+      "RMSE": 0.3394237733125359,
+      "R2": 0.9849392781466064,
+      "R2_null_reason": null,
+      "NMAE": 0.033705316250000006,
+      "NRMSE": 0.04242797166406699,
+      "MAPE_percent": 6.613188966666668,
+      "MAPE_null_reason": null
+    },
+    "macro_NMAE": 0.027097205000000003,
+    "macro_MAPE_percent": 4.982512401111111,
+    "macro_MAPE_null_reason": null
+  },
+  {
+    "seconds": 10,
+    "mode": "delta",
+    "n": 50,
+    "H2": {
+      "MAE": 700.0796299999998,
+      "RMSE": 876.7039030690152,
+      "R2": 0.9849580071538302,
+      "R2_null_reason": null,
+      "NMAE": 0.029169984583333326,
+      "NRMSE": 0.0365293292945423,
+      "MAPE_percent": 5.135352499999999,
+      "MAPE_null_reason": null
+    },
+    "NH3": {
+      "MAE": 1.32535194,
+      "RMSE": 1.8296212773147613,
+      "R2": 0.9809800339863471,
+      "R2_null_reason": null,
+      "NMAE": 0.0331337985,
+      "NRMSE": 0.04574053193286903,
+      "MAPE_percent": 6.439497926666665,
+      "MAPE_null_reason": null
+    },
+    "NO2": {
+      "MAE": 0.5028991780000001,
+      "RMSE": 0.6533779986679514,
+      "R2": 0.9441927931992081,
+      "R2_null_reason": null,
+      "NMAE": 0.06286239725000001,
+      "NRMSE": 0.08167224983349393,
+      "MAPE_percent": 12.009592333333334,
+      "MAPE_null_reason": null
+    },
+    "macro_NMAE": 0.041722060111111105,
+    "macro_MAPE_percent": 7.861480919999999,
+    "macro_MAPE_null_reason": null
+  }
+]
