@@ -24,6 +24,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from .augment import AugmentContext, AugmentedDataset
 from .data import load_run, make_features
 from .model import GasTCN
 
@@ -163,6 +164,10 @@ def _train_network(
     seed: int,
     device: torch.device,
     early_stop: bool,
+    *,
+    augment: AugmentContext | None = None,
+    aux_positions: tuple[int, ...] = (),
+    aux_weight: float = 0.5,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -172,6 +177,9 @@ def _train_network(
     验证分数保存最佳权重并在 50 轮无改善后停止。
     返回：`(model, scaler_stats, epochs_used, best_validation_score,
     validation_predictions)`；无验证集的最终训练中，后两项为 `None`。
+    `augment` 非空时每轮在线生成增强视图并用干净训练统计量标准化；
+    `aux_positions` 非空时在同一隐藏序列的过去位置增加辅助损失，权重为
+    `aux_weight`，不改变主输出和推理接口。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -183,9 +191,14 @@ def _train_network(
     stats = fit_scalers(x_train, y_train)
     x_train_z, y_train_z = _scaled(x_train, y_train, stats)
 
-    dataset = TensorDataset(
-        torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
-    )
+    if augment is None:
+        dataset = TensorDataset(
+            torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
+        )
+    else:
+        dataset = AugmentedDataset(augment)
+        if len(dataset) != len(x_train):
+            raise ValueError("augmentation context does not match the training runs")
     generator = torch.Generator().manual_seed(seed)
     loader = DataLoader(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
@@ -211,12 +224,23 @@ def _train_network(
         val_tensors = torch.from_numpy(x_val_z).to(device)
     for epoch in range(1, epochs + 1):
         model.train()
+        if augment is not None:
+            dataset.epoch = epoch
         for batch_x, batch_y in loader:
+            if augment is not None:
+                batch_x_np, batch_y_np = _scaled(
+                    batch_x.numpy(), batch_y.numpy(), stats
+                )
+                batch_x = torch.from_numpy(batch_x_np)
+                batch_y = torch.from_numpy(batch_y_np)
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             prediction = model(batch_x)
             loss = criterion(prediction, batch_y)
+            if aux_positions:
+                for auxiliary in model.forward_positions(batch_x, aux_positions):
+                    loss = loss + aux_weight * criterion(auxiliary, batch_y)
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     f"non-finite training loss at epoch {epoch}"
@@ -309,6 +333,8 @@ def _save_checkpoint(
     seed: int,
     epochs: int,
     device: torch.device,
+    *,
+    augmentation: dict[str, Any] | None = None,
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
 
@@ -354,6 +380,7 @@ def _save_checkpoint(
             "torch": torch.__version__,
         },
         "device_used": str(device),
+        "augmentation": augmentation,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, output_path)

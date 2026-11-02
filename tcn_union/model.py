@@ -85,3 +85,25 @@ class GasTCN(nn.Module):
             raise ValueError(f"expected [batch,{self.in_channels},time] input")
         hidden = self.blocks(x)
         return self.head(hidden[:, :, -1])
+
+    def forward_positions(
+        self, x: torch.Tensor, positions: tuple[int, ...]
+    ) -> list[torch.Tensor]:
+        """Decode the same hidden sequence at several past positions.
+
+        The causal convolution means every requested position only sees its own
+        past samples.  This is used for multi-horizon supervision during
+        training; inference still reads the final position.
+        """
+        if x.ndim != 3 or x.shape[1] != self.in_channels:
+            raise ValueError(f"expected [batch,{self.in_channels},time] input")
+        if not positions:
+            raise ValueError("positions must not be empty")
+        hidden = self.blocks(x)
+        outputs = []
+        for position in positions:
+            index = int(position)
+            if index < 0 or index >= x.shape[2]:
+                raise ValueError(f"position {index} outside sequence length {x.shape[2]}")
+            outputs.append(self.head(hidden[:, :, index]))
+        return outputs

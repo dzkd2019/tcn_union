@@ -11,3 +11,10 @@ wheels/
 
 .ruff_cache/
 data/
+
+# Exploratory augmentation runs (final frozen artifacts are kept)
+artifacts/aug_search/
+artifacts/diagnostics/
+artifacts/augmentation_aux*/
+artifacts/augmentation_cutout_aux/
+artifacts/evaluation_aux/

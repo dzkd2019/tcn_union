@@ -4,7 +4,9 @@
 
 ## 当前结论
 
-在预先锁定的 12 个测试实验上，5 秒 TCN 的主种子 macro-NMAE 为 **0.02627**，早期特征 Ridge 为 **0.03422**；10 秒 TCN 为 **0.03072**，略高于 10 秒早期 Ridge 的 **0.03003**。因此，现有结果支持继续验证 5 秒方案，但尚不足以证明外部泛化或满足应用误差要求。数据文件未注明传感器响应与浓度物理单位，本文均保留原始单位，不将浓度标为 ppm。
+在预先锁定的 12 个测试实验上，5 秒 TCN 的主种子 macro-NMAE 为 **0.02627**，早期特征 Ridge 为 **0.03422**；10 秒 TCN 为 **0.03072**，略高于 10 秒早期 Ridge 的 **0.03003**。因此，旧方案的结果支持继续验证 5 秒方案，但尚不足以证明外部泛化或满足应用误差要求。数据文件未注明传感器响应与浓度物理单位，本文均保留原始单位，不将浓度标为 ppm。
+
+> **10 秒数据增强分支**：在 `feature/augmentation-10s` 分支上，使用“原始响应随机 cutout + 5 秒辅助监督 + 三个固定种子集成”后，10 秒方案的开发集 OOF macro-NMAE 为 **0.024592**（5 秒 clean 为 0.027605；该 OOF 值来自主种子 seed 23，三个种子的配对均值约为 0，OOF 证据不足以单独证明稳定增益，详见文档 §4.1），锁定测试集三 seed 集成 macro-NMAE 为 **0.018321**（5 秒 clean 为 0.020487，旧 10 秒 clean 为 0.024807），H2/NH3/NO2 三个气体的测试 NMAE 均低于 5 秒 clean。方法与完整结果见 [`docs/augmentation_10s.md`](docs/augmentation_10s.md)。
 
 ## 数据与校验
 
@@ -149,6 +151,28 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 主种子测试集没有负浓度预测，但有少数预测超出当前已测浓度范围；这些值未被裁剪，不代表模型已验证外推能力。当前记录末端未验证为稳态，因此 5 秒、10 秒相对于 59.6 秒记录窗口缩短约 91.6%、83.2%，不能称为相对稳态响应的加速倍数。
 
+## 10 秒增强方案（新分支）
+
+新分支 `feature/augmentation-10s` 在旧流程之外新增：
+
+- `tcn_union/augment.py`：原始响应域的 cutout、时间缩放、幅值扰动、mixup、前缀长度增强，以及在线增强数据集；
+- `tcn_union/augmentation_search.py`：只使用开发集五折 OOF 的增强方案搜索；
+- `tcn_union/augmentation_train.py`：按 OOF 选定方案做全开发集重训，支持 5 秒/10 秒的辅助监督位置；
+- `tcn_union/augmentation_evaluate.py`：冻结后在锁定 12 个测试实验上评估，报告单种子和三 seed 集成；
+- `tcn_union/plot_augmentation.py`：生成测试集对比图。
+
+最终 recipe 为 `cutout_1.0_2s`（每条 10 秒训练响应随机挖去最多 2 秒并用两端线性桥替换）+ 5 秒辅助监督（10 秒隐藏序列在第 25 个采样点再解码一次，损失权重 0.5）。增强只作用于训练折；验证、测试和推理保持原始输入。最终 10 秒重训轮数为 193，5 秒 clean 为 231，三个固定种子为 `20260923/20260924/20260925`。
+
+开发集 OOF 与锁定测试集的关键结果：
+
+| 方案 | OOF macro-NMAE | 测试 macro-NMAE（三 seed 集成） | 测试 macro-MAPE（%） |
+|---|---:|---:|---:|
+| 5 秒 clean | 0.027605 | 0.020487 | 4.0176 |
+| 10 秒 clean（旧） | 0.027097 | 0.024807 | 4.6476 |
+| **10 秒 cutout + 5 秒辅助** | **0.024592** | **0.018321** | **3.3882** |
+
+测试集逐气体 NMAE：H2 `0.02074`、NH3 `0.00829`、NO2 `0.02593`，均低于 5 秒 clean 的 `0.02261 / 0.01153 / 0.02733`。以实验为单位的配对 bootstrap：新 10 秒 − 旧 10 秒 = `−0.006485`，95% 区间 `[−0.011753, −0.000428]`；新 10 秒 − 5 秒 = `−0.002166`，区间 `[−0.008419, +0.002700]`。因此“新 10 秒优于旧 10 秒”有区间支持；“新 10 秒优于 5 秒”在点估计和三个气体上成立，但 12 次测试实验下尚未达到显著。
+
 ## 复现命令
 
 从项目根目录运行：
@@ -173,6 +197,33 @@ uv run python -m tcn_union.plot_results --results-dir artifacts/evaluation --out
 uv run python -m unittest discover -s tests -v
 ```
 
+10 秒增强方案的复现命令：
+
+```bash
+# 五折 OOF：cutout 2s + 5 秒辅助监督 0.5
+uv run python -m tcn_union.augmentation_search \
+  --manifest artifacts/splits/manifest.csv \
+  --output-dir artifacts/aug_search/final_10s \
+  --seconds 10 --recipes cutout_1.0_2s --seed 20260923 \
+  --aux-positions 25 --aux-weight 0.5
+
+# 全开发集重训：5 秒 clean + 10 秒最终方案，三个固定种子
+uv run python -m tcn_union.augmentation_train \
+  --manifest artifacts/splits/manifest.csv \
+  --output-dir artifacts/augmentation_final \
+  --config-5s clean --config-10s cutout_1.0_2s \
+  --aux-positions-10s 25 --aux-weight-10s 0.5
+
+# 冻结后评估锁定测试集并绘图
+uv run python -m tcn_union.augmentation_evaluate \
+  --manifest artifacts/splits/manifest.csv \
+  --baseline-dir artifacts/tcn --model-dir artifacts/augmentation_final \
+  --output-dir artifacts/evaluation_final
+uv run python -m tcn_union.plot_augmentation \
+  --results-dir artifacts/evaluation_final \
+  --output-dir artifacts/evaluation_final/figures
+```
+
 预测 CLI 输出 JSON，包括 `seconds`、`H2`、`NH3`、`NO2` 和 `unit: "original"`。模型 checkpoint 保存架构、模式、通道顺序、训练文件哈希、训练统计量、种子、epoch 与软件版本。
 
 ## 产物
@@ -182,6 +233,9 @@ uv run python -m unittest discover -s tests -v
 - `artifacts/tcn/5s/`、`artifacts/tcn/10s/`：三个种子的最终 checkpoint。
 - `artifacts/evaluation/test_metrics.csv`、`test_predictions.csv`、`evaluation.json`：测试逐气体指标、逐文件预测/误差、基线与 bootstrap 结果。
 - `artifacts/evaluation/figures/`：散点图、逐气体 NMAE/MAPE 对比图（例如 `test_mape_by_gas.png`）和残差热图。
+- `artifacts/augmentation_final/`：10 秒增强方案的最终三个种子 checkpoints、`selection.json` 和 OOF 预测。
+- `artifacts/evaluation_final/`：冻结后锁定测试的逐种子/集成指标、预测、bootstrap 与 `figures/`。
+- `artifacts/augmentation_search/summary.csv`：开发集增强方案搜索的紧凑汇总。
 
 ## 限制与适用范围
 
