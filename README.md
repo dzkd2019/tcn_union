@@ -6,7 +6,7 @@
 
 在预先锁定的 12 个测试实验上，5 秒 TCN 的主种子 macro-NMAE 为 **0.02627**，早期特征 Ridge 为 **0.03422**；10 秒 TCN 为 **0.03072**，略高于 10 秒早期 Ridge 的 **0.03003**。因此，旧方案的结果支持继续验证 5 秒方案，但尚不足以证明外部泛化或满足应用误差要求。数据文件未注明传感器响应与浓度物理单位，本文均保留原始单位，不将浓度标为 ppm。
 
-> **10 秒数据增强分支**：在 `feature/augmentation-10s` 分支上，使用“原始响应随机 cutout + 5 秒辅助监督 + 三个固定种子集成”后，10 秒方案的开发集 OOF macro-NMAE 为 **0.024592**（5 秒 clean 为 0.027605；该 OOF 值来自主种子 seed 23，三个种子的配对均值约为 0，OOF 证据不足以单独证明稳定增益，详见文档 §4.1），锁定测试集三 seed 集成 macro-NMAE 为 **0.018321**（5 秒 clean 为 0.020487，旧 10 秒 clean 为 0.024807），H2/NH3/NO2 三个气体的测试 NMAE 均低于 5 秒 clean。方法与完整结果见 [`docs/augmentation_10s.md`](docs/augmentation_10s.md)，学术报告稿件见 [`docs/augmentation_10s_report.md`](docs/augmentation_10s_report.md)。
+> **10 秒数据增强分支**：在 `feature/augmentation-10s` 分支上，使用“原始响应随机 cutout + 5 秒辅助监督 + 三个固定种子集成”后，10 秒方案的开发集 OOF macro-NMAE 为 **0.024592**（5 秒 clean 为 0.027605；该 OOF 值来自主种子 seed 23，三个种子的配对均值约为 0，OOF 证据不足以单独证明稳定增益，详见文档 §4.1），锁定测试集三 seed 集成 macro-NMAE 为 **0.018321**（5 秒 clean 为 0.020487，旧 10 秒 clean 为 0.024807），H2/NH3/NO2 三个气体的测试 NMAE 均低于 5 秒 clean。方法与完整结果见 [`docs/augmentation_10s.md`](docs/augmentation_10s.md)，学术报告稿件见 [`docs/augmentation_10s_report.md`](docs/augmentation_10s_report.md)，组会汇报稿见 [`docs/组会汇报_10s响应加速.md`](docs/组会汇报_10s响应加速.md)。
 
 ## 数据与校验
 
