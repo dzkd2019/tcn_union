@@ -377,6 +377,55 @@ def fig6_next():
     save(fig, "fig6_下一步")
 
 
+
+
+def fig7_initial_correlation():
+    manifest = pd.read_csv(ROOT / "artifacts/splits/manifest.csv", dtype=str).to_dict("records")
+    dev = [row for row in manifest if row["split"] == "development"]
+    inits, labels, ids = [], [], []
+    for row in dev:
+        frame = pd.read_csv(ROOT / row["file"])
+        inits.append(frame[["H2", "NH3", "NO2"]].to_numpy(dtype=float)[0])
+        labels.append([float(row["H2"]), float(row["NH3"]), float(row["NO2"])])
+        ids.append(int(Path(row["file"]).stem))
+    init = np.asarray(inits, dtype=float)
+    label = np.asarray(labels, dtype=float)
+    run_id = np.asarray(ids, dtype=float)
+
+    def corr(a, b):
+        return float(np.corrcoef(a, b)[0, 1])
+
+    def residual(y, x):
+        design = np.column_stack([np.ones(len(y)), x])
+        beta = np.linalg.lstsq(design, y, rcond=None)[0]
+        return y - design @ beta
+
+    fig, axes = plt.subplots(1, 3, figsize=(14.2, 4.6))
+    fig.subplots_adjust(wspace=0.32)
+    scatter = axes[0].scatter(init[:, 1], label[:, 1], c=run_id, cmap="viridis", s=42, edgecolor="white", zorder=3)
+    axes[0].set_xlabel("t=0 时 NH3 通道响应")
+    axes[0].set_ylabel("NH3 浓度标签")
+    axes[0].set_title(f"(a) 表面强相关：r = {corr(init[:, 1], label[:, 1]):.3f}", fontsize=11, loc="left")
+    axes[0].grid(alpha=0.25)
+    fig.colorbar(scatter, ax=axes[0], fraction=0.046, pad=0.03, label="文件编号（采集顺序代理）")
+
+    axes[1].scatter(run_id, init[:, 1], c=run_id, cmap="viridis", s=42, edgecolor="white", zorder=3)
+    axes[1].set_xlabel("文件编号（采集顺序代理）")
+    axes[1].set_ylabel("t=0 时 NH3 通道响应")
+    axes[1].set_title(f"(b) 初值随实验顺序漂移：r = {corr(run_id, init[:, 1]):.3f}", fontsize=11, loc="left")
+    axes[1].grid(alpha=0.25)
+
+    ax = axes[2]
+    ax.scatter(residual(init[:, 1], run_id), residual(label[:, 1], run_id), s=42, color=C_BLUE, edgecolor="white", zorder=3)
+    ax.set_xlabel("去掉文件编号后的初值残差")
+    ax.set_ylabel("去掉文件编号后的 NH3 标签残差")
+    ax.set_title(f"(c) 控制顺序后：r = {corr(residual(init[:, 1], run_id), residual(label[:, 1], run_id)):.3f}", fontsize=11, loc="left")
+    ax.grid(alpha=0.25)
+
+    fig.suptitle("初值相关性诊断：表面很强，但主要来自实验顺序/批次漂移", fontsize=13, y=1.02)
+    save(fig, "fig3b_初值相关性诊断")
+
+
 if __name__ == "__main__":
     fig0_data()
     fig1_model()
@@ -385,4 +434,5 @@ if __name__ == "__main__":
     fig4_solution()
     fig5_results()
     fig6_next()
+    fig7_initial_correlation()
     print(f"Wrote figures to {OUT}")
