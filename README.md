@@ -161,6 +161,9 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 4. `tcn_union/train.py`：训练循环、EMA、checkpoint；
 5. `tcn_union/augmentation_train.py`：最终 5 秒/10 秒训练入口；
 6. `tcn_union/augmentation_evaluate.py`：锁定测试评估。
+7. `tcn_union/plot_augmentation.py`：测试集对比图。
+
+更完整的文件说明见 [`docs/最终模型代码结构.md`](docs/最终模型代码结构.md)。
 
 - `tcn_union/augment.py`：只保留 cutout 和在线 `CutoutDataset`；
 - `tcn_union/train.py`：通用训练核心（clean / cutout / 辅助监督 / EMA）；
