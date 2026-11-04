@@ -1,8 +1,7 @@
-"""Evaluate frozen augmented TCNs on the locked 12-run test set once.
+"""在锁定的 12 个测试实验上一次性评估冻结的增强 TCN。
 
-The test set is read only after training is frozen.  The report keeps the three
-fixed seeds separate, reports a seed-average ensemble as a secondary view, and
-compares the augmented models with the original clean checkpoints.
+训练冻结后才读取测试集。报告保留三个固定种子各自的结果，并把种子平均集成
+作为次要视图，同时将增强模型与原始 clean checkpoint 做比较。
 """
 from __future__ import annotations
 

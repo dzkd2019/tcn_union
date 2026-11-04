@@ -1,9 +1,8 @@
-"""Train and freeze augmented 5 s / 10 s TCNs on the locked development split.
+"""在固定开发集划分上训练并冻结增强后的 5 秒/10 秒 TCN。
 
-The locked 12-run test set is never read by this module.  Recipes are selected
-from the development OOF search (``tcn_union.augmentation_search``), then the
-same five-fold protocol is rerun here to pick the refit epoch count and to
-train the three fixed final seeds on all 50 development experiments.
+本模块永不读取锁定的 12 个测试实验。配方先由开发集 OOF 搜索
+（``tcn_union.augmentation_search``）选定，再在这里按同一五折协议重新运行，
+以确定重训轮数，并在全部 50 个开发实验上训练三个固定最终种子。
 """
 from __future__ import annotations
 
@@ -60,7 +59,7 @@ def cross_validate(
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Five-fold OOF for one frozen recipe."""
+    """对单个冻结配方运行五折 OOF。"""
     features = _features(dev_rows, seconds, mode)
     fold_scores: list[dict[str, Any]] = []
     oof: list[dict[str, Any]] = []
@@ -135,7 +134,7 @@ def train_final(
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
 ) -> None:
-    """Refit one seed on all development runs with online augmentation."""
+    """在全部开发实验上在线增强重训一个种子。"""
     features = _features(dev_rows, seconds, mode)
     x_dev = np.stack([features[row["file"]] for row in dev_rows])
     y_dev = np.stack([row["_labels"] for row in dev_rows]).astype(np.float32)

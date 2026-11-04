@@ -302,7 +302,7 @@ def evaluate(manifest_path: Path, model_dir: Path, output_dir: Path, device: tor
     ridge_selection: dict[str, Any] = {}
     mean_prediction = np.mean(y_dev, axis=0)
     for seconds in (5, 10):
-        # Ridge input based on only t=0 sensor responses.
+        # Ridge 输入只使用 t=0 的传感器响应。
         t0_features: dict[str, np.ndarray] = {}
         early_features: dict[str, np.ndarray] = {}
         for row in dev_rows + test_rows:

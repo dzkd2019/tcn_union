@@ -1,10 +1,8 @@
-"""Development-only search over training-time augmentation recipes.
+"""仅用于开发集的训练期增强方案搜索。
 
-This CLI is deliberately separate from the locked evaluation.  It runs the
-existing five development folds for one or more named recipes and writes OOF
-predictions plus fold-level scores.  The locked 12-run test set is never read
-here; a recipe must be chosen from these OOF results and then frozen before
-the final test evaluation is run.
+本命令行工具与锁定评估故意分离：它只在既有开发集五折上运行一个或多个具名
+配方，写出 OOF 预测和逐折分数。这里永不读取锁定的 12 个测试实验；配方必须
+先由这些 OOF 结果选定并冻结，之后才能运行最终测试评估。
 """
 from __future__ import annotations
 
@@ -31,7 +29,7 @@ AXES = ("H2", "NH3", "NO2")
 
 
 def _configs() -> dict[str, AugmentConfig]:
-    """Named recipes used in the development search."""
+    """开发集搜索使用的具名配方。"""
     return {
         "clean": AugmentConfig("clean", probability=0.0),
         "noise_0.001": AugmentConfig("noise_0.001", noise=0.001),
@@ -147,7 +145,7 @@ def run_recipe(
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Run five folds for one recipe and return (fold scores, OOF predictions)."""
+    """对单个配方运行五折，返回（逐折分数，OOF 预测）。"""
     dev_rows = [row for row in rows if row["split"] == "development"]
     features = _features(dev_rows, seconds, mode)
     fold_scores: list[dict[str, Any]] = []

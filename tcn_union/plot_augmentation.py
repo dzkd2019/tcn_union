@@ -1,4 +1,4 @@
-"""Plots for the augmented 10 s model's locked-test report."""
+"""绘制增强后 10 秒模型在锁定测试集上的报告图。"""
 from __future__ import annotations
 
 import argparse
@@ -12,11 +12,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "Noto Sans CJK SC", "Microsoft YaHei"]
+plt.rcParams["axes.unicode_minus"] = False
+
 AXES = ("H2", "NH3", "NO2")
 LABELS = {
-    "baseline_5s": "5 s clean",
-    "baseline_10s": "10 s clean",
-    "augmented_10s": "10 s cutout + 5 s aux",
+    "baseline_5s": "5 秒原始",
+    "baseline_10s": "10 秒原始",
+    "augmented_10s": "10 秒 cutout + 5 秒辅助",
 }
 COLORS = {"baseline_5s": "#9ca3af", "baseline_10s": "#f59e0b", "augmented_10s": "#2563eb"}
 
@@ -33,7 +36,7 @@ def _ensemble_rows(frame: pd.DataFrame, model: str, seconds: int) -> pd.DataFram
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plot augmented 10 s locked-test results")
+    parser = argparse.ArgumentParser(description="绘制增强后 10 秒模型的锁定测试结果")
     parser.add_argument("--results-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
@@ -56,8 +59,8 @@ def main() -> None:
     bars = ax.bar(list(LABELS.values()), values, color=[COLORS[key] for key in LABELS], width=0.6)
     for bar, value in zip(bars, values, strict=True):
         ax.text(bar.get_x() + bar.get_width() / 2, value + 0.0004, f"{value:.5f}", ha="center", va="bottom", fontsize=10)
-    ax.set_ylabel("macro-NMAE (lower is better)")
-    ax.set_title("Locked 12-run test: three-seed ensemble")
+    ax.set_ylabel("macro-NMAE（越低越好）")
+    ax.set_title("锁定 12 个测试实验：三 seed 集成")
     ax.grid(axis="y", alpha=0.25)
     ax.set_ylim(0, max(values) * 1.22)
     fig.tight_layout()
@@ -71,8 +74,8 @@ def main() -> None:
         values = [summary[key][axis]["NMAE"] for axis in AXES]
         ax.bar(x + (index - 1) * width, values, width, label=LABELS[key], color=COLORS[key])
     ax.set_xticks(x, AXES)
-    ax.set_ylabel("NMAE (lower is better)")
-    ax.set_title("Per-gas NMAE on the locked test set")
+    ax.set_ylabel("NMAE（越低越好）")
+    ax.set_title("锁定测试集逐气体 NMAE")
     ax.legend(frameon=False)
     ax.grid(axis="y", alpha=0.25)
     fig.tight_layout()
@@ -88,15 +91,15 @@ def main() -> None:
         low = min(truth.min(), pred.min())
         high = max(truth.max(), pred.max())
         ax.plot([low, high], [low, high], "--", color="#6b7280", linewidth=1)
-        ax.set_xlabel(f"true {axis}")
-        ax.set_ylabel(f"predicted {axis}")
+        ax.set_xlabel(f"真实 {axis}")
+        ax.set_ylabel(f"预测 {axis}")
         ax.set_title(f"{axis}: NMAE={summary['augmented_10s'][axis]['NMAE']:.4f}")
         ax.grid(alpha=0.25)
-    fig.suptitle("10 s cutout + 5 s auxiliary supervision, three-seed ensemble")
+    fig.suptitle("10 秒 cutout + 5 秒辅助监督，三 seed 集成")
     fig.tight_layout()
     fig.savefig(args.output_dir / "test_predictions_augmented_10s.png", dpi=160)
     plt.close(fig)
-    print(f"Wrote figures to {args.output_dir}")
+    print(f"已写出图像到 {args.output_dir}")
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ def set_seed(seed: int) -> None:
     以便交叉验证和最终多种子实验可复现。
     """
     random.seed(seed)
-    np.random.seed(seed)  # noqa: NPY002 - reset the legacy global NumPy RNG as part of the fixed seed protocol
+    np.random.seed(seed)  # noqa: NPY002 - 按固定种子协议重置 NumPy 全局随机数生成器
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)

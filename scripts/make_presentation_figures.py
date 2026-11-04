@@ -1,4 +1,4 @@
-"""Generate Chinese-labeled figures for the group-meeting presentation."""
+"""生成组会汇报使用的中文标注图。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -140,7 +140,7 @@ def fig1_model():
     arrow(ax, (0.84, 0.64), (0.87, 0.64))
     ax.text(0.5, 0.40, "每个卷积只在左侧补零：$t$ 时刻只能看到 $0,\\dots,t$", ha="center", fontsize=9, color="#555")
     ax.text(0.5, 0.30, "感受野 57 个采样点，覆盖完整 10 秒输入", ha="center", fontsize=9, color="#555")
-    # causality timeline
+    # 因果关系时间轴
     ax.plot([0.08, 0.92], [0.16, 0.16], color="#9ca3af", lw=2)
     ax.plot([0.08], [0.16], "o", color=C_BLUE, ms=7)
     ax.plot([0.92], [0.16], "o", color=C_RED, ms=7)
@@ -161,12 +161,12 @@ def fig2_training():
     ax.axis("off")
     ax.set_title("训练方法：五折选轮数，三个种子重训，测试集最后才看", fontsize=13, pad=12)
 
-    # 62 experiments and split
+    # 62 次实验与数据划分
     box(ax, 0.40, 0.84, 0.20, 0.10, "62 次实验", fc="#f3f4f6", ec="#6b7280", fs=11, weight="bold")
     box(ax, 0.02, 0.57, 0.13, 0.12, "50 次\n开发集", fc="#dbeafe", ec="#2563eb", fs=10, weight="bold")
     arrow(ax, (0.44, 0.84), (0.09, 0.69))
 
-    # development lane
+    # 开发集分支
     box(ax, 0.18, 0.57, 0.14, 0.12, "五折交叉\n验证", fs=9.0)
     box(ax, 0.35, 0.57, 0.13, 0.12, "取 5 折\nepoch 中位数", fs=8.6)
     box(ax, 0.51, 0.57, 0.13, 0.12, "50 个开发\n实验重训", fs=8.6)
@@ -177,7 +177,7 @@ def fig2_training():
     ax.text(0.25, 0.53, "每折 40 训练 / 10 验证\n验证集早停，记录最佳 epoch", ha="center", fontsize=7.8, color="#555")
     ax.text(0.575, 0.53, "固定轮数，不用测试集早停", ha="center", fontsize=7.8, color="#555")
 
-    # test lane
+    # 测试集分支
     box(ax, 0.70, 0.25, 0.13, 0.12, "12 次\n锁定测试", fc="#fef3c7", ec="#d97706", fs=9.5, weight="bold")
     box(ax, 0.86, 0.25, 0.12, 0.12, "最终评估\n只看一次", fc="#fff7ed", ec="#fb923c", fs=8.6)
     arrow(ax, (0.83, 0.31), (0.86, 0.31), color="#d97706", ls="--")

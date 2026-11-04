@@ -89,11 +89,10 @@ class GasTCN(nn.Module):
     def forward_positions(
         self, x: torch.Tensor, positions: tuple[int, ...]
     ) -> list[torch.Tensor]:
-        """Decode the same hidden sequence at several past positions.
+        """在同一隐藏序列的多个过去位置解码。
 
-        The causal convolution means every requested position only sees its own
-        past samples.  This is used for multi-horizon supervision during
-        training; inference still reads the final position.
+        因果卷积保证每个请求位置只看到自己的过去采样。该接口用于训练时的
+        多时间尺度监督；推理仍然只读取最后一个位置。
         """
         if x.ndim != 3 or x.shape[1] != self.in_channels:
             raise ValueError(f"expected [batch,{self.in_channels},time] input")

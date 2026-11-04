@@ -1,4 +1,4 @@
-# Python-generated files
+# Python 生成文件
 __pycache__/
 *.py[oc]
 build/
@@ -6,13 +6,13 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# 虚拟环境
 .venv
 
 .ruff_cache/
 data/
 
-# Exploratory augmentation runs (final frozen artifacts are kept)
+# 探索性增强运行产物（保留最终冻结产物）
 artifacts/aug_search/
 artifacts/diagnostics/
 artifacts/augmentation_aux*/

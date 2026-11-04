@@ -1,13 +1,11 @@
-"""Training-only augmentation for raw gas-sensor response prefixes.
+"""训练阶段专用的原始气体传感器响应前缀增强。
 
-The augmentation is deliberately applied in the raw response domain before
-``make_features``.  This keeps the derived ``raw_delta`` channels physically
-consistent with the perturbed raw channels and never touches labels unless an
-explicit mixup view is requested.
+增强故意作用在原始响应域，并在 ``make_features`` 之前完成，使派生出的
+``raw_delta`` 通道与扰动后的原始通道保持物理一致；除非显式启用 mixup 视图，
+否则不改变标签。
 
-Nothing in this module is used for validation, test, or inference.  A view is
-generated online once per training run per epoch, so the number of optimizer
-updates does not change when augmentation is enabled.
+本模块不用于验证、测试或推理。每个训练实验在每个 epoch 只在线生成一个视图，
+因此启用增强不会改变优化器的更新次数。
 """
 from __future__ import annotations
 
@@ -27,13 +25,11 @@ CHANNELS = ("H2", "NH3", "NO2")
 
 @dataclass(frozen=True)
 class AugmentConfig:
-    """One named augmentation recipe.
+    """一个具名的增强配方。
 
-    Parameters are intentionally expressed as interpretable fractions:
-    ``noise`` is a fraction of the median absolute initial response, ``gain``
-    and ``transient`` are relative standard deviations, ``offset`` is a
-    fraction of the initial response, and ``warp`` is the maximum log-time
-    distortion.
+    参数刻意用可解释的比例表示：``noise`` 是初始响应绝对值中位数的比例，
+    ``gain`` 和 ``transient`` 是相对标准差，``offset`` 是初始响应的比例，
+    ``warp`` 是最大对数时间扭曲。
     """
 
     name: str
@@ -148,7 +144,7 @@ class AugmentConfig:
 
 
 def prepend_constant_hold(responses: np.ndarray, cut: int) -> np.ndarray:
-    """Return a copy whose suffix after ``cut`` is held at the last real value."""
+    """返回副本：``cut`` 之后的响应保持为最后一个真实采样值。"""
     if responses.ndim != 2 or responses.shape[1] != 3:
         raise ValueError("responses must have shape [time, 3]")
     if not 1 <= cut < responses.shape[0]:
@@ -159,7 +155,7 @@ def prepend_constant_hold(responses: np.ndarray, cut: int) -> np.ndarray:
 
 
 def _interp_channels(time: np.ndarray, responses: np.ndarray, source_time: np.ndarray) -> np.ndarray:
-    """Linearly interpolate all three response channels at ``source_time``."""
+    """在 ``source_time`` 处对三路响应通道做线性插值。"""
     result = np.empty_like(responses, dtype=np.float64)
     for channel in range(responses.shape[1]):
         result[:, channel] = np.interp(source_time, time, responses[:, channel])
@@ -169,11 +165,10 @@ def _interp_channels(time: np.ndarray, responses: np.ndarray, source_time: np.nd
 def warp_time(
     time: np.ndarray, responses: np.ndarray, log_warp: float
 ) -> np.ndarray:
-    """Warp the time axis inside the observed prefix without reading the future.
+    """在已观测前缀内扭曲时间轴，不读取未来数据。
 
-    ``t_source = T * (t/T) ** exp(log_warp)`` stays in ``[0, T]`` for every
-    positive distortion, so a warped view never accesses data after the
-    requested endpoint.
+    对任意正扭曲，``t_source = T * (t/T) ** exp(log_warp)`` 始终落在
+    ``[0, T]`` 内，因此扭曲视图不会访问目标终点之后的数据。
     """
     time = np.asarray(time, dtype=np.float64)
     responses = np.asarray(responses, dtype=np.float64)
@@ -194,7 +189,7 @@ def warp_time(
 def cutout(
     responses: np.ndarray, start: int, length: int
 ) -> np.ndarray:
-    """Replace one interior segment by a linear bridge between its boundaries."""
+    """用区间两端的线性桥替换内部一段响应。"""
     if responses.ndim != 2 or responses.shape[1] != 3:
         raise ValueError("responses must have shape [time, 3]")
     if start < 1 or length < 1 or start + length >= responses.shape[0]:
@@ -209,7 +204,7 @@ def cutout(
 
 @dataclass(frozen=True)
 class AugmentContext:
-    """Fold-local raw data and settings needed by the online dataset."""
+    """在线数据集所需的折内原始数据与设置。"""
 
     rows: Sequence[dict[str, Any]]
     seconds: float
@@ -234,7 +229,7 @@ class AugmentContext:
 
 
 def estimate_initial_scale(rows: Sequence[dict[str, Any]], seconds: float) -> np.ndarray:
-    """Median absolute initial response per channel for the current training set."""
+    """当前训练集逐通道初始响应绝对值的中位数。"""
     values = []
     for row in rows:
         time = np.asarray(row["_time"], dtype=np.float64)
@@ -254,7 +249,7 @@ def _apply_recipe(
     context: AugmentContext,
     rng: np.random.Generator,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Apply one stochastic view to a raw prefix and return (features, label)."""
+    """对一条原始前缀施加一次随机视图，返回（特征，标签）。"""
     cfg = context.config
     responses = np.asarray(responses, dtype=np.float64).copy()
     time = np.asarray(time, dtype=np.float64)
@@ -320,7 +315,7 @@ def _apply_recipe(
 
 
 class AugmentedDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
-    """Online raw-prefix augmentation dataset for one fold and one epoch."""
+    """单折、单 epoch 使用的在线原始前缀增强数据集。"""
 
     def __init__(self, context: AugmentContext) -> None:
         self.context = context
@@ -399,7 +394,7 @@ def make_context(
     config: AugmentConfig,
     base_seed: int,
 ) -> AugmentContext:
-    """Build a context with a training-set-only initial-response scale."""
+    """用仅来自训练集的初始响应尺度构建上下文。"""
     return AugmentContext(
         rows=rows,
         seconds=seconds,
