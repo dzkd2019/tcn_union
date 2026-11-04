@@ -1,8 +1,10 @@
-"""在固定开发集划分上训练并冻结增强后的 5 秒/10 秒 TCN。
+"""最终 10 秒模型的训练入口。
 
-本模块永不读取锁定的 12 个测试实验。配方先由开发集 OOF 搜索
-（``tcn_union.augmentation_search``）选定，再在这里按同一五折协议重新运行，
-以确定重训轮数，并在全部 50 个开发实验上训练三个固定最终种子。
+最终方案只有两个窗口：
+- 5 秒 clean：不增强、不辅助监督、不使用 EMA；
+- 10 秒最终模型：cutout + 5 秒辅助监督 + EMA 0.99。
+
+测试集只在方案冻结后评估；本模块不读取测试集。
 """
 from __future__ import annotations
 
@@ -16,8 +18,12 @@ from typing import Any
 import numpy as np
 import torch
 
-from .augment import AugmentConfig, make_context
-from .augmentation_search import _configs, _global_summary, _summary
+from .augment import (
+    CUTOUT_MAX_SECONDS,
+    CUTOUT_PROBABILITY,
+    CutoutConfig,
+    make_cutout_context,
+)
 from .train import (
     BASE_SEED,
     MAX_EPOCHS,
@@ -30,49 +36,74 @@ from .train import (
 )
 
 AXES = ("H2", "NH3", "NO2")
+MODE = "raw_delta"
+CUTOUT = CutoutConfig(probability=CUTOUT_PROBABILITY, max_seconds=CUTOUT_MAX_SECONDS)
+AUX_POSITIONS = (25,)
+AUX_WEIGHT = 0.5
+EMA_DECAY = 0.99
 
 
-def _is_clean(config: AugmentConfig) -> bool:
-    return config.probability == 0.0 and not config.prefix_lengths and all(
-        getattr(config, key) == 0.0
-        for key in (
-            "noise",
-            "gain",
-            "offset",
-            "warp",
-            "transient",
-            "mixup_alpha",
-            "mixup_probability",
-            "prefix_probability",
-            "cutout_probability",
-        )
-    )
+def summary(fold_scores: list[dict[str, Any]]) -> dict[str, Any]:
+    """把逐折分数汇总成 macro 均值。"""
+    return {
+        "macro_nmae": float(np.mean([row["macro_nmae"] for row in fold_scores])),
+        "by_gas_nmae": {
+            gas: float(np.mean([row[f"{gas}_nmae"] for row in fold_scores]))
+            for gas in AXES
+        },
+        "by_gas_mape_percent": {
+            gas: float(np.mean([row[f"{gas}_mape"] for row in fold_scores]))
+            for gas in AXES
+        },
+        "best_epochs": [int(row["best_epoch"]) for row in fold_scores],
+    }
+
+
+def global_summary(oof: list[dict[str, Any]], dev_ranges: np.ndarray) -> dict[str, Any]:
+    """汇总全部 OOF 预测的逐气体误差。"""
+    truth = np.array([[row[f"{gas}_true"] for gas in AXES] for row in oof])
+    pred = np.array([[row[f"{gas}_pred"] for gas in AXES] for row in oof])
+    errors = np.abs(pred - truth)
+    mae = errors.mean(axis=0)
+    nmae = mae / dev_ranges
+    mape = 100.0 * (errors / np.maximum(np.abs(truth), 1e-8)).mean(axis=0)
+    return {
+        "n": len(oof),
+        "by_gas_mae": dict(zip(AXES, mae.tolist(), strict=True)),
+        "by_gas_nmae": dict(zip(AXES, nmae.tolist(), strict=True)),
+        "by_gas_mape_percent": dict(zip(AXES, mape.tolist(), strict=True)),
+        "macro_nmae": float(nmae.mean()),
+        "macro_mape_percent": float(mape.mean()),
+    }
 
 
 def cross_validate(
     dev_rows: list[dict[str, Any]],
     seconds: float,
-    mode: str,
-    config: AugmentConfig,
     seed: int,
     device: torch.device,
+    *,
+    cutout: bool,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
     ema_decay: float | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """对单个冻结配方运行五折 OOF。"""
-    features = _features(dev_rows, seconds, mode)
+    """对一个窗口跑五折 OOF，返回逐折分数和 OOF 预测。"""
+    features = _features(dev_rows, seconds, MODE)
     fold_scores: list[dict[str, Any]] = []
     oof: list[dict[str, Any]] = []
     for fold in range(5):
         train_rows = [row for row in dev_rows if int(row["fold"]) != fold]
-        validation_rows = [row for row in dev_rows if int(row["fold"]) == fold]
+        val_rows = [row for row in dev_rows if int(row["fold"]) == fold]
         x_train = np.stack([features[row["file"]] for row in train_rows])
         y_train = np.stack([row["_labels"] for row in train_rows]).astype(np.float32)
-        x_val = np.stack([features[row["file"]] for row in validation_rows])
-        y_val = np.stack([row["_labels"] for row in validation_rows]).astype(np.float32)
-        context = None if _is_clean(config) else make_context(
-            train_rows, seconds, mode, config, seed
+        x_val = np.stack([features[row["file"]] for row in val_rows])
+        y_val = np.stack([row["_labels"] for row in val_rows]).astype(np.float32)
+
+        context = (
+            make_cutout_context(train_rows, seconds, MODE, CUTOUT, seed)
+            if cutout
+            else None
         )
         _, _, best_epoch, best_score, prediction = _train_network(
             x_train,
@@ -84,13 +115,14 @@ def cross_validate(
             seed,
             device,
             True,
-            augment=context,
+            cutout=context,
             aux_positions=aux_positions,
             aux_weight=aux_weight,
             ema_decay=ema_decay,
         )
         if prediction is None or best_score is None:
-            raise RuntimeError("missing validation prediction")
+            raise RuntimeError("五折训练没有产生验证预测")
+
         _, axis_scores = _macro_nmae(y_val, prediction, y_train)
         mape = 100.0 * np.mean(
             np.abs(prediction - y_val) / np.maximum(np.abs(y_val), 1e-8), axis=0
@@ -108,7 +140,7 @@ def cross_validate(
                 "best_epoch": best_epoch,
             }
         )
-        for row, truth, pred in zip(validation_rows, y_val, prediction, strict=True):
+        for row, truth, pred in zip(val_rows, y_val, prediction, strict=True):
             oof.append(
                 {
                     "file": row["file"],
@@ -127,22 +159,24 @@ def cross_validate(
 def train_final(
     dev_rows: list[dict[str, Any]],
     seconds: float,
-    mode: str,
-    config: AugmentConfig,
     epochs: int,
     seed: int,
     device: torch.device,
     output_path: Path,
+    *,
+    cutout: bool,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
     ema_decay: float | None = None,
 ) -> None:
-    """在全部开发实验上在线增强重训一个种子。"""
-    features = _features(dev_rows, seconds, mode)
+    """在全部开发实验上重训一个种子并保存 checkpoint。"""
+    features = _features(dev_rows, seconds, MODE)
     x_dev = np.stack([features[row["file"]] for row in dev_rows])
     y_dev = np.stack([row["_labels"] for row in dev_rows]).astype(np.float32)
-    context = None if _is_clean(config) else make_context(
-        dev_rows, seconds, mode, config, seed
+    context = (
+        make_cutout_context(dev_rows, seconds, MODE, CUTOUT, seed)
+        if cutout
+        else None
     )
     model, stats, _, _, _ = _train_network(
         x_dev,
@@ -154,15 +188,17 @@ def train_final(
         seed,
         device,
         False,
-        augment=context,
+        cutout=context,
         aux_positions=aux_positions,
         aux_weight=aux_weight,
         ema_decay=ema_decay,
     )
     metadata = None
-    if not _is_clean(config) or aux_positions:
+    if cutout or aux_positions:
         metadata = {
-            "recipe": config.to_dict(),
+            "recipe": "cutout",
+            "cutout_probability": CUTOUT.probability,
+            "cutout_max_seconds": CUTOUT.max_seconds,
             "aux_positions": list(aux_positions),
             "aux_weight": aux_weight,
             "ema_decay": ema_decay,
@@ -171,7 +207,7 @@ def train_final(
         output_path,
         model,
         stats,
-        mode,
+        MODE,
         seconds,
         dev_rows,
         seed,
@@ -182,19 +218,12 @@ def train_final(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train frozen augmented TCN models")
+    parser = argparse.ArgumentParser(description="训练最终 5 秒/10 秒 TCN")
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--mode", default="raw_delta")
     parser.add_argument("--seed", type=int, default=BASE_SEED)
-    parser.add_argument("--config-5s", default="clean")
-    parser.add_argument("--config-10s", default="clean")
-    parser.add_argument("--aux-positions-5s", type=int, nargs="*", default=[])
-    parser.add_argument("--aux-weight-5s", type=float, default=0.5)
-    parser.add_argument("--aux-positions-10s", type=int, nargs="*", default=[])
-    parser.add_argument("--aux-weight-10s", type=float, default=0.5)
-    parser.add_argument("--recipes-json", type=Path, default=None)
+    parser.add_argument("--oof-only", action="store_true", help="只跑五折 OOF，不重训最终模型")
     args = parser.parse_args()
 
     if args.device == "cpu":
@@ -205,97 +234,70 @@ def main() -> None:
     dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    recipes = _configs()
-    if args.recipes_json is not None:
-        payload = json.loads(args.recipes_json.read_text(encoding="utf-8"))
-        for name, config in payload.items():
-            recipes[name] = AugmentConfig.from_dict(config)
-    chosen = {
-        "5s": (
-            recipes[args.config_5s],
-            tuple(args.aux_positions_5s),
-            args.aux_weight_5s,
-            args.ema_decay_5s,
-        ),
-        "10s": (
-            recipes[args.config_10s],
-            tuple(args.aux_positions_10s),
-            args.aux_weight_10s,
-            args.ema_decay_10s,
-        ),
-    }
-
-    output: dict[str, Any] = {
-        "protocol": "five-fold development OOF; final refit on 50 development runs; test not read",
+    # 5 秒只用 clean；10 秒使用 cutout + 5 秒辅助 + EMA。
+    windows = (
+        ("5s", 5.0, False, (), None),
+        ("10s", 10.0, True, AUX_POSITIONS, EMA_DECAY),
+    )
+    selection: dict[str, Any] = {
+        "protocol": "固定开发集五折 OOF；最终在 50 个开发实验上重训；测试集不参与训练",
         "base_seed": args.seed,
         "final_seeds": SEEDS,
-        "mode": args.mode,
+        "mode": MODE,
         "selected": {},
     }
-    for key, (config, aux_positions, aux_weight, ema_decay) in chosen.items():
-        seconds = float(key[:-1])
-        print(f"[train] {key} recipe={config.name}", flush=True)
+    for key, seconds, use_cutout, aux_positions, ema_decay in windows:
+        print(f"[train] {key}", flush=True)
         fold_scores, oof = cross_validate(
             dev_rows,
             seconds,
-            args.mode,
-            config,
             args.seed,
             device,
+            cutout=use_cutout,
             aux_positions=aux_positions,
-            aux_weight=aux_weight,
             ema_decay=ema_decay,
         )
         oof_dir = args.output_dir / "oof"
         oof_dir.mkdir(parents=True, exist_ok=True)
-        oof_path = oof_dir / f"{seconds:g}s_{args.mode}.csv"
+        oof_path = oof_dir / f"{seconds:g}s_{MODE}.csv"
         with oof_path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(oof[0]))
             writer.writeheader()
             writer.writerows(oof)
-        selected_epochs = math.ceil(
-            float(np.median([score["best_epoch"] for score in fold_scores]))
-        )
-        print(
-            f"  OOF macro-NMAE={_summary(fold_scores)['macro_nmae']:.6f} "
-            f"epochs={selected_epochs}",
-            flush=True,
-        )
-        for seed in SEEDS:
-            output_path = args.output_dir / key / f"seed_{seed}.pt"
-            train_final(
-                dev_rows,
-                seconds,
-                args.mode,
-                config,
-                selected_epochs,
-                seed,
-                device,
-                output_path,
-                aux_positions=aux_positions,
-                aux_weight=aux_weight,
-                ema_decay=ema_decay,
-            )
-            print(f"  saved {output_path}", flush=True)
-        output["selected"][key] = {
+
+        epochs = math.ceil(float(np.median([row["best_epoch"] for row in fold_scores])))
+        print(f"  OOF macro-NMAE={summary(fold_scores)['macro_nmae']:.6f} epochs={epochs}", flush=True)
+        if not args.oof_only:
+            for seed in SEEDS:
+                path = args.output_dir / key / f"seed_{seed}.pt"
+                train_final(
+                    dev_rows,
+                    seconds,
+                    epochs,
+                    seed,
+                    device,
+                    path,
+                    cutout=use_cutout,
+                    aux_positions=aux_positions,
+                    aux_weight=AUX_WEIGHT,
+                    ema_decay=ema_decay,
+                )
+                print(f"  saved {path}", flush=True)
+
+        selection["selected"][key] = {
             "seconds": seconds,
-            "mode": args.mode,
-            "recipe": config.to_dict(),
+            "cutout": use_cutout,
             "aux_positions": list(aux_positions),
-            "aux_weight": aux_weight,
+            "aux_weight": AUX_WEIGHT if aux_positions else None,
             "ema_decay": ema_decay,
-            "selected_epochs": selected_epochs,
+            "selected_epochs": epochs,
             "fold_scores": fold_scores,
-            "fold_summary": _summary(fold_scores),
-            "global_oof": _global_summary(oof, dev_ranges),
+            "fold_summary": summary(fold_scores),
+            "global_oof": global_summary(oof, dev_ranges),
             "oof_file": str(oof_path),
-            "checkpoints": {
-                str(seed): str(args.output_dir / key / f"seed_{seed}.pt")
-                for seed in SEEDS
-            },
         }
         (args.output_dir / "selection.json").write_text(
-            json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            json.dumps(selection, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
     print(f"Wrote {args.output_dir / 'selection.json'}", flush=True)
 

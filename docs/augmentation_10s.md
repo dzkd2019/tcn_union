@@ -1,5 +1,7 @@
 # 10 秒响应加速的数据增强与多前缀监督
 
+> 说明：本文件保留历史消融记录；最终代码已收窄为 cutout + 5 秒辅助监督 + EMA，其他增强算子（噪声、增益、偏移、mixup、时间缩放、前缀长度）已从实现中删除，仅作为失败经验保留。
+
 本分支（`feature/augmentation-10s`）只使用现有 62 次实验和锁定划分：50 次开发实验做五折选择与最终重训，12 次测试实验在最终方案冻结后评估。原始 CSV、`artifacts/splits/manifest.csv`、测试 ID 均未改动。
 
 ## 1. 结论
@@ -158,15 +160,12 @@ uv run python -m tcn_union.augmentation_search \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/aug_search/final_10s \
   --seconds 10 --recipes cutout_1.0_2s --seed 20260923 \
-  --aux-positions 25 --aux-weight 0.5
+  --aux-positions 25 --aux-weight 0.5 --ema-decay 0.99
 
 # 2) 全开发集重训：5 秒 clean + 10 秒最终方案，三个固定种子
 uv run python -m tcn_union.augmentation_train \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/augmentation_final \
-  --config-5s clean \
-  --config-10s cutout_1.0_2s \
-  --aux-positions-10s 25 --aux-weight-10s 0.5
+  --output-dir artifacts/augmentation_final
 
 # 3) 冻结后评估锁定测试集（同时报告单种子和三 seed 集成）
 uv run python -m tcn_union.augmentation_evaluate \

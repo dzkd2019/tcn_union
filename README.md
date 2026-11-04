@@ -151,17 +151,25 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 主种子测试集没有负浓度预测，但有少数预测超出当前已测浓度范围；这些值未被裁剪，不代表模型已验证外推能力。当前记录末端未验证为稳态，因此 5 秒、10 秒相对于 59.6 秒记录窗口缩短约 91.6%、83.2%，不能称为相对稳态响应的加速倍数。
 
-## 10 秒增强方案（新分支）
+## 最终 10 秒模型
 
-新分支 `feature/augmentation-10s` 在旧流程之外新增：
+最终模型只保留一条训练路径，探索期的 40 多种增强配方已删除。阅读顺序：
 
-- `tcn_union/augment.py`：原始响应域的 cutout、时间缩放、幅值扰动、mixup、前缀长度增强，以及在线增强数据集；
-- `tcn_union/augmentation_search.py`：只使用开发集五折 OOF 的增强方案搜索；
-- `tcn_union/augmentation_train.py`：按 OOF 选定方案做全开发集重训，支持 5 秒/10 秒的辅助监督位置；
-- `tcn_union/augmentation_evaluate.py`：冻结后在锁定 12 个测试实验上评估，报告单种子和三 seed 集成；
-- `tcn_union/plot_augmentation.py`：生成测试集对比图。
+1. `tcn_union/data.py`：CSV 校验、读取、`raw_delta` 特征；
+2. `tcn_union/model.py`：因果 TCN；
+3. `tcn_union/augment.py`：cutout；
+4. `tcn_union/train.py`：训练循环、EMA、checkpoint；
+5. `tcn_union/augmentation_train.py`：最终 5 秒/10 秒训练入口；
+6. `tcn_union/augmentation_evaluate.py`：锁定测试评估。
 
-最终 recipe 为 `cutout_1.0_2s`（每条 10 秒训练响应随机挖去最多 2 秒并用两端线性桥替换）+ 5 秒辅助监督（10 秒隐藏序列在第 25 个采样点再解码一次，损失权重 0.5）。增强只作用于训练折；验证、测试和推理保持原始输入。最终 10 秒重训轮数为 193，5 秒 clean 为 231，三个固定种子为 `20260923/20260924/20260925`。
+- `tcn_union/augment.py`：只保留 cutout 和在线 `CutoutDataset`；
+- `tcn_union/train.py`：通用训练核心（clean / cutout / 辅助监督 / EMA）；
+- `tcn_union/augmentation_search.py`：最终 10 秒模型的五折 OOF；
+- `tcn_union/augmentation_train.py`：5 秒 clean + 10 秒最终模型，三 seed 重训；
+- `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
+- `tcn_union/plot_augmentation.py`：测试集对比图。
+
+最终 10 秒方案：cutout 最多 2 秒 + 5 秒辅助监督（位置 25、权重 0.5）+ EMA 0.99 + 三 seed 集成。5 秒 clean 保持不变。最终 10 秒重训 255 epoch，5 秒 clean 231 epoch。
 
 开发集 OOF 与锁定测试集的关键结果：
 
@@ -169,9 +177,9 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 |---|---:|---:|---:|
 | 5 秒 clean | 0.027605 | 0.020487 | 4.0176 |
 | 10 秒 clean（旧） | 0.027097 | 0.024807 | 4.6476 |
-| **10 秒 cutout + 5 秒辅助** | **0.024592** | **0.018321** | **3.3882** |
+| **10 秒最终模型（EMA 0.99）** | **0.024718（seed 23）** | **0.016692** | **3.2587** |
 
-测试集逐气体 NMAE：H2 `0.02074`、NH3 `0.00829`、NO2 `0.02593`，均低于 5 秒 clean 的 `0.02261 / 0.01153 / 0.02733`。以实验为单位的配对 bootstrap：新 10 秒 − 旧 10 秒 = `−0.006485`，95% 区间 `[−0.011753, −0.000428]`；新 10 秒 − 5 秒 = `−0.002166`，区间 `[−0.008419, +0.002700]`。因此“新 10 秒优于旧 10 秒”有区间支持；“新 10 秒优于 5 秒”在点估计和三个气体上成立，但 12 次测试实验下尚未达到显著。
+测试集逐气体 NMAE：H2 `0.01709`、NH3 `0.00785`、NO2 `0.02514`，均低于 5 秒 clean 的 `0.02261 / 0.01153 / 0.02733`。以实验为单位的配对 bootstrap：最终 10 秒 − 旧 10 秒 = `−0.008115`，95% 区间 `[−0.014090, −0.002288]`；最终 10 秒 − 5 秒 = `−0.003796`，区间 `[−0.008327, +0.000412]`。因此“优于旧 10 秒”有区间支持；“优于 5 秒”在点估计和三个气体上成立，但 12 次测试实验下尚未达到显著。
 
 ## 复现命令
 
@@ -200,25 +208,22 @@ uv run python -m unittest discover -s tests -v
 10 秒增强方案的复现命令：
 
 ```bash
-# 五折 OOF：cutout 2s + 5 秒辅助监督 0.5
+# 最终 10 秒模型的五折 OOF（EMA 0.99）
 uv run python -m tcn_union.augmentation_search \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/aug_search/final_10s \
-  --seconds 10 --recipes cutout_1.0_2s --seed 20260923 \
-  --aux-positions 25 --aux-weight 0.5
+  --output-dir artifacts/improvement/ema099_seed23 \
+  --seconds 10 --seed 20260923 --ema-decay 0.99
 
-# 全开发集重训：5 秒 clean + 10 秒最终方案，三个固定种子
+# 5 秒 clean + 10 秒最终模型，三个固定种子重训
 uv run python -m tcn_union.augmentation_train \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/augmentation_final \
-  --config-5s clean --config-10s cutout_1.0_2s \
-  --aux-positions-10s 25 --aux-weight-10s 0.5
+  --output-dir artifacts/improvement/final_ema
 
 # 冻结后评估锁定测试集并绘图
 uv run python -m tcn_union.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn --model-dir artifacts/augmentation_final \
-  --output-dir artifacts/evaluation_final
+  --baseline-dir artifacts/tcn --model-dir artifacts/improvement/final_ema \
+  --output-dir artifacts/improvement/evaluation_ema
 uv run python -m tcn_union.plot_augmentation \
   --results-dir artifacts/evaluation_final \
   --output-dir artifacts/evaluation_final/figures
@@ -233,9 +238,9 @@ uv run python -m tcn_union.plot_augmentation \
 - `artifacts/tcn/5s/`、`artifacts/tcn/10s/`：三个种子的最终 checkpoint。
 - `artifacts/evaluation/test_metrics.csv`、`test_predictions.csv`、`evaluation.json`：测试逐气体指标、逐文件预测/误差、基线与 bootstrap 结果。
 - `artifacts/evaluation/figures/`：散点图、逐气体 NMAE/MAPE 对比图（例如 `test_mape_by_gas.png`）和残差热图。
-- `artifacts/augmentation_final/`：10 秒增强方案的最终三个种子 checkpoints、`selection.json` 和 OOF 预测。
-- `artifacts/evaluation_final/`：冻结后锁定测试的逐种子/集成指标、预测、bootstrap 与 `figures/`。
-- `artifacts/augmentation_search/summary.csv`：开发集增强方案搜索的紧凑汇总。
+- `artifacts/improvement/final_ema/`：最终 EMA 方案的三 seed checkpoints、`selection.json` 和 OOF 预测。
+- `artifacts/improvement/evaluation_ema/`：冻结后锁定测试的逐种子/集成指标与预测。
+- `artifacts/augmentation_search/summary.csv`：探索期的历史搜索汇总，仅作记录。
 
 ## 限制与适用范围
 

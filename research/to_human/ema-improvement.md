@@ -61,7 +61,7 @@ ema = ema_decay * ema + (1 - ema_decay) * 当前权重
 CLI 支持：
 
 - `augmentation_search.py --ema-decay 0.99`
-- `augmentation_train.py --ema-decay-5s ... --ema-decay-10s 0.99`
+- `augmentation_train.py` 默认 10 秒使用 EMA 0.99
 
 ## 4. 结果
 
@@ -136,10 +136,7 @@ uv run python -m tcn_union.augmentation_search \
 # 全开发集重训：5 秒 clean + 10 秒 EMA
 uv run python -m tcn_union.augmentation_train \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/improvement/final_ema_cli \
-  --config-5s clean --config-10s cutout_1.0_2s \
-  --aux-positions-10s 25 --aux-weight-10s 0.5 \
-  --ema-decay-10s 0.99
+  --output-dir artifacts/improvement/final_ema
 
 # 冻结后测试
 uv run python -m tcn_union.augmentation_evaluate \

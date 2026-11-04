@@ -1,17 +1,12 @@
-"""训练阶段专用的原始气体传感器响应前缀增强。
+"""训练阶段专用的原始响应 cutout 增强。
 
-增强故意作用在原始响应域，并在 ``make_features`` 之前完成，使派生出的
-``raw_delta`` 通道与扰动后的原始通道保持物理一致；除非显式启用 mixup 视图，
-否则不改变标签。
-
-本模块不用于验证、测试或推理。每个训练实验在每个 epoch 只在线生成一个视图，
-因此启用增强不会改变优化器的更新次数。
+最终模型只使用一种增强：在 10 秒响应内部随机挖掉一小段，用区间两端的
+线性桥替换。增强只作用于训练折；验证、测试和推理始终使用原始曲线。
 """
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -20,180 +15,53 @@ from torch.utils.data import Dataset
 
 from .data import TIME_STEP_SECONDS, make_features
 
-CHANNELS = ("H2", "NH3", "NO2")
+# 最终模型使用的 cutout 参数：每次训练都挖掉最多 2 秒。
+CUTOUT_PROBABILITY = 1.0
+CUTOUT_MAX_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
-class AugmentConfig:
-    """一个具名的增强配方。
+class CutoutConfig:
+    """cutout 的两个参数，默认值就是最终模型使用的值。"""
 
-    参数刻意用可解释的比例表示：``noise`` 是初始响应绝对值中位数的比例，
-    ``gain`` 和 ``transient`` 是相对标准差，``offset`` 是初始响应的比例，
-    ``warp`` 是最大对数时间扭曲。
-    """
-
-    name: str
-    probability: float = 1.0
-    noise: float = 0.0
-    gain: float = 0.0
-    offset: float = 0.0
-    warp: float = 0.0
-    transient: float = 0.0
-    transient_weights: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    mixup_alpha: float = 0.0
-    mixup_probability: float = 0.0
-    prefix_probability: float = 0.0
-    prefix_min_seconds: float = 5.0
-    cutout_probability: float = 0.0
-    cutout_max_seconds: float = 2.0
-    prefix_lengths: tuple[float, ...] = ()
-    clip_z: float = 3.0
-    extra: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
+    probability: float = CUTOUT_PROBABILITY
+    max_seconds: float = CUTOUT_MAX_SECONDS
 
     def __post_init__(self) -> None:
-        if not self.name:
-            raise ValueError("augmentation name must not be empty")
-        for field_name in (
-            "probability",
-            "noise",
-            "gain",
-            "offset",
-            "warp",
-            "transient",
-            "mixup_alpha",
-            "mixup_probability",
-            "prefix_probability",
-            "cutout_probability",
-            "cutout_max_seconds",
-            "clip_z",
-        ):
-            value = float(getattr(self, field_name))
-            if not math.isfinite(value) or value < 0.0:
-                raise ValueError(f"{field_name} must be finite and non-negative")
         if not 0.0 <= self.probability <= 1.0:
-            raise ValueError("probability must be in [0, 1]")
-        if not 0.0 <= self.mixup_probability <= 1.0:
-            raise ValueError("mixup_probability must be in [0, 1]")
-        if not 0.0 <= self.prefix_probability <= 1.0:
-            raise ValueError("prefix_probability must be in [0, 1]")
-        if not 0.0 <= self.cutout_probability <= 1.0:
-            raise ValueError("cutout_probability must be in [0, 1]")
-        if self.prefix_probability > 0.0 and self.prefix_min_seconds <= 0.0:
-            raise ValueError("prefix_min_seconds must be positive")
-        if self.mixup_alpha > 0.0 and self.mixup_probability <= 0.0:
-            raise ValueError("mixup requires a positive mixup_probability")
-        if len(self.transient_weights) != 3:
-            raise ValueError("transient_weights must contain three channels")
-        if any(not math.isfinite(float(v)) or float(v) < 0.0 for v in self.transient_weights):
-            raise ValueError("transient_weights must be finite and non-negative")
-        if self.prefix_lengths:
-            if any(not math.isfinite(float(v)) or float(v) <= 0.0 for v in self.prefix_lengths):
-                raise ValueError("prefix_lengths must be positive and finite")
-            if max(float(v) for v in self.prefix_lengths) > 10.0 + 1e-9:
-                raise ValueError("prefix_lengths must not exceed 10 s")
-
-    def to_dict(self) -> dict[str, Any]:
-        payload = {
-            "name": self.name,
-            "probability": self.probability,
-            "noise": self.noise,
-            "gain": self.gain,
-            "offset": self.offset,
-            "warp": self.warp,
-            "transient": self.transient,
-            "transient_weights": list(self.transient_weights),
-            "mixup_alpha": self.mixup_alpha,
-            "mixup_probability": self.mixup_probability,
-            "prefix_probability": self.prefix_probability,
-            "prefix_min_seconds": self.prefix_min_seconds,
-            "cutout_probability": self.cutout_probability,
-            "cutout_max_seconds": self.cutout_max_seconds,
-            "prefix_lengths": list(self.prefix_lengths),
-            "clip_z": self.clip_z,
-        }
-        payload.update(self.extra)
-        return payload
-
-    @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> AugmentConfig:
-        data = dict(payload)
-        name = str(data.pop("name"))
-        known = {
-            "probability",
-            "noise",
-            "gain",
-            "offset",
-            "warp",
-            "transient",
-            "mixup_alpha",
-            "mixup_probability",
-            "prefix_probability",
-            "prefix_min_seconds",
-            "cutout_probability",
-            "cutout_max_seconds",
-            "prefix_lengths",
-            "clip_z",
-        }
-        extra = {key: value for key, value in data.items() if key not in known}
-        values = {key: data[key] for key in known if key in data}
-        if "prefix_lengths" in values:
-            values["prefix_lengths"] = tuple(float(v) for v in values["prefix_lengths"])
-        if "transient_weights" in values:
-            values["transient_weights"] = tuple(float(v) for v in values["transient_weights"])
-        return cls(name=name, **values, extra=extra)
+            raise ValueError("cutout 概率必须在 [0, 1] 内")
+        if not np.isfinite(self.max_seconds) or self.max_seconds <= 0.0:
+            raise ValueError("cutout 最大时长必须为正的有限值")
 
 
-def prepend_constant_hold(responses: np.ndarray, cut: int) -> np.ndarray:
-    """返回副本：``cut`` 之后的响应保持为最后一个真实采样值。"""
+@dataclass(frozen=True)
+class CutoutContext:
+    """一折训练数据及其 cutout 设置。"""
+
+    rows: Sequence[dict[str, Any]]
+    seconds: float
+    mode: str
+    config: CutoutConfig
+    base_seed: int
+
+    def __post_init__(self) -> None:
+        if self.seconds not in {5.0, 10.0}:
+            raise ValueError("cutout 只支持 5 秒和 10 秒前缀")
+        if self.mode not in {"raw_delta", "delta"}:
+            raise ValueError("cutout 只支持 raw_delta 和 delta 模式")
+        if len(self.rows) == 0:
+            raise ValueError("cutout 至少需要一个训练实验")
+        if self.config.max_seconds > self.seconds + 1e-9:
+            raise ValueError("cutout 最大时长不能超过训练窗口")
+
+
+def apply_cutout(responses: np.ndarray, start: int, length: int) -> np.ndarray:
+    """把 ``[start, start+length)`` 区间替换为两端响应的线性桥。"""
     if responses.ndim != 2 or responses.shape[1] != 3:
-        raise ValueError("responses must have shape [time, 3]")
-    if not 1 <= cut < responses.shape[0]:
-        raise ValueError("cut must leave at least one real sample and one held sample")
-    result = responses.copy()
-    result[cut:] = result[cut - 1]
-    return result
-
-
-def _interp_channels(time: np.ndarray, responses: np.ndarray, source_time: np.ndarray) -> np.ndarray:
-    """在 ``source_time`` 处对三路响应通道做线性插值。"""
-    result = np.empty_like(responses, dtype=np.float64)
-    for channel in range(responses.shape[1]):
-        result[:, channel] = np.interp(source_time, time, responses[:, channel])
-    return result
-
-
-def warp_time(
-    time: np.ndarray, responses: np.ndarray, log_warp: float
-) -> np.ndarray:
-    """在已观测前缀内扭曲时间轴，不读取未来数据。
-
-    对任意正扭曲，``t_source = T * (t/T) ** exp(log_warp)`` 始终落在
-    ``[0, T]`` 内，因此扭曲视图不会访问目标终点之后的数据。
-    """
-    time = np.asarray(time, dtype=np.float64)
-    responses = np.asarray(responses, dtype=np.float64)
-    if time.ndim != 1 or responses.shape != (time.size, 3):
-        raise ValueError("expected time[N] and responses[N,3]")
-    if not math.isfinite(log_warp):
-        raise ValueError("log_warp must be finite")
-    if abs(float(time[0])) > 1e-6:
-        raise ValueError("time must start at zero")
-    end = float(time[-1])
-    if end <= 0.0:
-        raise ValueError("prefix must have a positive endpoint")
-    gamma = math.exp(float(log_warp))
-    source_time = end * np.power(time / end, gamma)
-    return _interp_channels(time, responses, source_time)
-
-
-def cutout(
-    responses: np.ndarray, start: int, length: int
-) -> np.ndarray:
-    """用区间两端的线性桥替换内部一段响应。"""
-    if responses.ndim != 2 or responses.shape[1] != 3:
-        raise ValueError("responses must have shape [time, 3]")
+        raise ValueError("responses 必须是 [时间, 3]")
     if start < 1 or length < 1 or start + length >= responses.shape[0]:
-        raise ValueError("cutout must leave both boundary samples intact")
+        raise ValueError("cutout 必须保留区间两侧的边界采样点")
+
     result = responses.copy()
     left = result[start - 1]
     right = result[start + length]
@@ -202,204 +70,72 @@ def cutout(
     return result
 
 
-@dataclass(frozen=True)
-class AugmentContext:
-    """在线数据集所需的折内原始数据与设置。"""
+class CutoutDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
+    """每个 epoch 在线生成一个 cutout 视图的数据集。"""
 
-    rows: Sequence[dict[str, Any]]
-    seconds: float
-    mode: str
-    config: AugmentConfig
-    base_seed: int
-    noise_scale: np.ndarray
-
-    def __post_init__(self) -> None:
-        if self.seconds not in {5.0, 10.0}:
-            raise ValueError("augmentation supports 5 s and 10 s prefixes")
-        if self.mode not in {"raw_delta", "delta"}:
-            raise ValueError("augmentation supports raw_delta and delta modes")
-        if len(self.rows) == 0:
-            raise ValueError("augmentation needs at least one training run")
-        if self.noise_scale.shape != (3,):
-            raise ValueError("noise_scale must contain three channels")
-        if not np.isfinite(self.noise_scale).all() or np.any(self.noise_scale < 0.0):
-            raise ValueError("noise_scale must be finite and non-negative")
-        if self.config.prefix_lengths and max(self.config.prefix_lengths) > self.seconds + 1e-9:
-            raise ValueError("prefix_lengths must not exceed the training window")
-
-
-def estimate_initial_scale(rows: Sequence[dict[str, Any]], seconds: float) -> np.ndarray:
-    """当前训练集逐通道初始响应绝对值的中位数。"""
-    values = []
-    for row in rows:
-        time = np.asarray(row["_time"], dtype=np.float64)
-        response = np.asarray(row["_response"], dtype=np.float64)
-        mask = time <= seconds + 1e-9
-        if not np.any(mask):
-            raise ValueError(f"{row['file']}: no samples in requested prefix")
-        values.append(np.abs(response[mask][0]))
-    return np.median(np.stack(values), axis=0)
-
-
-def _apply_recipe(
-    time: np.ndarray,
-    responses: np.ndarray,
-    label: np.ndarray,
-    partner: tuple[np.ndarray, np.ndarray] | None,
-    context: AugmentContext,
-    rng: np.random.Generator,
-) -> tuple[np.ndarray, np.ndarray]:
-    """对一条原始前缀施加一次随机视图，返回（特征，标签）。"""
-    cfg = context.config
-    responses = np.asarray(responses, dtype=np.float64).copy()
-    time = np.asarray(time, dtype=np.float64)
-    label = np.asarray(label, dtype=np.float64).copy()
-
-    if partner is not None and cfg.mixup_probability > 0.0 and rng.random() < cfg.mixup_probability:
-        partner_response, partner_label = partner
-        alpha = float(cfg.mixup_alpha)
-        if alpha <= 0.0:
-            alpha = 0.2
-        lam = float(rng.beta(alpha, alpha))
-        lam = float(np.clip(lam, 0.2, 0.8))
-        responses = lam * responses + (1.0 - lam) * np.asarray(partner_response, dtype=np.float64)
-        label = lam * label + (1.0 - lam) * np.asarray(partner_label, dtype=np.float64)
-
-    if cfg.prefix_probability > 0.0 and context.seconds == 10.0 and rng.random() < cfg.prefix_probability:
-        min_samples = max(2, round(cfg.prefix_min_seconds / TIME_STEP_SECONDS) + 1)
-        min_samples = min(min_samples, responses.shape[0] - 1)
-        if min_samples < responses.shape[0]:
-            cut = int(rng.integers(min_samples, responses.shape[0]))
-            responses = prepend_constant_hold(responses, cut)
-
-    if cfg.warp > 0.0 and rng.random() < 0.5:
-        log_warp = float(rng.uniform(-cfg.warp, cfg.warp))
-        responses = warp_time(time, responses, log_warp)
-
-    if cfg.transient > 0.0:
-        transient_std = cfg.transient * np.asarray(cfg.transient_weights, dtype=np.float64)
-        scale = 1.0 + np.clip(
-            rng.normal(0.0, 1.0, size=3) * transient_std,
-            -cfg.clip_z * transient_std,
-            cfg.clip_z * transient_std,
-        )
-        responses = responses[0][None, :] + scale[None, :] * (responses - responses[0][None, :])
-
-    if cfg.gain > 0.0:
-        gain = 1.0 + np.clip(
-            rng.normal(0.0, cfg.gain, size=3), -cfg.clip_z * cfg.gain, cfg.clip_z * cfg.gain
-        )
-        responses = responses * gain[None, :]
-
-    if cfg.offset > 0.0:
-        offset = rng.normal(0.0, cfg.offset * np.maximum(np.abs(responses[0]), 1e-8), size=3)
-        responses = responses + offset[None, :]
-
-    if cfg.cutout_probability > 0.0 and rng.random() < cfg.cutout_probability:
-        max_length = max(1, round(cfg.cutout_max_seconds / TIME_STEP_SECONDS))
-        max_length = min(max_length, responses.shape[0] - 2)
-        if max_length >= 1:
-            length = int(rng.integers(1, max_length + 1))
-            start = int(rng.integers(1, responses.shape[0] - length))
-            responses = cutout(responses, start, length)
-
-    if cfg.noise > 0.0:
-        noise = rng.standard_normal(responses.shape)
-        noise = np.clip(noise, -cfg.clip_z, cfg.clip_z)
-        responses = responses + cfg.noise * context.noise_scale[None, :] * noise
-
-    if not np.isfinite(responses).all() or not np.isfinite(label).all():
-        raise FloatingPointError("augmentation produced a non-finite view")
-    features = make_features(time, responses, context.seconds, context.mode)
-    return features, label.astype(np.float32)
-
-
-class AugmentedDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
-    """单折、单 epoch 使用的在线原始前缀增强数据集。"""
-
-    def __init__(self, context: AugmentContext) -> None:
+    def __init__(self, context: CutoutContext) -> None:
         self.context = context
         self.epoch = 0
-        self._times = [
-            np.asarray(row["_time"], dtype=np.float64)[
-                np.asarray(row["_time"], dtype=np.float64) <= context.seconds + 1e-9
-            ]
-            for row in context.rows
-        ]
-        self._responses = [
-            np.asarray(row["_response"], dtype=np.float64)[
-                np.asarray(row["_time"], dtype=np.float64) <= context.seconds + 1e-9
-            ]
-            for row in context.rows
-        ]
-        self._labels = [np.asarray(row["_labels"], dtype=np.float64) for row in context.rows]
+        self._times = []
+        self._responses = []
+        self._labels = []
+        for row in context.rows:
+            time = np.asarray(row["_time"], dtype=np.float64)
+            response = np.asarray(row["_response"], dtype=np.float64)
+            mask = time <= context.seconds + 1e-9
+            self._times.append(time[mask])
+            self._responses.append(response[mask])
+            self._labels.append(np.asarray(row["_labels"], dtype=np.float64))
+
         expected = round(context.seconds / TIME_STEP_SECONDS) + 1
-        if any(len(t) != expected for t in self._times):
-            raise ValueError("training prefixes do not match the requested window")
+        if any(len(time) != expected for time in self._times):
+            raise ValueError("训练前缀与请求窗口不一致")
 
     def __len__(self) -> int:
         return len(self.context.rows)
 
-    def _prefix_samples(self) -> int | None:
-        lengths = self.context.config.prefix_lengths
-        if not lengths:
-            return None
-        rng = np.random.default_rng(
-            int(self.context.base_seed) + 99_991 * int(self.epoch) + 17
-        )
-        seconds = float(lengths[int(rng.integers(0, len(lengths)))])
-        return round(seconds / TIME_STEP_SECONDS) + 1
-
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
-        cfg = self.context.config
-        prefix_samples = self._prefix_samples()
+        config = self.context.config
         seed = (
             int(self.context.base_seed)
             + 1_000_003 * int(self.epoch)
             + 7919 * int(index)
         ) % (2**32)
         rng = np.random.default_rng(seed)
-        if cfg.probability < 1.0 and rng.random() >= cfg.probability:
-            features = make_features(
-                self._times[index], self._responses[index], self.context.seconds, self.context.mode
-            )
-            if prefix_samples is not None:
-                features = np.ascontiguousarray(features[:, :prefix_samples])
-            label = self._labels[index].astype(np.float32)
-            return torch.from_numpy(features), torch.from_numpy(label)
 
-        partner = None
-        if cfg.mixup_probability > 0.0 and len(self) > 1:
-            partner_index = int(rng.integers(0, len(self) - 1))
-            if partner_index >= index:
-                partner_index += 1
-            partner = (self._responses[partner_index], self._labels[partner_index])
-        features, label = _apply_recipe(
-            self._times[index],
-            self._responses[index],
-            self._labels[index],
-            partner,
-            self.context,
-            rng,
-        )
-        if prefix_samples is not None:
-            features = np.ascontiguousarray(features[:, :prefix_samples])
+        responses = self._responses[index]
+        # 先抽一次是否做 cutout；最终模型 probability=1.0，因此一定增强。
+        if rng.random() >= config.probability:
+            features = make_features(
+                self._times[index], responses, self.context.seconds, self.context.mode
+            )
+        else:
+            max_length = max(1, round(config.max_seconds / TIME_STEP_SECONDS))
+            max_length = min(max_length, responses.shape[0] - 2)
+            length = int(rng.integers(1, max_length + 1))
+            start = int(rng.integers(1, responses.shape[0] - length))
+            features = make_features(
+                self._times[index],
+                apply_cutout(responses, start, length),
+                self.context.seconds,
+                self.context.mode,
+            )
+        label = self._labels[index].astype(np.float32)
         return torch.from_numpy(features), torch.from_numpy(label)
 
 
-def make_context(
+def make_cutout_context(
     rows: Sequence[dict[str, Any]],
     seconds: float,
     mode: str,
-    config: AugmentConfig,
+    config: CutoutConfig,
     base_seed: int,
-) -> AugmentContext:
-    """用仅来自训练集的初始响应尺度构建上下文。"""
-    return AugmentContext(
+) -> CutoutContext:
+    """构造一折的 cutout 上下文。"""
+    return CutoutContext(
         rows=rows,
         seconds=seconds,
         mode=mode,
         config=config,
         base_seed=base_seed,
-        noise_scale=estimate_initial_scale(rows, seconds),
     )

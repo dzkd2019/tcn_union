@@ -288,14 +288,12 @@ uv run python -m tcn_union.augmentation_search \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/aug_search/final_10s \
   --seconds 10 --recipes cutout_1.0_2s --seed 20260923 \
-  --aux-positions 25 --aux-weight 0.5
+  --aux-positions 25 --aux-weight 0.5 --ema-decay 0.99
 
 # 2) 全开发集重训：5 秒 clean + 10 秒最终方案，三个固定种子
 uv run python -m tcn_union.augmentation_train \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/augmentation_final \
-  --config-5s clean --config-10s cutout_1.0_2s \
-  --aux-positions-10s 25 --aux-weight-10s 0.5
+  --output-dir artifacts/augmentation_final
 
 # 3) 冻结后评估锁定测试集并绘图
 uv run python -m tcn_union.augmentation_evaluate \

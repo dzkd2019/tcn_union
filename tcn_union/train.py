@@ -1,9 +1,7 @@
-"""五折选择预处理方式，并训练最终早期响应 TCN。
+"""训练核心：数据、TCN 训练循环和 checkpoint 保存。
 
-主流程只用 50 个开发实验完成 5/10 秒 × raw_delta/delta 的五折验证；按
-macro-NMAE 选择每个时限的输入模式，再用折内最佳轮数中位数在全部开发集
-重训三个固定随机种子。验证折之外的数据不参与该折的标准化参数拟合，锁定
-测试集也不在本模块中打分，防止信息泄漏和测试集驱动的模型选择。
+最终 10 秒模型的训练入口见 ``augmentation_train.py``；本模块的
+``train()`` / ``main()`` 是旧的 5/10 秒 clean 基线，保留用于历史复现。
 """
 
 from __future__ import annotations
@@ -24,7 +22,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from .augment import AugmentContext, AugmentedDataset
+from .augment import CutoutContext, CutoutDataset
 from .data import load_run, make_features
 from .model import GasTCN
 
@@ -165,7 +163,7 @@ def _train_network(
     device: torch.device,
     early_stop: bool,
     *,
-    augment: AugmentContext | None = None,
+    cutout: CutoutContext | None = None,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
     ema_decay: float | None = None,
@@ -178,7 +176,7 @@ def _train_network(
     验证分数保存最佳权重并在 50 轮无改善后停止。
     返回：`(model, scaler_stats, epochs_used, best_validation_score,
     validation_predictions)`；无验证集的最终训练中，后两项为 `None`。
-    `augment` 非空时每轮在线生成增强视图并用干净训练统计量标准化；
+    `cutout` 非空时每轮在线生成 cutout 视图并用干净训练统计量标准化；
     `aux_positions` 非空时在同一隐藏序列的过去位置增加辅助损失，权重为
     `aux_weight`，不改变主输出和推理接口。`ema_decay` 非空时维护权重的
     指数滑动平均，并用 EMA 权重做验证、早停和最终返回。
@@ -193,14 +191,14 @@ def _train_network(
     stats = fit_scalers(x_train, y_train)
     x_train_z, y_train_z = _scaled(x_train, y_train, stats)
 
-    if augment is None:
+    if cutout is None:
         dataset = TensorDataset(
             torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
         )
     else:
-        dataset = AugmentedDataset(augment)
+        dataset = CutoutDataset(cutout)
         if len(dataset) != len(x_train):
-            raise ValueError("augmentation context does not match the training runs")
+            raise ValueError("cutout 上下文与训练实验数量不一致")
     generator = torch.Generator().manual_seed(seed)
     loader = DataLoader(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
@@ -234,10 +232,10 @@ def _train_network(
         val_tensors = torch.from_numpy(x_val_z).to(device)
     for epoch in range(1, epochs + 1):
         model.train()
-        if augment is not None:
+        if cutout is not None:
             dataset.epoch = epoch
         for batch_x, batch_y in loader:
-            if augment is not None:
+            if cutout is not None:
                 batch_x_np, batch_y_np = _scaled(
                     batch_x.numpy(), batch_y.numpy(), stats
                 )
@@ -417,7 +415,7 @@ def _save_checkpoint(
 def train(
     manifest_path: Path, output_dir: Path, device: torch.device
 ) -> dict[str, Any]:
-    """执行五折预处理选择及最终多种子 TCN 训练。
+    """旧基线：执行五折预处理选择及最终多种子 TCN 训练。
 
     参数：`manifest_path` 为锁定实验划分；`output_dir` 接收交叉验证、OOF、
     checkpoint 和 selection 结果；`device` 为已通过 CLI 校验的 PyTorch 设备。
