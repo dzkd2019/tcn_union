@@ -1,0 +1,112 @@
+{
+  "protocol": "five-fold development OOF; final refit on 50 development runs; locked 12-run test evaluated once after freeze",
+  "mode": "raw_delta",
+  "final_seeds": [
+    20260923,
+    20260924,
+    20260925
+  ],
+  "ensemble": "arithmetic mean of the three fixed seeds, reported separately from each seed",
+  "selected": {
+    "5s": {
+      "seconds": 5.0,
+      "recipe": "clean",
+      "aux_positions": [],
+      "aux_weight": null,
+      "epochs": 231,
+      "n_oof": 50,
+      "oof_metrics": {
+        "H2": {
+          "MAE": 665.427001953125,
+          "RMSE": 1089.92806269157,
+          "R2": 0.9767514877050468,
+          "R2_null_reason": null,
+          "NMAE": 0.02772612508138021,
+          "NRMSE": 0.04541366927881541,
+          "MAPE_percent": 5.2360849609375,
+          "MAPE_null_reason": null
+        },
+        "NH3": {
+          "MAE": 0.7834555053710938,
+          "RMSE": 1.0920750557914751,
+          "R2": 0.9932237049574889,
+          "R2_null_reason": null,
+          "NMAE": 0.019586387634277343,
+          "NRMSE": 0.02730187639478688,
+          "MAPE_percent": 3.62371888478597,
+          "MAPE_null_reason": null
+        },
+        "NO2": {
+          "MAE": 0.2840297889709473,
+          "RMSE": 0.3753751456730753,
+          "R2": 0.9815798865314418,
+          "R2_null_reason": null,
+          "NMAE": 0.03550372362136841,
+          "NRMSE": 0.04692189320913441,
+          "MAPE_percent": 7.333850161234539,
+          "MAPE_null_reason": null
+        },
+        "macro_NMAE": 0.027605412112341982,
+        "macro_MAPE_percent": 5.397884668986002,
+        "macro_MAPE_null_reason": null
+      },
+      "checkpoints": {
+        "20260923": "artifacts/augmentation_final/5s/seed_20260923.pt",
+        "20260924": "artifacts/augmentation_final/5s/seed_20260924.pt",
+        "20260925": "artifacts/augmentation_final/5s/seed_20260925.pt"
+      },
+      "oof_file": "artifacts/augmentation_final/oof/5s_raw_delta.csv"
+    },
+    "10s": {
+      "seconds": 10.0,
+      "recipe": "cutout_1.0_2s",
+      "aux_positions": [
+        25
+      ],
+      "aux_weight": 0.5,
+      "epochs": 193,
+      "n_oof": 50,
+      "oof_metrics": {
+        "H2": {
+          "MAE": 717.99611328125,
+          "RMSE": 1060.656229931916,
+          "R2": 0.9779834740165216,
+          "R2_null_reason": null,
+          "NMAE": 0.029916504720052084,
+          "NRMSE": 0.0441940095804965,
+          "MAPE_percent": 5.4958159993489595,
+          "MAPE_null_reason": null
+        },
+        "NH3": {
+          "MAE": 0.6311714935302735,
+          "RMSE": 0.8191283086595108,
+          "R2": 0.9961876637156398,
+          "R2_null_reason": null,
+          "NMAE": 0.015779287338256835,
+          "NRMSE": 0.02047820771648777,
+          "MAPE_percent": 2.5705367151896157,
+          "MAPE_null_reason": null
+        },
+        "NO2": {
+          "MAE": 0.22464720249176026,
+          "RMSE": 0.3070533785347784,
+          "R2": 0.9876749402230677,
+          "R2_null_reason": null,
+          "NMAE": 0.028080900311470033,
+          "NRMSE": 0.0383816723168473,
+          "MAPE_percent": 5.08358956972758,
+          "MAPE_null_reason": null
+        },
+        "macro_NMAE": 0.024592230789926315,
+        "macro_MAPE_percent": 4.383314094755384,
+        "macro_MAPE_null_reason": null
+      },
+      "checkpoints": {
+        "20260923": "artifacts/augmentation_final/10s/seed_20260923.pt",
+        "20260924": "artifacts/augmentation_final/10s/seed_20260924.pt",
+        "20260925": "artifacts/augmentation_final/10s/seed_20260925.pt"
+      },
+      "oof_file": "artifacts/augmentation_final/oof/10s_raw_delta.csv"
+    }
+  }
+}

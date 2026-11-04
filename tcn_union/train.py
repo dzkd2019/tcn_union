@@ -1,9 +1,7 @@
-"""五折选择预处理方式，并训练最终早期响应 TCN。
+"""训练核心：数据、TCN 训练循环和 checkpoint 保存。
 
-主流程只用 50 个开发实验完成 5/10 秒 × raw_delta/delta 的五折验证；按
-macro-NMAE 选择每个时限的输入模式，再用折内最佳轮数中位数在全部开发集
-重训三个固定随机种子。验证折之外的数据不参与该折的标准化参数拟合，锁定
-测试集也不在本模块中打分，防止信息泄漏和测试集驱动的模型选择。
+最终 10 秒模型的训练入口见 ``augmentation_train.py``；本模块的
+``train()`` / ``main()`` 是旧的 5/10 秒 clean 基线，保留用于历史复现。
 """
 
 from __future__ import annotations
@@ -24,6 +22,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from .augment import CutoutContext, CutoutDataset
 from .data import load_run, make_features
 from .model import GasTCN
 
@@ -43,7 +42,7 @@ def set_seed(seed: int) -> None:
     以便交叉验证和最终多种子实验可复现。
     """
     random.seed(seed)
-    np.random.seed(seed)  # noqa: NPY002 - reset the legacy global NumPy RNG as part of the fixed seed protocol
+    np.random.seed(seed)  # noqa: NPY002 - 按固定种子协议重置 NumPy 全局随机数生成器
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -163,6 +162,11 @@ def _train_network(
     seed: int,
     device: torch.device,
     early_stop: bool,
+    *,
+    cutout: CutoutContext | None = None,
+    aux_positions: tuple[int, ...] = (),
+    aux_weight: float = 0.5,
+    ema_decay: float | None = None,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -172,6 +176,10 @@ def _train_network(
     验证分数保存最佳权重并在 50 轮无改善后停止。
     返回：`(model, scaler_stats, epochs_used, best_validation_score,
     validation_predictions)`；无验证集的最终训练中，后两项为 `None`。
+    `cutout` 非空时每轮在线生成 cutout 视图并用干净训练统计量标准化；
+    `aux_positions` 非空时在同一隐藏序列的过去位置增加辅助损失，权重为
+    `aux_weight`，不改变主输出和推理接口。`ema_decay` 非空时维护权重的
+    指数滑动平均，并用 EMA 权重做验证、早停和最终返回。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -183,15 +191,28 @@ def _train_network(
     stats = fit_scalers(x_train, y_train)
     x_train_z, y_train_z = _scaled(x_train, y_train, stats)
 
-    dataset = TensorDataset(
-        torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
-    )
+    if cutout is None:
+        dataset = TensorDataset(
+            torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
+        )
+    else:
+        dataset = CutoutDataset(cutout)
+        if len(dataset) != len(x_train):
+            raise ValueError("cutout 上下文与训练实验数量不一致")
     generator = torch.Generator().manual_seed(seed)
     loader = DataLoader(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
     )
 
     model = GasTCN(x_train.shape[1]).to(device)
+    if ema_decay is not None and not 0.0 < ema_decay < 1.0:
+        raise ValueError("ema_decay must be in (0, 1)")
+    ema_state = None
+    if ema_decay is not None:
+        ema_state = {
+            name: value.detach().clone()
+            for name, value in model.state_dict().items()
+        }
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-3, weight_decay=1e-3, betas=(0.9, 0.999)
     )
@@ -211,12 +232,23 @@ def _train_network(
         val_tensors = torch.from_numpy(x_val_z).to(device)
     for epoch in range(1, epochs + 1):
         model.train()
+        if cutout is not None:
+            dataset.epoch = epoch
         for batch_x, batch_y in loader:
+            if cutout is not None:
+                batch_x_np, batch_y_np = _scaled(
+                    batch_x.numpy(), batch_y.numpy(), stats
+                )
+                batch_x = torch.from_numpy(batch_x_np)
+                batch_y = torch.from_numpy(batch_y_np)
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             prediction = model(batch_x)
             loss = criterion(prediction, batch_y)
+            if aux_positions:
+                for auxiliary in model.forward_positions(batch_x, aux_positions):
+                    loss = loss + aux_weight * criterion(auxiliary, batch_y)
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     f"non-finite training loss at epoch {epoch}"
@@ -232,10 +264,25 @@ def _train_network(
                     f"non-finite gradient at epoch {epoch}"
                 )
             optimizer.step()
+            if ema_state is not None:
+                with torch.no_grad():
+                    for name, parameter in model.named_parameters():
+                        ema_state[name].mul_(ema_decay).add_(
+                            parameter.detach(), alpha=1.0 - ema_decay
+                        )
         if val_tensors is not None:
             model.eval()
+            training_state = None
+            if ema_state is not None:
+                training_state = {
+                    key: value.detach().clone()
+                    for key, value in model.state_dict().items()
+                }
+                model.load_state_dict(ema_state)
             with torch.no_grad():
                 pred_z = model(val_tensors).cpu().numpy()
+            if training_state is not None:
+                model.load_state_dict(training_state)
             pred = pred_z * stats["y_std"][None, :] + stats["y_mean"][None, :]
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
@@ -247,9 +294,10 @@ def _train_network(
             if score < best_score:
                 best_score = score
                 best_epoch = epoch
+                state_for_best = ema_state if ema_state is not None else model.state_dict()
                 best_state = {
                     key: value.detach().cpu().clone()
-                    for key, value in model.state_dict().items()
+                    for key, value in state_for_best.items()
                 }
                 best_prediction = pred.copy()
                 stale_epochs = 0
@@ -264,6 +312,8 @@ def _train_network(
             )
         model.load_state_dict(best_state)
         return model, stats, best_epoch, best_score, best_prediction
+    if ema_state is not None:
+        model.load_state_dict(ema_state)
     return model, stats, epochs, None, None
 
 
@@ -309,6 +359,8 @@ def _save_checkpoint(
     seed: int,
     epochs: int,
     device: torch.device,
+    *,
+    augmentation: dict[str, Any] | None = None,
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
 
@@ -354,6 +406,7 @@ def _save_checkpoint(
             "torch": torch.__version__,
         },
         "device_used": str(device),
+        "augmentation": augmentation,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, output_path)
@@ -362,7 +415,7 @@ def _save_checkpoint(
 def train(
     manifest_path: Path, output_dir: Path, device: torch.device
 ) -> dict[str, Any]:
-    """执行五折预处理选择及最终多种子 TCN 训练。
+    """旧基线：执行五折预处理选择及最终多种子 TCN 训练。
 
     参数：`manifest_path` 为锁定实验划分；`output_dir` 接收交叉验证、OOF、
     checkpoint 和 selection 结果；`device` 为已通过 CLI 校验的 PyTorch 设备。

@@ -1,1 +1,1 @@
-"""Early-response gas-concentration prediction with a causal TCN."""
+"""基于因果 TCN 的早期响应气体浓度预测。"""

@@ -85,3 +85,24 @@ class GasTCN(nn.Module):
             raise ValueError(f"expected [batch,{self.in_channels},time] input")
         hidden = self.blocks(x)
         return self.head(hidden[:, :, -1])
+
+    def forward_positions(
+        self, x: torch.Tensor, positions: tuple[int, ...]
+    ) -> list[torch.Tensor]:
+        """在同一隐藏序列的多个过去位置解码。
+
+        因果卷积保证每个请求位置只看到自己的过去采样。该接口用于训练时的
+        多时间尺度监督；推理仍然只读取最后一个位置。
+        """
+        if x.ndim != 3 or x.shape[1] != self.in_channels:
+            raise ValueError(f"expected [batch,{self.in_channels},time] input")
+        if not positions:
+            raise ValueError("positions must not be empty")
+        hidden = self.blocks(x)
+        outputs = []
+        for position in positions:
+            index = int(position)
+            if index < 0 or index >= x.shape[2]:
+                raise ValueError(f"position {index} outside sequence length {x.shape[2]}")
+            outputs.append(self.head(hidden[:, :, index]))
+        return outputs
