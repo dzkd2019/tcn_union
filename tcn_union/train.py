@@ -168,6 +168,7 @@ def _train_network(
     augment: AugmentContext | None = None,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
+    ema_decay: float | None = None,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -179,7 +180,8 @@ def _train_network(
     validation_predictions)`；无验证集的最终训练中，后两项为 `None`。
     `augment` 非空时每轮在线生成增强视图并用干净训练统计量标准化；
     `aux_positions` 非空时在同一隐藏序列的过去位置增加辅助损失，权重为
-    `aux_weight`，不改变主输出和推理接口。
+    `aux_weight`，不改变主输出和推理接口。`ema_decay` 非空时维护权重的
+    指数滑动平均，并用 EMA 权重做验证、早停和最终返回。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -205,6 +207,14 @@ def _train_network(
     )
 
     model = GasTCN(x_train.shape[1]).to(device)
+    if ema_decay is not None and not 0.0 < ema_decay < 1.0:
+        raise ValueError("ema_decay must be in (0, 1)")
+    ema_state = None
+    if ema_decay is not None:
+        ema_state = {
+            name: value.detach().clone()
+            for name, value in model.state_dict().items()
+        }
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-3, weight_decay=1e-3, betas=(0.9, 0.999)
     )
@@ -256,10 +266,25 @@ def _train_network(
                     f"non-finite gradient at epoch {epoch}"
                 )
             optimizer.step()
+            if ema_state is not None:
+                with torch.no_grad():
+                    for name, parameter in model.named_parameters():
+                        ema_state[name].mul_(ema_decay).add_(
+                            parameter.detach(), alpha=1.0 - ema_decay
+                        )
         if val_tensors is not None:
             model.eval()
+            training_state = None
+            if ema_state is not None:
+                training_state = {
+                    key: value.detach().clone()
+                    for key, value in model.state_dict().items()
+                }
+                model.load_state_dict(ema_state)
             with torch.no_grad():
                 pred_z = model(val_tensors).cpu().numpy()
+            if training_state is not None:
+                model.load_state_dict(training_state)
             pred = pred_z * stats["y_std"][None, :] + stats["y_mean"][None, :]
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
@@ -271,9 +296,10 @@ def _train_network(
             if score < best_score:
                 best_score = score
                 best_epoch = epoch
+                state_for_best = ema_state if ema_state is not None else model.state_dict()
                 best_state = {
                     key: value.detach().cpu().clone()
-                    for key, value in model.state_dict().items()
+                    for key, value in state_for_best.items()
                 }
                 best_prediction = pred.copy()
                 stale_epochs = 0
@@ -288,6 +314,8 @@ def _train_network(
             )
         model.load_state_dict(best_state)
         return model, stats, best_epoch, best_score, best_prediction
+    if ema_state is not None:
+        model.load_state_dict(ema_state)
     return model, stats, epochs, None, None
 
 

@@ -1,6 +1,6 @@
 project: tcn_union 10 秒响应加速
 branch: feature/model-improvement
-current_phase: inner-loop
+current_phase: concluded
 baseline:
   oof_final_seed23: 0.024592
   oof_final_seed24: 0.031708
@@ -10,6 +10,13 @@ baseline:
   oof_clean_seed25: 0.029521
   test_ensemble_macro_nmae: 0.018321
   test_ensemble_macro_mape: 3.3882
+improvement:
+  ema_decay: 0.99
+  oof_mean: 0.027489
+  oof_sd: 0.002416
+  test_macro_nmae: 0.016692
+  test_macro_mape: 3.2587
+  decision: "采用 EMA 0.99 作为 10 秒模型训练协议；5 秒 clean 不变"
 hypothesis: "当前 cutout + 5 秒辅助监督的 OOF 种子方差偏大；对权重做 EMA 滑动平均可以稳定训练，降低 seed 24 的回退，并保持或改善平均 OOF。"
 primary_metric: "OOF macro-NMAE（逐 seed + 三种子均值）"
 guardrail: "测试集只在 OOF 方案冻结后评估一次；不按测试结果挑 EMA 参数。"

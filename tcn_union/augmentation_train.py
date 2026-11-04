@@ -58,6 +58,7 @@ def cross_validate(
     device: torch.device,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
+    ema_decay: float | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对单个冻结配方运行五折 OOF。"""
     features = _features(dev_rows, seconds, mode)
@@ -86,6 +87,7 @@ def cross_validate(
             augment=context,
             aux_positions=aux_positions,
             aux_weight=aux_weight,
+            ema_decay=ema_decay,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("missing validation prediction")
@@ -133,6 +135,7 @@ def train_final(
     output_path: Path,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
+    ema_decay: float | None = None,
 ) -> None:
     """在全部开发实验上在线增强重训一个种子。"""
     features = _features(dev_rows, seconds, mode)
@@ -154,6 +157,7 @@ def train_final(
         augment=context,
         aux_positions=aux_positions,
         aux_weight=aux_weight,
+        ema_decay=ema_decay,
     )
     metadata = None
     if not _is_clean(config) or aux_positions:
@@ -161,6 +165,7 @@ def train_final(
             "recipe": config.to_dict(),
             "aux_positions": list(aux_positions),
             "aux_weight": aux_weight,
+            "ema_decay": ema_decay,
         }
     _save_checkpoint(
         output_path,
@@ -210,11 +215,13 @@ def main() -> None:
             recipes[args.config_5s],
             tuple(args.aux_positions_5s),
             args.aux_weight_5s,
+            args.ema_decay_5s,
         ),
         "10s": (
             recipes[args.config_10s],
             tuple(args.aux_positions_10s),
             args.aux_weight_10s,
+            args.ema_decay_10s,
         ),
     }
 
@@ -225,7 +232,7 @@ def main() -> None:
         "mode": args.mode,
         "selected": {},
     }
-    for key, (config, aux_positions, aux_weight) in chosen.items():
+    for key, (config, aux_positions, aux_weight, ema_decay) in chosen.items():
         seconds = float(key[:-1])
         print(f"[train] {key} recipe={config.name}", flush=True)
         fold_scores, oof = cross_validate(
@@ -237,6 +244,7 @@ def main() -> None:
             device,
             aux_positions=aux_positions,
             aux_weight=aux_weight,
+            ema_decay=ema_decay,
         )
         oof_dir = args.output_dir / "oof"
         oof_dir.mkdir(parents=True, exist_ok=True)
@@ -266,6 +274,7 @@ def main() -> None:
                 output_path,
                 aux_positions=aux_positions,
                 aux_weight=aux_weight,
+                ema_decay=ema_decay,
             )
             print(f"  saved {output_path}", flush=True)
         output["selected"][key] = {
@@ -274,6 +283,7 @@ def main() -> None:
             "recipe": config.to_dict(),
             "aux_positions": list(aux_positions),
             "aux_weight": aux_weight,
+            "ema_decay": ema_decay,
             "selected_epochs": selected_epochs,
             "fold_scores": fold_scores,
             "fold_summary": _summary(fold_scores),

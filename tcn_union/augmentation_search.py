@@ -144,6 +144,7 @@ def run_recipe(
     device: torch.device,
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
+    ema_decay: float | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对单个配方运行五折，返回（逐折分数，OOF 预测）。"""
     dev_rows = [row for row in rows if row["split"] == "development"]
@@ -187,6 +188,7 @@ def run_recipe(
             augment=context,
             aux_positions=aux_positions,
             aux_weight=aux_weight,
+            ema_decay=ema_decay,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("missing validation prediction")
@@ -249,6 +251,7 @@ def main() -> None:
     parser.add_argument("--mode", default="raw_delta")
     parser.add_argument("--aux-positions", type=int, nargs="*", default=[])
     parser.add_argument("--aux-weight", type=float, default=0.5)
+    parser.add_argument("--ema-decay", type=float, default=None)
     args = parser.parse_args()
 
     if args.device == "cpu":
@@ -278,6 +281,7 @@ def main() -> None:
                 device,
                 aux_positions=tuple(args.aux_positions),
                 aux_weight=args.aux_weight,
+                ema_decay=args.ema_decay,
             )
             key = f"{seconds:g}s/{name}"
             result = {
@@ -287,6 +291,7 @@ def main() -> None:
                 "seed": args.seed,
                 "aux_positions": list(args.aux_positions),
                 "aux_weight": args.aux_weight,
+                "ema_decay": args.ema_decay,
                 "folds": fold_scores,
                 "fold_summary": _summary(fold_scores),
                 "global_oof": _global_summary(oof, dev_ranges),
