@@ -157,20 +157,14 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 1. `tcn_union/data.py`：CSV 校验、读取、`raw_delta` 特征；
 2. `tcn_union/model.py`：因果 TCN；
-3. `tcn_union/augment.py`：cutout；
+3. `tcn_union/augment.py`：只保留 cutout 和在线 `CutoutDataset`；
 4. `tcn_union/train.py`：训练循环、EMA、checkpoint；
-5. `tcn_union/augmentation_train.py`：最终 5 秒/10 秒训练入口；
-6. `tcn_union/augmentation_evaluate.py`：锁定测试评估。
-7. `tcn_union/plot_augmentation.py`：测试集对比图。
+5. `tcn_union/augmentation_search.py`：最终 10 秒模型的五折 OOF；
+6. `tcn_union/augmentation_train.py`：5 秒 clean + 10 秒最终模型，三 seed 重训；
+7. `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
+8. `tcn_union/plot_augmentation.py`：测试集对比图。
 
 更完整的文件说明见 [`docs/最终模型代码结构.md`](docs/最终模型代码结构.md)。
-
-- `tcn_union/augment.py`：只保留 cutout 和在线 `CutoutDataset`；
-- `tcn_union/train.py`：通用训练核心（clean / cutout / 辅助监督 / EMA）；
-- `tcn_union/augmentation_search.py`：最终 10 秒模型的五折 OOF；
-- `tcn_union/augmentation_train.py`：5 秒 clean + 10 秒最终模型，三 seed 重训；
-- `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
-- `tcn_union/plot_augmentation.py`：测试集对比图。
 
 最终 10 秒方案：cutout 最多 2 秒 + 5 秒辅助监督（位置 25、权重 0.5）+ EMA 0.99 + 三 seed 集成。5 秒 clean 保持不变。最终 10 秒重训 255 epoch，5 秒 clean 231 epoch。
 
