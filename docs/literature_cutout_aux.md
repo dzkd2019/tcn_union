@@ -1,6 +1,6 @@
 # 文献摘录：cutout / 时间掩蔽与辅助监督
 
-> 用途：为最终 10 秒模型的两项设计提供可核验的文献背景：① 原始响应 cutout；② 5 秒辅助读出（中间监督）。只收录能在官方页面核对到标题、作者与 venue 的论文，共 11 篇：A 类 5 篇，B 类 6 篇。
+> 用途：为最终 10 秒模型的两项设计提供可核验的文献背景：① 原始响应 cutout；② 5 秒辅助读出（中间监督）。只收录能在官方页面核对到标题、作者与 venue 的论文，共 12 篇：A 类 6 篇，B 类 6 篇。
 
 ## 30 秒汇报口径
 
@@ -56,6 +56,13 @@
 
 ## B. 辅助监督、深层监督与中间监督
 
+### A6. SpliceOut: A Simple and Efficient Audio Augmentation Method
+
+- **作者**：Arjit Jain, Pranay Reddy Samala, Deepak Mittal, Preethi Jyothi, Maneesh Singh
+- **发表**：Proc. Interspeech 2022
+- **链接**：[https://www.isca-archive.org/interspeech_2022/jain22_interspeech.pdf](https://www.isca-archive.org/interspeech_2022/jain22_interspeech.pdf)
+- **中文注记**：在语音/音频序列上把时间或频率片段替换为另一个样本的片段，和 cutout 同属“局部片段替换”，但替换源是另一个样本。它支持“序列上的片段替换可以作为一种增强”，我们的区别是用两端线性桥而不是另一个样本填充。
+
 ### B1. Going Deeper with Convolutions
 
 - **作者**：Christian Szegedy, Wei Liu, Yangqing Jia, Pierre Sermanet, Scott Reed, Dragomir Anguelov, Dumitru Erhan, Vincent Vanhoucke, Andrew Rabinovich
@@ -107,6 +114,7 @@
 | A3 时间掩蔽 | SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition | 2019 / Interspeech | [ISCA](https://www.isca-archive.org/interspeech_2019/park19e_interspeech.html) | 语音时间块掩蔽；我们只取其 time masking 思想 |
 | A4 潜空间掩蔽 | wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations | 2020 / NeurIPS 33 | [NeurIPS](https://proceedings.neurips.cc/paper/2020/hash/92d1e1eb1cd6f9fba3227870bb6d7f07-Abstract.html) | 连续帧掩蔽迫使模型用上下文；自监督预训练，非同类设定 |
 | A5 时序掩蔽建模 | SimMTM: A Simple Pre-Training Framework for Masked Time-Series Modeling | 2023 / NeurIPS | [NeurIPS](https://proceedings.neurips.cc/paper_files/paper/2023/hash/5f9bfdfe3685e4ccdbc0e7fb29cccf2a-Abstract-Conference.html) | 时间序列掩蔽重建；提醒掩蔽强度不能过大 |
+| A6 序列片段替换 | SpliceOut: A Simple and Efficient Audio Augmentation Method | 2022 / Interspeech | [ISCA](https://www.isca-archive.org/interspeech_2022/jain22_interspeech.pdf) | 音频序列时间/频率片段替换；我们用线性桥替代另一段样本 |
 | B1 辅助分类器 | Going Deeper with Convolutions | 2015 / CVPR | [CVF](https://openaccess.thecvf.com/content_cvpr_2015/html/Szegedy_Going_Deeper_With_2015_CVPR_paper.html) | 中间层 aux loss 的起点；我们是时间位置辅助读出 |
 | B2 深层监督 | Deeply-Supervised Nets | 2015 / AISTATS (PMLR 38) | [PMLR](https://proceedings.mlr.press/v38/lee15a.html) | 逐层 deep supervision；我们是单点轻量版 |
 | B3 中间监督 | Stacked Hourglass Networks for Human Pose Estimation | 2016 / ECCV | [Springer](https://doi.org/10.1007/978-3-319-46484-8_29) | 逐阶段中间监督；我们只在 5 s 处加一个读出 |
@@ -116,7 +124,7 @@
 
 ## 概念对照：三种机制与一处关键差异
 
-1. **输入遮挡 / 掩蔽（A1–A5）**：图像方块、语音帧/频带、时间序列 patch 都被证明是有效的正则化或预训练信号。我们的 cutout 是其中较温和的时域版本：只挖内部短区间，且用两端线性桥保持曲线连续。
+1. **输入遮挡 / 掩蔽（A1–A6）**：图像方块、语音帧/频带、时间序列 patch 都被证明是有效的正则化或预训练信号。我们的 cutout 是其中较温和的时域版本：只挖内部短区间，且用两端线性桥保持曲线连续。
 2. **中间读出监督（B1–B5）**：文献中的“中间”多指网络层深（DSN、GoogLeNet、InterCTC）或 stage（Hourglass、MS-TCN）；我们的“中间”是**时间位置**——在 5 s 处对同一隐藏序列再解码一次。两者共享“给共享表征增加额外监督”的机制，但我们的实现更轻：单阶段 TCN、共享输出头、只有一个辅助点。
 3. **辅助损失加权（B6）**：我们固定权重 0.5，没有采用不确定性学习。这是小样本（50 个开发实验）下的有意简化；学习权重会多一组可训练参数，也可能把验证集噪声学进去。
 4. **证据边界**：这些论文支持“遮挡和中间监督是合理的归纳偏置”，但不能证明我们的具体增益。仓库内部的 OOF 三种子平均接近 0，测试集三 seed 集成有改善但只有 12 个测试实验；文献只能提供动机，不能替代我们自己的消融和显著性检验。
@@ -133,6 +141,7 @@
 | Random Erasing | [aaai.org/papers/13001-random-erasing-data-augmentation/](https://aaai.org/papers/13001-random-erasing-data-augmentation/) | 五位作者、AAAI-20 Vol. 34 No. 07、DOI 10.1609/aaai.v34i07.7000 |
 | SpecAugment | [isca-archive.org/interspeech_2019/park19e_interspeech.html](https://www.isca-archive.org/interspeech_2019/park19e_interspeech.html) | 七位作者、Interspeech 2019、pp. 2613–2617、DOI 10.21437/Interspeech.2019-2680 |
 | wav2vec 2.0 | [proceedings.neurips.cc/.../92d1e1eb...-Abstract.html](https://proceedings.neurips.cc/paper/2020/hash/92d1e1eb1cd6f9fba3227870bb6d7f07-Abstract.html) | 标题、NeurIPS 2020、四位作者；PDF 首页核对作者为 Henry Zhou |
+| SpliceOut | [isca-archive.org/interspeech_2022/jain22_interspeech.pdf](https://www.isca-archive.org/interspeech_2022/jain22_interspeech.pdf) | 标题、五位作者、Interspeech 2022；PDF 首页核对 |
 | SimMTM | [proceedings.neurips.cc/.../5f9bfdfe...-Abstract-Conference.html](https://proceedings.neurips.cc/paper_files/paper/2023/hash/5f9bfdfe3685e4ccdbc0e7fb29cccf2a-Abstract-Conference.html) | 标题、六位作者、NeurIPS 36 (2023)、DOI 10.52202/075280-1306、摘要 |
 | GoogLeNet | [openaccess.thecvf.com/.../Szegedy_Going_Deeper_2015...](https://openaccess.thecvf.com/content_cvpr_2015/html/Szegedy_Going_Deeper_With_2015_CVPR_paper.html) | 九位作者、CVPR 2015、pp. 1–9 |
 | DSN | [proceedings.mlr.press/v38/lee15a.html](https://proceedings.mlr.press/v38/lee15a.html) | 五位作者、AISTATS 2015、PMLR 38:562–570 |
