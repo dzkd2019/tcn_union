@@ -168,7 +168,7 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 GAN 的弱物理先验只有平滑惩罚、范围惩罚和“条件只取训练集真实浓度三元组”；这些不能证明生成曲线物理正确，所以必须先过生成质量检查，再进入下游 OOF。详细方案见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。
 
-**目前没有宣称 GAN 已提升指标**；下一步是先跑 `clean / aux / gan / gan_aux` 的单 seed 试点，再决定是否值得跑三 seed 和锁定测试。
+**目前没有宣称 GAN 已提升指标**。第一轮 300-epoch 生成质量检查未通过（平滑度和条件关系均不合格），按停止规则暂不进入 `gan/gan_aux` 下游 OOF；结果见 [`docs/gan_quality_result.md`](docs/gan_quality_result.md)，后续先修条件机制/物理约束，再重新过质量门。
 
 ## 复现命令
 
