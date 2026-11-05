@@ -18,6 +18,7 @@ import torch
 from .data import TIME_STEP_SECONDS
 from .gan import GANConfig, fit_gan
 from .train import _read_manifest
+from .vae import VAEConfig, fit_vae
 
 plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "Noto Sans CJK SC", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
@@ -59,14 +60,31 @@ def check_quality(
     gan_epochs: int,
     seed: int,
     device: torch.device,
+    generator: str = "gan",
+    vae_components: int = 6,
+    vae_beta: float = 0.1,
 ) -> dict[str, Any]:
     rows = _read_manifest(manifest)
     dev_rows = [row for row in rows if row["split"] == "development"]
     real = _real_prefixes(dev_rows)
     real_labels = np.stack([row["_labels"] for row in dev_rows]).astype(np.float64)
-    config = GANConfig(epochs=gan_epochs)
-    gan = fit_gan(dev_rows, config, seed, device)
-    fake, labels = gan.sample(samples, seed + 1)
+    if generator == "vae":
+        vae = fit_vae(
+            dev_rows,
+            VAEConfig(
+                epochs=gan_epochs,
+                components=vae_components,
+                beta=vae_beta,
+            ),
+            seed,
+            device,
+        )
+        fake, labels = vae.sample(samples, seed + 1)
+    elif generator == "gan":
+        gan = fit_gan(dev_rows, GANConfig(epochs=gan_epochs), seed, device)
+        fake, labels = gan.sample(samples, seed + 1)
+    else:
+        raise ValueError("generator 必须是 gan 或 vae")
 
     real_smooth = float(np.mean(np.abs(np.diff(real, n=2, axis=2))))
     fake_smooth = float(np.mean(np.abs(np.diff(fake, n=2, axis=2))))
@@ -88,7 +106,10 @@ def check_quality(
     report = {
         "n_real": len(real),
         "n_fake": samples,
+        "generator": generator,
         "gan_epochs": gan_epochs,
+        "vae_components": vae_components if generator == "vae" else None,
+        "vae_beta": vae_beta if generator == "vae" else None,
         "seed": seed,
         "smoothness_ratio": fake_smooth / max(real_smooth, 1e-12),
         "initial_mae": initial_mae,
@@ -134,6 +155,9 @@ def main() -> None:
     parser.add_argument("--gan-epochs", type=int, default=300)
     parser.add_argument("--seed", type=int, default=20260923)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--generator", choices=["gan", "vae"], default="gan")
+    parser.add_argument("--vae-components", type=int, default=6)
+    parser.add_argument("--vae-beta", type=float, default=0.1)
     args = parser.parse_args()
     if args.device == "cpu":
         torch.set_num_threads(1)
@@ -144,6 +168,9 @@ def main() -> None:
         args.gan_epochs,
         args.seed,
         torch.device(args.device),
+        args.generator,
+        args.vae_components,
+        args.vae_beta,
     )
 
 

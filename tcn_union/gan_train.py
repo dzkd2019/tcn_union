@@ -35,6 +35,7 @@ from .train import (
     _save_checkpoint,
     _train_network,
 )
+from .vae import VAEConfig, fit_vae
 
 MODE = "raw_delta"
 AUX_POSITIONS = (25,)
@@ -51,16 +52,23 @@ MODES = {
 }
 
 
-def _gan_features(
+def _generative_features(
     rows: list[dict[str, Any]],
     count: int,
     config: GANConfig,
+    vae_config: VAEConfig,
+    generator: str,
     seed: int,
     device: torch.device,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """在给定训练行上拟合 GAN，并生成 TCN 可用的特征。"""
-    gan = fit_gan(rows, config, seed, device)
-    responses, labels = gan.sample(count, seed + 1)
+    """在给定训练行上拟合 GAN 或 PCA-VAE，并生成 TCN 可用的特征。"""
+    if generator == "vae":
+        model = fit_vae(rows, vae_config, seed, device)
+    elif generator == "gan":
+        model = fit_gan(rows, config, seed, device)
+    else:
+        raise ValueError("generator 必须是 gan 或 vae")
+    responses, labels = model.sample(count, seed + 1)
     times = np.arange(round(config.seconds / TIME_STEP_SECONDS) + 1) * TIME_STEP_SECONDS
     features = np.stack(
         [make_features(times, response.T, config.seconds, MODE) for response in responses]
@@ -76,6 +84,8 @@ def _augmented_arrays(
     synthetic_ratio: float,
     noise_config: NoiseConfig,
     gan_config: GANConfig,
+    vae_config: VAEConfig,
+    generator: str,
     seed: int,
     device: torch.device,
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
@@ -94,7 +104,9 @@ def _augmented_arrays(
         noise_count = len(x_noise)
     if use_gan:
         gan_count = max(1, round(synthetic_ratio * len(rows)))
-        x_gan, y_gan = _gan_features(rows, gan_count, gan_config, seed, device)
+        x_gan, y_gan = _generative_features(
+            rows, gan_count, gan_config, vae_config, generator, seed, device
+        )
         x = np.concatenate((x, x_gan), axis=0)
         y = np.concatenate((y, y_gan), axis=0)
     return x, y, noise_count, gan_count
@@ -136,6 +148,8 @@ def cross_validate(
     seed: int,
     device: torch.device,
     gan_config: GANConfig,
+    vae_config: VAEConfig,
+    generator: str,
     synthetic_ratio: float,
     noise_config: NoiseConfig,
     ema_decay: float | None,
@@ -156,6 +170,8 @@ def cross_validate(
             synthetic_ratio,
             noise_config,
             gan_config,
+            vae_config,
+            generator,
             seed + 1000 * fold,
             device,
         )
@@ -239,6 +255,8 @@ def train_final(
     device: torch.device,
     output_path: Path,
     gan_config: GANConfig,
+    vae_config: VAEConfig,
+    generator: str,
     synthetic_ratio: float,
     noise_config: NoiseConfig,
     ema_decay: float | None,
@@ -253,6 +271,8 @@ def train_final(
         synthetic_ratio,
         noise_config,
         gan_config,
+        vae_config,
+        generator,
         seed + 5000,
         device,
     )
@@ -276,6 +296,10 @@ def train_final(
         "noise_scale": noise_config.scale,
         "noise_copies": noise_config.copies,
         "gan": use_gan,
+        "generator": generator,
+        "vae_components": vae_config.components if generator == "vae" else None,
+        "vae_latent_dim": vae_config.latent_dim if generator == "vae" else None,
+        "vae_beta": vae_config.beta if generator == "vae" else None,
         "noise_count": noise_count,
         "gan_count": gan_count,
         "synthetic_count": noise_count + gan_count,
@@ -307,7 +331,11 @@ def main() -> None:
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
     parser.add_argument("--noise-scale", type=float, default=1.0)
     parser.add_argument("--noise-copies", type=int, default=1)
+    parser.add_argument("--generator", choices=["gan", "vae"], default="gan")
     parser.add_argument("--gan-epochs", type=int, default=300)
+    parser.add_argument("--vae-components", type=int, default=6)
+    parser.add_argument("--vae-latent-dim", type=int, default=4)
+    parser.add_argument("--vae-beta", type=float, default=0.1)
     parser.add_argument("--ema-decay", type=float, default=None)
     parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
     parser.add_argument("--oof-only", action="store_true")
@@ -329,6 +357,13 @@ def main() -> None:
     dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     gan_config = GANConfig(seconds=10.0, epochs=args.gan_epochs)
+    vae_config = VAEConfig(
+        seconds=10.0,
+        epochs=args.gan_epochs,
+        components=args.vae_components,
+        latent_dim=args.vae_latent_dim,
+        beta=args.vae_beta,
+    )
     noise_config = NoiseConfig(scale=args.noise_scale, copies=args.noise_copies)
 
     selection: dict[str, Any] = {
@@ -339,7 +374,11 @@ def main() -> None:
         "synthetic_ratio": args.synthetic_ratio,
         "noise_scale": args.noise_scale,
         "noise_copies": args.noise_copies,
+        "generator": args.generator,
         "gan_epochs": args.gan_epochs,
+        "vae_components": args.vae_components,
+        "vae_latent_dim": args.vae_latent_dim,
+        "vae_beta": args.vae_beta,
         "ema_decay": args.ema_decay,
         "selected": {},
     }
@@ -351,6 +390,8 @@ def main() -> None:
             args.seed,
             device,
             gan_config,
+            vae_config,
+            args.generator,
             args.synthetic_ratio,
             noise_config,
             args.ema_decay,
@@ -381,6 +422,8 @@ def main() -> None:
                     device,
                     path,
                     gan_config,
+                    vae_config,
+                    args.generator,
                     args.synthetic_ratio,
                     noise_config,
                     args.ema_decay,
