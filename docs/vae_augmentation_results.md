@@ -32,6 +32,13 @@ GAN 在当前 50 个开发实验上失败：
 - 下游训练时使用 3× 真实训练样本数的 VAE 合成样本（40 条真实 → 120 条合成），再叠加真实测量噪声 0.1×；
 - 验证/测试始终是真实曲线。
 
+### 论文版架构图
+
+- 矢量 PDF：[`figures/fig_tcn_architecture.pdf`](../figures/fig_tcn_architecture.pdf)
+- PNG：[`figures/fig_tcn_architecture.png`](../figures/fig_tcn_architecture.png)
+
+图中包含：逐折数据构造、GasTCN 主结构、残差块内部数据流、五折 OOF 与三 seed 推理协议。5 秒辅助头以虚线标出，并注明最终方案未启用。
+
 ## 3. 生成质量
 
 | 指标 | 真实/目标 | PCA-VAE |
