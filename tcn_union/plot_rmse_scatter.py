@@ -116,6 +116,7 @@ def plot_error_sigma(
     window: int,
     seed: str,
     prefix: str = "",
+    title: str | None = None,
 ) -> None:
     """参考 example/pic_1.png 的相对误差散点，并叠加 ±1/2/3σ 线。"""
     selected = _select(pd.read_csv(predictions_path), model, window, seed)
@@ -157,7 +158,7 @@ def plot_error_sigma(
         pooled_array,
         mean,
         sigma,
-        "All gases",
+        "三气体合并",
         marker="o",
         color=None,
         point_colors=pooled_colors,
@@ -174,7 +175,7 @@ def plot_error_sigma(
             va="bottom",
         )
     figure.suptitle(
-        f"Relative error distribution ({window} s, {model}, seed={seed})",
+        title or f"相对误差分布（{window} 秒，{model}，seed={seed}）",
         fontsize=13,
     )
     stem = f"{prefix}_error_sigma_by_gas" if prefix else "error_sigma_by_gas"
@@ -210,7 +211,7 @@ def _draw_error_panel(
         zorder=3,
     )
     panel.axhline(0.0, color="0.55", linewidth=0.8, zorder=1)
-    panel.axhline(mean, color="0.1", linewidth=1.2, linestyle="-", zorder=2, label="mean")
+    panel.axhline(mean, color="0.1", linewidth=1.2, linestyle="-", zorder=2, label="均值")
     bands = [(1.0, "--", "0.35"), (2.0, ":", "0.45"), (3.0, "-.", "0.55")]
     for k, style, shade in bands:
         for sign in (-1.0, 1.0):
@@ -228,10 +229,10 @@ def _draw_error_panel(
     limit = max(3.0 * sigma, float(np.max(np.abs(error))), 1e-9) * 1.15
     panel.set_ylim(-limit, limit)
     panel.set_xlim(-0.5, max(len(error) - 0.5, 0.5))
-    panel.set_xlabel("Points", fontsize=11)
-    panel.set_ylabel("Relative error (%)", fontsize=11)
+    panel.set_xlabel("实验序号", fontsize=11)
+    panel.set_ylabel("相对误差 (%)", fontsize=11)
     panel.set_title(
-        f"{gas}  n={len(error)}, mean={mean:.2f}%, σ={sigma:.2f}%",
+        f"{gas}  n={len(error)}, 均值={mean:.2f}%, σ={sigma:.2f}%",
         fontsize=10.5,
         loc="right",
     )
@@ -239,7 +240,7 @@ def _draw_error_panel(
     for spine in panel.spines.values():
         spine.set_linewidth(1.0)
     panel.tick_params(labelsize=9)
-    panel.legend(loc="lower left", fontsize=7.2, frameon=False, ncol=1, labelspacing=0.25)
+    panel.legend(loc="lower left", fontsize=6.8, frameon=False, ncol=1, labelspacing=0.15, handletextpad=0.5, borderaxespad=0.2)
 
 
 def main() -> None:
@@ -251,6 +252,7 @@ def main() -> None:
     parser.add_argument("--seed", default="ensemble")
     parser.add_argument("--prefix", default="")
     parser.add_argument("--style", choices=["prediction", "error-sigma"], default="prediction")
+    parser.add_argument("--title", default=None)
     args = parser.parse_args()
     if args.style == "error-sigma":
         plot_error_sigma(
@@ -260,6 +262,7 @@ def main() -> None:
             args.window,
             str(args.seed),
             args.prefix,
+            args.title,
         )
     else:
         plot_rmse_scatter(
