@@ -115,6 +115,20 @@ GAN 在当前 50 个开发实验上失败：
 
 baseline 的两张图也保留在同一个 `figures/` 目录。
 
+### 全部 62 组图
+
+为了增加散点数量，另用 **50 个开发集 OOF 预测 + 12 个锁定测试预测** 合成 62 个点：
+
+- candidate：[`candidate_all62_error_sigma_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_all62_error_sigma_by_gas.png)
+- baseline：[`baseline_all62_error_sigma_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/baseline_all62_error_sigma_by_gas.png)
+
+注意：
+
+- 开发集点来自五折 OOF，不是训练集自身预测；
+- 测试集点来自三 seed 集成；
+- 因此 62 点图用于展示误差分布，不是一次新的独立测试；
+- 图中说明文字已改为中文，保留 `OOF`、`σ` 等必要术语。
+
 ## 6. 辅助监督的结论
 
 - VAE 单独：`0.026231`；
