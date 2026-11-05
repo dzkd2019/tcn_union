@@ -106,8 +106,14 @@ GAN 在当前 50 个开发实验上失败：
 
 三个种子的测试 macro-NMAE：`0.020601 / 0.029479 / 0.020223`；集成后 `0.017942`。
 
-逐气体 RMSE 散点图：
-[`artifacts/final_vae_hybrid/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png)
+逐气体评估图保留两种：
+
+- 原来的“真实浓度 vs 预测浓度”RMSE 散点图：
+  [`candidate_10s_rmse_scatter_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png)
+- 新增的“相对误差 vs Points + mean/±1σ/±2σ/±3σ”分布图（参考 `example/pic_1.png`）：
+  [`candidate_10s_error_sigma_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_10s_error_sigma_by_gas.png)
+
+baseline 的两张图也保留在同一个 `figures/` 目录。
 
 ## 6. 辅助监督的结论
 
