@@ -12,7 +12,7 @@
 
 > 这一页只给方案和验收标准，不预设 GAN 一定有效。GAN 在小样本传感器数据上很可能失败，必须先过物理合理性和下游 OOF 两道关。
 
-> **执行结果（后续更新）**：GAN 质量门未通过，GAN 下游 OOF 为 `0.030237`，组合 `noise+GAN` 为 `0.027831`，均差于 clean。最终按老师“加噪声”路线选择真实测量噪声 `0.1×`：OOF `0.023127`，测试集三 seed 集成 `0.018002`；aux 在 noise 上变差，不保留。完整结果见 [`noise_augmentation_results.md`](noise_augmentation_results.md)。
+> **执行结果（后续更新）**：GAN 质量门未通过，下游 OOF 也差于 clean，未采用。随后改为 PCA 响应基 + 条件 VAE，并叠加真实测量噪声 0.1×：三 seed 平均 OOF `0.023672`，测试集三 seed 集成 `0.017942`（clean `0.024807`）。aux 在 noise+VAE 上变差，最终不保留。完整结果见 [`vae_augmentation_results.md`](vae_augmentation_results.md)。
 
 ## 2. 新分支的代码结构
 

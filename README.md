@@ -151,9 +151,9 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 主种子测试集没有负浓度预测，但有少数预测超出当前已测浓度范围；这些值未被裁剪，不代表模型已验证外推能力。当前记录末端未验证为稳态，因此 5 秒、10 秒相对于 59.6 秒记录窗口缩短约 91.6%、83.2%，不能称为相对稳态响应的加速倍数。
 
-## 当前分支：噪声/GAN 扩充 + 辅助监督再评估
+## 当前分支：PCA-VAE + 噪声扩充
 
-本分支删除了 cutout。先尝试条件 GAN 扩充，但生成质量门和下游 OOF 均未通过；最终采用**从真实测量噪声估计的轻量噪声增强**，不使用 cutout。
+本分支删除了 cutout。先尝试 GAN 扩充，但生成质量门和下游 OOF 均未通过；随后改用 **PCA 响应基 + 条件 VAE**，并叠加真实测量噪声，作为最终生成式扩充方案。
 
 阅读顺序：
 
@@ -163,20 +163,22 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 4. `tcn_union/gan.py`：条件 WGAN-GP，生成 `(浓度标签) -> 10 秒三路响应`；
 5. `tcn_union/noise.py`：从真实曲线估计测量噪声并生成训练噪声视图；
 6. `tcn_union/gan_quality.py`：生成质量排雷（平滑度、初值/末端、最近邻、多样性、曲线图）；
-7. `tcn_union/gan_train.py`：clean/aux/noise/gan/组合模式的五折 OOF 与最终重训；
-8. `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
-9. `tcn_union/plot_rmse_scatter.py`：逐气体真实值-预测值 RMSE 散点图。
+7. `tcn_union/vae.py`：PCA 响应基 + 条件 VAE，生成物理形态合理的响应曲线；
+8. `tcn_union/gan_train.py`：clean/aux/noise/生成式/组合模式的五折 OOF 与最终重训；
+9. `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
+10. `tcn_union/plot_rmse_scatter.py`：逐气体真实值-预测值 RMSE 散点图。
 
 GAN 的弱物理先验只有平滑惩罚、范围惩罚和“条件只取训练集真实浓度三元组”；这些不能证明生成曲线物理正确，所以必须先过生成质量检查，再进入下游 OOF。详细方案见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。
 
-第一轮 300-epoch GAN 生成质量检查未通过，GAN 下游 OOF 也差于 clean；最终没有采用 GAN。按老师“加噪声”的另一条路线，从真实曲线二阶差分估计测量噪声，**noise 0.1×** 被选中：
+GAN 在当前 50 个开发实验上生成质量不合格、下游 OOF 也差于 clean，因此没有采用 GAN。为了兼顾创新性和小样本稳定性，最终采用 **PCA 响应基 + 条件 VAE + 真实测量噪声**：
 
-- 开发集 OOF macro-NMAE：clean `0.027097` → noise `0.023127`；
-- 锁定测试集三 seed 集成：clean `0.024807` → noise `0.018002`，macro-MAPE `4.6476%` → `3.4714%`；
-- aux 在 noise 上反而变差（`0.024577`），因此新方案不保留 aux；
-- 逐气体 RMSE 散点图已生成。
+- 生成质量：平滑度比值 `0.881`（越接近 1 越好），NH3 初值/末端条件相关 `0.971/0.973`；
+- 训练集：40 条真实 + 0.1× 真实测量噪声 + 3× PCA-VAE 合成（每折 120 条）；
+- seed 23 OOF：clean `0.027097` → `0.024015`；三 seed 平均：clean `0.028348` → `0.023672`；
+- 锁定测试集三 seed 集成：clean `0.024807` → `0.017942`，macro-MAPE `4.6476%` → `3.3927%`；
+- aux 在 noise+VAE 上反而变差，最终不保留 aux。
 
-完整对比见 [`docs/noise_augmentation_results.md`](docs/noise_augmentation_results.md)，GAN 质量失败记录见 [`docs/gan_quality_result.md`](docs/gan_quality_result.md)。
+完整对比见 [`docs/vae_augmentation_results.md`](docs/vae_augmentation_results.md)；GAN 质量失败记录见 [`docs/gan_quality_result.md`](docs/gan_quality_result.md)；纯噪声对照见 [`docs/noise_augmentation_results.md`](docs/noise_augmentation_results.md)。
 
 ## 复现命令
 
@@ -242,7 +244,8 @@ uv run python -m tcn_union.plot_rmse_scatter \
 - `artifacts/tcn/`：旧 clean 基线 checkpoint、五折分数与 OOF，用于新方案对照。
 - `artifacts/gan_ablation_pilot/`：GAN 四模式单 seed 试点的 OOF 与 selection。
 - `artifacts/gan_augmentation/`：确认方案后的最终 GAN checkpoint。
-- `artifacts/final_noise/`：最终选中的 noise 0.1 方案：三 seed checkpoint、OOF、锁定测试指标与 RMSE 散点图。
+- `artifacts/final_vae_hybrid/`：最终选中的 PCA-VAE + noise 0.1 方案：三 seed checkpoint、OOF、锁定测试指标与 RMSE 散点图。
+- `artifacts/final_noise/`：纯 noise 0.1 对照：三 seed checkpoint、OOF 和测试指标。
 - `artifacts/gan_quality_mlp/`、`artifacts/gan_quality_cp/`：GAN 质量失败记录。
 - `artifacts/gan_evaluation/`：如后续重新启用 GAN，用于冻结测试指标与散点图。
 - `artifacts/augmentation_search/summary.csv`：cutout 时代的历史搜索汇总，仅作追溯，不再使用。

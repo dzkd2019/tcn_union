@@ -1,3 +1,5 @@
+> 历史阶段性结果：本文记录“纯噪声”对照。最终方案已升级为 PCA-VAE + 噪声，见 [`vae_augmentation_results.md`](vae_augmentation_results.md)。
+
 # 噪声 / GAN 扩充对比结果与最终选择
 
 ## 1. 协议
