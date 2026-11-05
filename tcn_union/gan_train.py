@@ -24,6 +24,7 @@ import torch
 from .data import TIME_STEP_SECONDS, make_features
 from .evaluate import AXES, _metric_summary
 from .gan import GANConfig, fit_gan
+from .noise import NoiseConfig, noisy_features
 from .train import (
     BASE_SEED,
     MAX_EPOCHS,
@@ -39,10 +40,14 @@ MODE = "raw_delta"
 AUX_POSITIONS = (25,)
 AUX_WEIGHT = 0.5
 MODES = {
-    "clean": (False, ()),
-    "aux": (False, AUX_POSITIONS),
-    "gan": (True, ()),
-    "gan_aux": (True, AUX_POSITIONS),
+    "clean": (False, False, ()),
+    "aux": (False, False, AUX_POSITIONS),
+    "noise": (True, False, ()),
+    "noise_aux": (True, False, AUX_POSITIONS),
+    "gan": (False, True, ()),
+    "gan_aux": (False, True, AUX_POSITIONS),
+    "noise_gan": (True, True, ()),
+    "noise_gan_aux": (True, True, AUX_POSITIONS),
 }
 
 
@@ -66,25 +71,33 @@ def _gan_features(
 def _augmented_arrays(
     rows: list[dict[str, Any]],
     seconds: float,
+    use_noise: bool,
     use_gan: bool,
     synthetic_ratio: float,
+    noise_config: NoiseConfig,
     gan_config: GANConfig,
     seed: int,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, int]:
-    """返回真实训练特征，按需拼上 GAN 合成特征。"""
+) -> tuple[np.ndarray, np.ndarray, int, int]:
+    """返回真实训练特征，按需拼上噪声视图和 GAN 合成特征。"""
     features = _features(rows, seconds, MODE)
     x = np.stack([features[row["file"]] for row in rows])
     y = np.stack([row["_labels"] for row in rows]).astype(np.float32)
-    if not use_gan:
-        return x, y, 0
-    synthetic_count = max(1, round(synthetic_ratio * len(rows)))
-    x_syn, y_syn = _gan_features(rows, synthetic_count, gan_config, seed, device)
-    return (
-        np.concatenate((x, x_syn), axis=0),
-        np.concatenate((y, y_syn), axis=0),
-        synthetic_count,
-    )
+    noise_count = 0
+    gan_count = 0
+    if use_noise:
+        x_noise, y_noise = noisy_features(
+            rows, seconds, MODE, noise_config, seed + 17
+        )
+        x = np.concatenate((x, x_noise), axis=0)
+        y = np.concatenate((y, y_noise), axis=0)
+        noise_count = len(x_noise)
+    if use_gan:
+        gan_count = max(1, round(synthetic_ratio * len(rows)))
+        x_gan, y_gan = _gan_features(rows, gan_count, gan_config, seed, device)
+        x = np.concatenate((x, x_gan), axis=0)
+        y = np.concatenate((y, y_gan), axis=0)
+    return x, y, noise_count, gan_count
 
 
 def _fold_metrics(
@@ -124,21 +137,24 @@ def cross_validate(
     device: torch.device,
     gan_config: GANConfig,
     synthetic_ratio: float,
+    noise_config: NoiseConfig,
     ema_decay: float | None,
     max_epochs: int = MAX_EPOCHS,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。"""
-    use_gan, aux_positions = MODES[mode]
+    use_noise, use_gan, aux_positions = MODES[mode]
     fold_scores: list[dict[str, Any]] = []
     oof: list[dict[str, Any]] = []
     for fold in range(5):
         train_rows = [row for row in dev_rows if int(row["fold"]) != fold]
         val_rows = [row for row in dev_rows if int(row["fold"]) == fold]
-        x_train, y_train, synthetic_count = _augmented_arrays(
+        x_train, y_train, noise_count, gan_count = _augmented_arrays(
             train_rows,
             10.0,
+            use_noise,
             use_gan,
             synthetic_ratio,
+            noise_config,
             gan_config,
             seed + 1000 * fold,
             device,
@@ -165,7 +181,13 @@ def cross_validate(
         if prediction is None or best_score is None:
             raise RuntimeError("五折训练没有产生验证预测")
 
-        row = {"fold": fold, "best_epoch": best_epoch, "synthetic_count": synthetic_count}
+        row = {
+            "fold": fold,
+            "best_epoch": best_epoch,
+            "noise_count": noise_count,
+            "gan_count": gan_count,
+            "synthetic_count": noise_count + gan_count,
+        }
         row.update(_fold_metrics(y_val, prediction, y_train_real))
         row["macro_nmae"] = float(best_score)
         fold_scores.append(row)
@@ -197,6 +219,8 @@ def _summary(fold_scores: list[dict[str, Any]]) -> dict[str, Any]:
             for axis in AXES
         },
         "best_epochs": [int(row["best_epoch"]) for row in fold_scores],
+        "noise_counts": [int(row["noise_count"]) for row in fold_scores],
+        "gan_counts": [int(row["gan_count"]) for row in fold_scores],
         "synthetic_counts": [int(row["synthetic_count"]) for row in fold_scores],
     }
 
@@ -216,12 +240,21 @@ def train_final(
     output_path: Path,
     gan_config: GANConfig,
     synthetic_ratio: float,
+    noise_config: NoiseConfig,
     ema_decay: float | None,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。"""
-    use_gan, aux_positions = MODES[mode]
-    x_dev, y_dev, synthetic_count = _augmented_arrays(
-        dev_rows, 10.0, use_gan, synthetic_ratio, gan_config, seed + 5000, device
+    use_noise, use_gan, aux_positions = MODES[mode]
+    x_dev, y_dev, noise_count, gan_count = _augmented_arrays(
+        dev_rows,
+        10.0,
+        use_noise,
+        use_gan,
+        synthetic_ratio,
+        noise_config,
+        gan_config,
+        seed + 5000,
+        device,
     )
     model, stats, _, _, _ = _train_network(
         x_dev,
@@ -239,8 +272,13 @@ def train_final(
     )
     metadata = {
         "mode": mode,
+        "noise": use_noise,
+        "noise_scale": noise_config.scale,
+        "noise_copies": noise_config.copies,
         "gan": use_gan,
-        "synthetic_count": synthetic_count,
+        "noise_count": noise_count,
+        "gan_count": gan_count,
+        "synthetic_count": noise_count + gan_count,
         "aux_positions": list(aux_positions),
         "aux_weight": AUX_WEIGHT if aux_positions else None,
         "ema_decay": ema_decay,
@@ -267,6 +305,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=BASE_SEED)
     parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
+    parser.add_argument("--noise-scale", type=float, default=1.0)
+    parser.add_argument("--noise-copies", type=int, default=1)
     parser.add_argument("--gan-epochs", type=int, default=300)
     parser.add_argument("--ema-decay", type=float, default=None)
     parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
@@ -275,6 +315,10 @@ def main() -> None:
 
     if args.synthetic_ratio <= 0.0:
         parser.error("--synthetic-ratio 必须为正")
+    if args.noise_scale < 0.0:
+        parser.error("--noise-scale 不能为负")
+    if args.noise_copies < 1:
+        parser.error("--noise-copies 必须为正")
     if args.max_epochs < 1:
         parser.error("--max-epochs 必须为正")
     if args.device == "cpu":
@@ -285,13 +329,16 @@ def main() -> None:
     dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     gan_config = GANConfig(seconds=10.0, epochs=args.gan_epochs)
+    noise_config = NoiseConfig(scale=args.noise_scale, copies=args.noise_copies)
 
     selection: dict[str, Any] = {
-        "protocol": "train-fold-only GAN; clean/aux/gan/gan_aux ablation; test untouched",
+        "protocol": "train-fold-only noise/GAN; clean/aux/noise/gan/combined ablation; test untouched",
         "base_seed": args.seed,
         "final_seeds": SEEDS,
         "mode": MODE,
         "synthetic_ratio": args.synthetic_ratio,
+        "noise_scale": args.noise_scale,
+        "noise_copies": args.noise_copies,
         "gan_epochs": args.gan_epochs,
         "ema_decay": args.ema_decay,
         "selected": {},
@@ -305,6 +352,7 @@ def main() -> None:
             device,
             gan_config,
             args.synthetic_ratio,
+            noise_config,
             args.ema_decay,
             args.max_epochs,
         )
@@ -334,15 +382,17 @@ def main() -> None:
                     path,
                     gan_config,
                     args.synthetic_ratio,
+                    noise_config,
                     args.ema_decay,
                 )
                 print(f"  saved {path}", flush=True)
 
         selection["selected"][mode] = {
             "seconds": 10.0,
-            "gan": MODES[mode][0],
-            "aux_positions": list(MODES[mode][1]),
-            "aux_weight": AUX_WEIGHT if MODES[mode][1] else None,
+            "noise": MODES[mode][0],
+            "gan": MODES[mode][1],
+            "aux_positions": list(MODES[mode][2]),
+            "aux_weight": AUX_WEIGHT if MODES[mode][2] else None,
             "selected_epochs": epochs,
             "fold_scores": fold_scores,
             "fold_summary": _summary(fold_scores),

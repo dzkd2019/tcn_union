@@ -36,9 +36,11 @@ class GANConfig:
     lr: float = 1e-4
     n_critic: int = 5
     lambda_gp: float = 10.0
-    lambda_smooth: float = 1e-3
+    lambda_smooth: float = 10.0
     lambda_range: float = 1e-3
     max_grad_norm: float = 100.0
+    anchor_endpoints: bool = True
+    residual: bool = True
 
     def __post_init__(self) -> None:
         if self.seconds not in {5.0, 10.0}:
@@ -146,6 +148,12 @@ class TrainedGAN:
         y_mean: np.ndarray,
         y_std: np.ndarray,
         labels_z: np.ndarray,
+        initial_coef: np.ndarray,
+        end_coef: np.ndarray,
+        mean_coef: np.ndarray | None,
+        residual: bool,
+        output_min: np.ndarray,
+        output_max: np.ndarray,
     ) -> None:
         self.generator = generator
         self.config = config
@@ -156,6 +164,12 @@ class TrainedGAN:
         self.y_mean = y_mean
         self.y_std = y_std
         self.labels_z = labels_z
+        self.initial_coef = initial_coef
+        self.end_coef = end_coef
+        self.mean_coef = mean_coef
+        self.residual = residual
+        self.output_min = output_min
+        self.output_max = output_max
 
     def sample(self, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
         """采样 ``count`` 条响应和对应的训练标签。"""
@@ -172,8 +186,29 @@ class TrainedGAN:
             condition = torch.from_numpy(self.labels_z[indices.numpy()]).to(device)
             generated = self.generator(noise, condition).cpu().numpy()
         responses = generated * self.x_std[None, :, None] + self.x_mean[None, :, None]
-        responses = np.clip(responses, self.x_min[None, :, None], self.x_max[None, :, None])
         labels = condition.cpu().numpy() * self.y_std[None, :] + self.y_mean[None, :]
+        if self.residual and self.mean_coef is not None:
+            design = np.concatenate((np.ones((count, 1)), labels), axis=1)
+            responses = responses + (design @ self.mean_coef).reshape(count, 3, -1)
+        if self.config.anchor_endpoints:
+            design = np.concatenate((np.ones((count, 1)), labels), axis=1)
+            target_initial = design @ self.initial_coef
+            target_end = design @ self.end_coef
+            for index in range(3):
+                start = responses[:, index, 0]
+                end = responses[:, index, -1]
+                span = end - start
+                safe = np.abs(span) > 1e-6
+                scale = np.ones_like(span)
+                scale[safe] = (target_end[safe, index] - target_initial[safe, index]) / span[safe]
+                scale = np.clip(scale, 0.2, 5.0)
+                offset = target_initial[:, index] - scale * start
+                responses[:, index, :] = offset[:, None] + scale[:, None] * responses[:, index, :]
+        responses = np.clip(
+            responses,
+            self.output_min[None, :, None],
+            self.output_max[None, :, None],
+        )
         return responses.astype(np.float64), labels.astype(np.float64)
 
 
@@ -189,17 +224,26 @@ def fit_gan(
     set_seed(seed)
     responses, labels = _prefix_arrays(rows, config.seconds)
     length = responses.shape[2]
-    x_mean = responses.mean(axis=(0, 2)).astype(np.float32)
-    x_std = responses.std(axis=(0, 2)).astype(np.float32)
+    design = np.concatenate((np.ones((len(labels), 1)), labels), axis=1)
+    mean_coef = np.linalg.lstsq(design, responses.reshape(len(responses), -1), rcond=None)[0]
+    mean_response = (design @ mean_coef).reshape(responses.shape)
+    targets = responses - mean_response if config.residual else responses
+    x_mean = targets.mean(axis=(0, 2)).astype(np.float32)
+    x_std = targets.std(axis=(0, 2)).astype(np.float32)
     x_std[x_std < 1e-8] = 1.0
-    x_min = responses.min(axis=(0, 2)).astype(np.float32)
-    x_max = responses.max(axis=(0, 2)).astype(np.float32)
+    x_min = targets.min(axis=(0, 2)).astype(np.float32)
+    x_max = targets.max(axis=(0, 2)).astype(np.float32)
+    output_min = responses.min(axis=(0, 2)).astype(np.float32)
+    output_max = responses.max(axis=(0, 2)).astype(np.float32)
     y_mean = labels.mean(axis=0).astype(np.float32)
     y_std = labels.std(axis=0).astype(np.float32)
     y_std[y_std < 1e-8] = 1.0
+    design = np.concatenate((np.ones((len(labels), 1)), labels), axis=1)
+    initial_coef = np.linalg.lstsq(design, responses[:, :, 0], rcond=None)[0]
+    end_coef = np.linalg.lstsq(design, responses[:, :, -1], rcond=None)[0]
 
     real_x = torch.from_numpy(
-        ((responses - x_mean[None, :, None]) / x_std[None, :, None]).astype(np.float32)
+        ((targets - x_mean[None, :, None]) / x_std[None, :, None]).astype(np.float32)
     ).to(device)
     real_y = torch.from_numpy(((labels - y_mean[None, :]) / y_std[None, :]).astype(np.float32)).to(device)
     real_min = torch.from_numpy(((x_min - x_mean) / x_std).astype(np.float32)).to(device)
@@ -261,6 +305,12 @@ def fit_gan(
         y_mean=y_mean,
         y_std=y_std,
         labels_z=((labels - y_mean[None, :]) / y_std[None, :]).astype(np.float32),
+        initial_coef=initial_coef,
+        end_coef=end_coef,
+        mean_coef=mean_coef if config.residual else None,
+        residual=config.residual,
+        output_min=output_min,
+        output_max=output_max,
     )
 
 
