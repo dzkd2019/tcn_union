@@ -217,17 +217,26 @@ def main() -> None:
                 f"MAPE={item['macro_MAPE_percent']:.4f}"
             )
     if args.rmse_plots:
-        from .plot_rmse_scatter import plot_rmse_scatter
+        from .plot_rmse_scatter import plot_error_sigma, plot_rmse_scatter
 
         for label in ("baseline", "candidate"):
             for seconds in args.windows:
+                prefix = f"{label}_{seconds}s"
                 plot_rmse_scatter(
                     args.output_dir / "test_predictions.csv",
                     args.output_dir / "figures",
                     label,
                     seconds,
                     "ensemble",
-                    prefix=f"{label}_{seconds}s",
+                    prefix=prefix,
+                )
+                plot_error_sigma(
+                    args.output_dir / "test_predictions.csv",
+                    args.output_dir / "figures",
+                    label,
+                    seconds,
+                    "ensemble",
+                    prefix=prefix,
                 )
     print(f"Wrote {args.output_dir / 'evaluation.json'}")
 
