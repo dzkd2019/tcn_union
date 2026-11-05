@@ -30,6 +30,7 @@ class GANConfig:
     seconds: float = 10.0
     noise_dim: int = 32
     hidden_dim: int = 64
+    control_points: int = 11
     epochs: int = 300
     batch_size: int = 16
     lr: float = 1e-4
@@ -46,6 +47,8 @@ class GANConfig:
             raise ValueError("GAN epochs 必须为正，batch_size 至少为 2")
         if self.noise_dim < 1 or self.hidden_dim < 1:
             raise ValueError("GAN 隐层维度必须为正")
+        if self.control_points < 2 or self.control_points > 51:
+            raise ValueError("control_points 必须在 [2, 51] 内")
         if self.n_critic < 1:
             raise ValueError("n_critic 至少为 1")
         if self.lambda_gp < 0.0 or self.lambda_smooth < 0.0 or self.lambda_range < 0.0:
@@ -56,17 +59,22 @@ class _Generator(nn.Module):
     def __init__(self, config: GANConfig, length: int) -> None:
         super().__init__()
         self.length = length
+        self.control_points = config.control_points
         self.net = nn.Sequential(
             nn.Linear(config.noise_dim + 3, config.hidden_dim),
             nn.ReLU(),
             nn.Linear(config.hidden_dim, config.hidden_dim * 2),
             nn.ReLU(),
-            nn.Linear(config.hidden_dim * 2, 3 * length),
+            nn.Linear(config.hidden_dim * 2, 3 * self.control_points),
         )
 
     def forward(self, noise: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
+        """生成低分辨率控制点，再线性插值成完整响应曲线。"""
         output = self.net(torch.cat((noise, condition), dim=1))
-        return output.view(-1, 3, self.length)
+        control = output.view(-1, 3, self.control_points)
+        return torch.nn.functional.interpolate(
+            control, size=self.length, mode="linear", align_corners=True
+        )
 
 
 class _Critic(nn.Module):
