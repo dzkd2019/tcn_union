@@ -1,0 +1,359 @@
+"""用条件 GAN 扩充开发集，并评估辅助监督在 GAN 方案中的实际作用。
+
+协议：
+- 只在训练折上拟合 GAN；验证折保持真实曲线，不参与 GAN。
+- 生成样本与真实训练样本一起训练 TCN；验证/测试始终用真实曲线。
+- 通过 ``clean / aux / gan / gan_aux`` 四种模式做消融，回答两个问题：
+  1. GAN 合成数据是否比只用真实数据更好；
+  2. 在 GAN 方案里，5 秒辅助监督是否还有额外收益。
+
+测试集不参与 GAN 拟合、epoch 选择或模式选择。
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import math
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import torch
+
+from .data import TIME_STEP_SECONDS, make_features
+from .evaluate import AXES, _metric_summary
+from .gan import GANConfig, fit_gan
+from .train import (
+    BASE_SEED,
+    MAX_EPOCHS,
+    SEEDS,
+    _features,
+    _macro_nmae,
+    _read_manifest,
+    _save_checkpoint,
+    _train_network,
+)
+
+MODE = "raw_delta"
+AUX_POSITIONS = (25,)
+AUX_WEIGHT = 0.5
+MODES = {
+    "clean": (False, ()),
+    "aux": (False, AUX_POSITIONS),
+    "gan": (True, ()),
+    "gan_aux": (True, AUX_POSITIONS),
+}
+
+
+def _gan_features(
+    rows: list[dict[str, Any]],
+    count: int,
+    config: GANConfig,
+    seed: int,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray]:
+    """在给定训练行上拟合 GAN，并生成 TCN 可用的特征。"""
+    gan = fit_gan(rows, config, seed, device)
+    responses, labels = gan.sample(count, seed + 1)
+    times = np.arange(round(config.seconds / TIME_STEP_SECONDS) + 1) * TIME_STEP_SECONDS
+    features = np.stack(
+        [make_features(times, response.T, config.seconds, MODE) for response in responses]
+    )
+    return features.astype(np.float32), labels.astype(np.float32)
+
+
+def _augmented_arrays(
+    rows: list[dict[str, Any]],
+    seconds: float,
+    use_gan: bool,
+    synthetic_ratio: float,
+    gan_config: GANConfig,
+    seed: int,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """返回真实训练特征，按需拼上 GAN 合成特征。"""
+    features = _features(rows, seconds, MODE)
+    x = np.stack([features[row["file"]] for row in rows])
+    y = np.stack([row["_labels"] for row in rows]).astype(np.float32)
+    if not use_gan:
+        return x, y, 0
+    synthetic_count = max(1, round(synthetic_ratio * len(rows)))
+    x_syn, y_syn = _gan_features(rows, synthetic_count, gan_config, seed, device)
+    return (
+        np.concatenate((x, x_syn), axis=0),
+        np.concatenate((y, y_syn), axis=0),
+        synthetic_count,
+    )
+
+
+def _fold_metrics(
+    truth: np.ndarray, prediction: np.ndarray, train_y: np.ndarray
+) -> dict[str, Any]:
+    """计算逐折指标；NMAE 使用该折训练标签范围。"""
+    _, axis_nmae = _macro_nmae(truth, prediction, train_y)
+    ranges = np.ptp(train_y, axis=0)
+    errors = np.abs(prediction - truth)
+    mae = errors.mean(axis=0)
+    rmse = np.sqrt((errors**2).mean(axis=0))
+    mape = 100.0 * (errors / np.maximum(np.abs(truth), 1e-8)).mean(axis=0)
+    return {
+        "macro_nmae": float(np.mean(axis_nmae)),
+        "H2_nmae": float(axis_nmae[0]),
+        "NH3_nmae": float(axis_nmae[1]),
+        "NO2_nmae": float(axis_nmae[2]),
+        "H2_mae": float(mae[0]),
+        "NH3_mae": float(mae[1]),
+        "NO2_mae": float(mae[2]),
+        "H2_rmse": float(rmse[0]),
+        "NH3_rmse": float(rmse[1]),
+        "NO2_rmse": float(rmse[2]),
+        "H2_nrmse": float(rmse[0] / ranges[0]),
+        "NH3_nrmse": float(rmse[1] / ranges[1]),
+        "NO2_nrmse": float(rmse[2] / ranges[2]),
+        "H2_mape": float(mape[0]),
+        "NH3_mape": float(mape[1]),
+        "NO2_mape": float(mape[2]),
+    }
+
+
+def cross_validate(
+    dev_rows: list[dict[str, Any]],
+    mode: str,
+    seed: int,
+    device: torch.device,
+    gan_config: GANConfig,
+    synthetic_ratio: float,
+    ema_decay: float | None,
+    max_epochs: int = MAX_EPOCHS,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """对一种训练模式跑五折 OOF。"""
+    use_gan, aux_positions = MODES[mode]
+    fold_scores: list[dict[str, Any]] = []
+    oof: list[dict[str, Any]] = []
+    for fold in range(5):
+        train_rows = [row for row in dev_rows if int(row["fold"]) != fold]
+        val_rows = [row for row in dev_rows if int(row["fold"]) == fold]
+        x_train, y_train, synthetic_count = _augmented_arrays(
+            train_rows,
+            10.0,
+            use_gan,
+            synthetic_ratio,
+            gan_config,
+            seed + 1000 * fold,
+            device,
+        )
+        y_train_real = y_train[: len(train_rows)]
+        features = _features(val_rows, 10.0, MODE)
+        x_val = np.stack([features[row["file"]] for row in val_rows])
+        y_val = np.stack([row["_labels"] for row in val_rows]).astype(np.float32)
+
+        _, _, best_epoch, best_score, prediction = _train_network(
+            x_train,
+            y_train,
+            x_val,
+            y_val,
+            y_train_real,
+            max_epochs,
+            seed,
+            device,
+            True,
+            aux_positions=aux_positions,
+            aux_weight=AUX_WEIGHT,
+            ema_decay=ema_decay,
+        )
+        if prediction is None or best_score is None:
+            raise RuntimeError("五折训练没有产生验证预测")
+
+        row = {"fold": fold, "best_epoch": best_epoch, "synthetic_count": synthetic_count}
+        row.update(_fold_metrics(y_val, prediction, y_train_real))
+        row["macro_nmae"] = float(best_score)
+        fold_scores.append(row)
+        for row, truth, pred in zip(val_rows, y_val, prediction, strict=True):
+            oof.append(
+                {
+                    "file": row["file"],
+                    "fold": fold,
+                    "H2_true": float(truth[0]),
+                    "NH3_true": float(truth[1]),
+                    "NO2_true": float(truth[2]),
+                    "H2_pred": float(pred[0]),
+                    "NH3_pred": float(pred[1]),
+                    "NO2_pred": float(pred[2]),
+                }
+            )
+    return fold_scores, oof
+
+
+def _summary(fold_scores: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "macro_nmae": float(np.mean([row["macro_nmae"] for row in fold_scores])),
+        "by_gas_nmae": {
+            axis: float(np.mean([row[f"{axis}_nmae"] for row in fold_scores]))
+            for axis in AXES
+        },
+        "by_gas_rmse": {
+            axis: float(np.mean([row[f"{axis}_rmse"] for row in fold_scores]))
+            for axis in AXES
+        },
+        "best_epochs": [int(row["best_epoch"]) for row in fold_scores],
+        "synthetic_counts": [int(row["synthetic_count"]) for row in fold_scores],
+    }
+
+
+def _global_summary(oof: list[dict[str, Any]], dev_ranges: np.ndarray) -> dict[str, Any]:
+    truth = np.array([[row[f"{axis}_true"] for axis in AXES] for row in oof])
+    pred = np.array([[row[f"{axis}_pred"] for axis in AXES] for row in oof])
+    return _metric_summary(truth, pred, dev_ranges)
+
+
+def train_final(
+    dev_rows: list[dict[str, Any]],
+    mode: str,
+    epochs: int,
+    seed: int,
+    device: torch.device,
+    output_path: Path,
+    gan_config: GANConfig,
+    synthetic_ratio: float,
+    ema_decay: float | None,
+) -> None:
+    """在全部 50 个开发实验上训练一个最终模型。"""
+    use_gan, aux_positions = MODES[mode]
+    x_dev, y_dev, synthetic_count = _augmented_arrays(
+        dev_rows, 10.0, use_gan, synthetic_ratio, gan_config, seed + 5000, device
+    )
+    model, stats, _, _, _ = _train_network(
+        x_dev,
+        y_dev,
+        None,
+        None,
+        y_dev,
+        epochs,
+        seed,
+        device,
+        False,
+        aux_positions=aux_positions,
+        aux_weight=AUX_WEIGHT,
+        ema_decay=ema_decay,
+    )
+    metadata = {
+        "mode": mode,
+        "gan": use_gan,
+        "synthetic_count": synthetic_count,
+        "aux_positions": list(aux_positions),
+        "aux_weight": AUX_WEIGHT if aux_positions else None,
+        "ema_decay": ema_decay,
+    }
+    _save_checkpoint(
+        output_path,
+        model,
+        stats,
+        MODE,
+        10.0,
+        dev_rows,
+        seed,
+        epochs,
+        device,
+        augmentation=metadata,
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="GAN 扩充 + 辅助监督消融")
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--seed", type=int, default=BASE_SEED)
+    parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
+    parser.add_argument("--synthetic-ratio", type=float, default=1.0)
+    parser.add_argument("--gan-epochs", type=int, default=300)
+    parser.add_argument("--ema-decay", type=float, default=None)
+    parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
+    parser.add_argument("--oof-only", action="store_true")
+    args = parser.parse_args()
+
+    if args.synthetic_ratio <= 0.0:
+        parser.error("--synthetic-ratio 必须为正")
+    if args.max_epochs < 1:
+        parser.error("--max-epochs 必须为正")
+    if args.device == "cpu":
+        torch.set_num_threads(1)
+    device = torch.device(args.device)
+    rows = _read_manifest(args.manifest)
+    dev_rows = [row for row in rows if row["split"] == "development"]
+    dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    gan_config = GANConfig(seconds=10.0, epochs=args.gan_epochs)
+
+    selection: dict[str, Any] = {
+        "protocol": "train-fold-only GAN; clean/aux/gan/gan_aux ablation; test untouched",
+        "base_seed": args.seed,
+        "final_seeds": SEEDS,
+        "mode": MODE,
+        "synthetic_ratio": args.synthetic_ratio,
+        "gan_epochs": args.gan_epochs,
+        "ema_decay": args.ema_decay,
+        "selected": {},
+    }
+    for mode in args.modes:
+        print(f"[mode] {mode}", flush=True)
+        fold_scores, oof = cross_validate(
+            dev_rows,
+            mode,
+            args.seed,
+            device,
+            gan_config,
+            args.synthetic_ratio,
+            args.ema_decay,
+            args.max_epochs,
+        )
+        mode_dir = args.output_dir / mode
+        mode_dir.mkdir(parents=True, exist_ok=True)
+        oof_path = mode_dir / "oof.csv"
+        with oof_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(oof[0]))
+            writer.writeheader()
+            writer.writerows(oof)
+
+        epochs = math.ceil(float(np.median([row["best_epoch"] for row in fold_scores])))
+        print(
+            f"  OOF macro-NMAE={_summary(fold_scores)['macro_nmae']:.6f} epochs={epochs}",
+            flush=True,
+        )
+        if not args.oof_only:
+            for seed in SEEDS:
+                path = mode_dir / "10s" / f"seed_{seed}.pt"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                train_final(
+                    dev_rows,
+                    mode,
+                    epochs,
+                    seed,
+                    device,
+                    path,
+                    gan_config,
+                    args.synthetic_ratio,
+                    args.ema_decay,
+                )
+                print(f"  saved {path}", flush=True)
+
+        selection["selected"][mode] = {
+            "seconds": 10.0,
+            "gan": MODES[mode][0],
+            "aux_positions": list(MODES[mode][1]),
+            "aux_weight": AUX_WEIGHT if MODES[mode][1] else None,
+            "selected_epochs": epochs,
+            "fold_scores": fold_scores,
+            "fold_summary": _summary(fold_scores),
+            "global_oof": _global_summary(oof, dev_ranges),
+            "oof_file": str(oof_path),
+        }
+        (args.output_dir / "selection.json").write_text(
+            json.dumps(selection, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+    print(f"Wrote {args.output_dir / 'selection.json'}", flush=True)
+
+
+if __name__ == "__main__":
+    main()

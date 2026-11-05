@@ -55,10 +55,13 @@ def evaluate(
     device: torch.device,
     seeds: list[int] | None = None,
     mode: str = "raw_delta",
+    windows: list[int] | None = None,
 ) -> dict[str, Any]:
     dev_rows, test_rows = _manifest(manifest_path)
     if seeds is None:
         seeds = [20260923, 20260924, 20260925]
+    if windows is None:
+        windows = [5, 10]
     y_test = np.stack([row["_labels"] for row in test_rows])
     y_dev = np.stack([row["_labels"] for row in dev_rows])
     dev_ranges = np.ptp(y_dev, axis=0)
@@ -67,8 +70,8 @@ def evaluate(
     metrics: list[dict[str, Any]] = []
     predictions_table: list[dict[str, Any]] = []
     prediction_arrays: dict[str, dict[str, np.ndarray]] = {}
-    for label, directory in (("baseline", baseline_dir), ("augmented", model_dir)):
-        for seconds in (5, 10):
+    for label, directory in (("baseline", baseline_dir), ("candidate", model_dir)):
+        for seconds in windows:
             seed_predictions, ensemble = _load_predictions(
                 directory, seconds, mode, test_rows, device, seeds
             )
@@ -123,11 +126,13 @@ def evaluate(
 
     comparisons: dict[str, Any] = {}
     pairs = [
-        ("augmented_10s_minus_augmented_5s", "augmented_10s", "augmented_5s"),
-        ("augmented_10s_minus_baseline_10s", "augmented_10s", "baseline_10s"),
-        ("augmented_5s_minus_baseline_5s", "augmented_5s", "baseline_5s"),
+        ("candidate_10s_minus_candidate_5s", "candidate_10s", "candidate_5s"),
+        ("candidate_10s_minus_baseline_10s", "candidate_10s", "baseline_10s"),
+        ("candidate_5s_minus_baseline_5s", "candidate_5s", "baseline_5s"),
     ]
     for name, left, right in pairs:
+        if left not in prediction_arrays or right not in prediction_arrays:
+            continue
         comparisons[name] = _bootstrap_difference(
             y_test,
             prediction_arrays[left]["ensemble"],
@@ -165,7 +170,7 @@ def evaluate(
         writer.writerows(predictions_table)
 
     report = {
-        "protocol": "locked 12-run test; augmentation frozen before test read",
+        "protocol": "locked 12-run test; candidate frozen before test read",
         "test_n": len(test_rows),
         "development_ranges": dict(zip(AXES, dev_ranges.tolist(), strict=True)),
         "seeds": seeds,
@@ -180,7 +185,7 @@ def evaluate(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate frozen augmented TCNs on the locked test set")
+    parser = argparse.ArgumentParser(description="Evaluate frozen candidate TCNs on the locked test set")
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--baseline-dir", type=Path, required=True)
     parser.add_argument("--model-dir", type=Path, required=True)
@@ -188,6 +193,8 @@ def main() -> None:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--mode", default="raw_delta")
     parser.add_argument("--seeds", type=int, nargs="+", default=[20260923, 20260924, 20260925])
+    parser.add_argument("--windows", type=int, nargs="+", default=[5, 10])
+    parser.add_argument("--rmse-plots", action="store_true", help="额外生成逐气体 RMSE 散点图")
     args = parser.parse_args()
     if args.device == "cpu":
         torch.set_num_threads(1)
@@ -200,6 +207,7 @@ def main() -> None:
         device,
         seeds=args.seeds,
         mode=args.mode,
+        windows=args.windows,
     )
     for item in report["metrics"]:
         if item["seed"] == "ensemble":
@@ -208,6 +216,19 @@ def main() -> None:
                 f"macro-NMAE={item['macro_NMAE']:.6f} "
                 f"MAPE={item['macro_MAPE_percent']:.4f}"
             )
+    if args.rmse_plots:
+        from .plot_rmse_scatter import plot_rmse_scatter
+
+        for label in ("baseline", "candidate"):
+            for seconds in args.windows:
+                plot_rmse_scatter(
+                    args.output_dir / "test_predictions.csv",
+                    args.output_dir / "figures",
+                    label,
+                    seconds,
+                    "ensemble",
+                    prefix=f"{label}_{seconds}s",
+                )
     print(f"Wrote {args.output_dir / 'evaluation.json'}")
 
 
