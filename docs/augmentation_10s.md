@@ -1,6 +1,6 @@
 # 10 秒响应加速的数据增强与多前缀监督
 
-> 说明：本文件保留历史消融记录；最终代码已收窄为 cutout + 5 秒辅助监督 + EMA，其他增强算子（噪声、增益、偏移、mixup、时间缩放、前缀长度）已从实现中删除，仅作为失败经验保留。
+> 历史说明：本文件保留 cutout 时期的消融记录。当前分支 `feature/gan-augmentation` 已按老师意见删除 cutout，改用 GAN 扩充；新方案见 [`gan_augmentation_plan.md`](gan_augmentation_plan.md)。
 
 本分支（`feature/augmentation-10s`）只使用现有 62 次实验和锁定划分：50 次开发实验做五折选择与最终重训，12 次测试实验在最终方案冻结后评估。原始 CSV、`artifacts/splits/manifest.csv`、测试 ID 均未改动。
 

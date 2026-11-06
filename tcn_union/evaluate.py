@@ -16,6 +16,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
 
 from .data import load_run, make_features
 from .model import GasTCN
@@ -62,38 +65,25 @@ def _load_features(rows: list[dict[str, Any]], seconds: float, mode: str) -> dic
     return features
 
 
-def _ridge_fit(x_train: np.ndarray, y_train: np.ndarray, alpha: float) -> dict[str, np.ndarray]:
-    """拟合带截距的多输出 Ridge 回归。
+def _ridge_fit(x_train: np.ndarray, y_train: np.ndarray, alpha: float) -> dict[str, Any]:
+    """用 sklearn 的标准化 + 多输出 Ridge 拟合基线。
 
-    参数：`x_train` 为 `[runs,features]`；`y_train` 为 `[runs,3]`；
-    `alpha` 是 L2 惩罚强度。
-    返回：输入/标签均值与标准差及回归系数。先按训练数据逐列标准化，避免
-    特征尺度影响惩罚；截距不惩罚，让回归可以表示总体偏移。
+    `StandardScaler` 避免不同特征尺度影响 L2 惩罚；`Ridge` 默认
+    `fit_intercept=True`，截距不做惩罚，与原先手写带截距 Ridge 等价。
     """
-    x_mean = np.mean(x_train, axis=0)
-    x_std = np.std(x_train, axis=0)
-    x_std[x_std < 1e-8] = 1.0
-    y_mean = np.mean(y_train, axis=0)
-    y_std = np.std(y_train, axis=0)
-    y_std[y_std < 1e-8] = 1.0
-    xz = (x_train - x_mean) / x_std
-    yz = (y_train - y_mean) / y_std
-    design = np.column_stack((np.ones(len(xz)), xz))
-    penalty = np.eye(design.shape[1]) * alpha
-    penalty[0, 0] = 0.0
-    beta = np.linalg.solve(design.T @ design + penalty, design.T @ yz)
-    return {"x_mean": x_mean, "x_std": x_std, "y_mean": y_mean, "y_std": y_std, "beta": beta}
+    # 输入和标签都按训练集标准化；Ridge 的截距不参与 L2 惩罚。
+    x_scaler = StandardScaler().fit(x_train)
+    y_scaler = StandardScaler().fit(y_train)
+    model = Ridge(alpha=alpha, fit_intercept=True).fit(
+        x_scaler.transform(x_train), y_scaler.transform(y_train)
+    )
+    return {"model": model, "x_scaler": x_scaler, "y_scaler": y_scaler}
 
 
-def _ridge_predict(model: dict[str, np.ndarray], x: np.ndarray) -> np.ndarray:
-    """用拟合好的 Ridge 参数预测并还原标签原始单位。
-
-    参数：`model` 是 `_ridge_fit` 返回的参数字典；`x` 是一个或多个特征行。
-    返回：`[runs,3]` 的原始单位浓度预测。
-    """
-    xz = (x - model["x_mean"]) / model["x_std"]
-    design = np.column_stack((np.ones(len(xz)), xz))
-    return (design @ model["beta"]) * model["y_std"] + model["y_mean"]
+def _ridge_predict(model: dict[str, Any], x: np.ndarray) -> np.ndarray:
+    """用 sklearn Ridge 预测并还原到原始浓度单位。"""
+    xz = model["x_scaler"].transform(x)
+    return model["y_scaler"].inverse_transform(model["model"].predict(xz))
 
 
 def _macro_nmae(truth: np.ndarray, prediction: np.ndarray, ranges: np.ndarray) -> float:
@@ -158,33 +148,34 @@ def _early_features(time: np.ndarray, response: np.ndarray, seconds: float) -> n
 def _metric_summary(truth: np.ndarray, prediction: np.ndarray, dev_ranges: np.ndarray) -> dict[str, Any]:
     """汇总三个气体的误差、归一化误差及百分比误差。
 
-    参数：`truth/prediction` 为原始单位的 `[runs,3]` 矩阵；`dev_ranges` 是开发
-    集逐气体浓度极差。
-    返回：含逐气体 MAE、RMSE、R²、NMAE、NRMSE、MAPE 及 macro 均值的字典。
-    MAPE 按每个真实值归一化，低浓度误差相对权重较大；任何真实值为 0 时该
-    气体 MAPE 返回 null 和原因，避免除零或掩盖未定义情形。
+    逐气体 MAE/RMSE/R² 使用 sklearn.metrics；NMAE 仍用开发集浓度极差归一化，
+    因为 sklearn 没有“按物理量程归一化”的现成指标。MAPE 继续显式检查零值，
+    避免除零或掩盖未定义情形。
     """
     output: dict[str, Any] = {}
     axis_nmae: list[float] = []
     axis_mape: list[float | None] = []
     for index, axis in enumerate(AXES):
-        error = prediction[:, index] - truth[:, index]
-        mae = float(np.mean(np.abs(error)))
-        rmse = float(np.sqrt(np.mean(error**2)))
-        variance = float(np.sum((truth[:, index] - np.mean(truth[:, index])) ** 2))
+        # 所有指标先按实验汇总，不把同一实验的多个时间点当独立样本。
+        target = truth[:, index]
+        predicted = prediction[:, index]
+        mae = float(mean_absolute_error(target, predicted))
+        rmse = float(np.sqrt(mean_squared_error(target, predicted)))
+        variance = float(np.sum((target - np.mean(target)) ** 2))
         if variance == 0.0:
             r2: float | None = None
             r2_reason = "test target variance is zero"
         else:
-            r2 = float(1.0 - np.sum(error**2) / variance)
+            r2 = float(r2_score(target, predicted))
             r2_reason = None
-        denominator = np.abs(truth[:, index])
+        denominator = np.abs(target)
         if np.any(denominator == 0):
             mape: float | None = None
             mape_reason = "MAPE is undefined because at least one target is zero"
         else:
-            mape = float(100.0 * np.mean(np.abs(error) / denominator))
+            mape = float(100.0 * np.mean(np.abs(predicted - target) / denominator))
             mape_reason = None
+        # NMAE 的分母是开发集该气体浓度极差，而不是测试集自身范围。
         nmae = mae / dev_ranges[index]
         axis_nmae.append(nmae)
         axis_mape.append(mape)
@@ -224,6 +215,7 @@ def _bootstrap_difference(
     per_run = np.mean(np.abs(model_prediction - truth) / dev_ranges[None, :], axis=1) - np.mean(
         np.abs(baseline_prediction - truth) / dev_ranges[None, :], axis=1
     )
+    # 以实验为单位做配对重采样：每个实验的模型/基线误差必须一起被抽到。
     generator = np.random.default_rng(20260923)
     indices = generator.integers(0, len(truth), size=(2000, len(truth)))
     differences = per_run[indices].mean(axis=1)
@@ -276,6 +268,7 @@ def evaluate(manifest_path: Path, model_dir: Path, output_dir: Path, device: tor
     if not selection_path.is_file():
         raise FileNotFoundError(f"training selection not found: {selection_path}")
     selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    # 开发集用于归一化尺度和 Ridge 基线；测试集只在最后评估一次。
     dev_rows, test_rows = _manifest(manifest_path)
     y_dev = np.stack([row["_labels"] for row in dev_rows])
     y_test = np.stack([row["_labels"] for row in test_rows])
@@ -302,7 +295,7 @@ def evaluate(manifest_path: Path, model_dir: Path, output_dir: Path, device: tor
     ridge_selection: dict[str, Any] = {}
     mean_prediction = np.mean(y_dev, axis=0)
     for seconds in (5, 10):
-        # Ridge 输入只使用 t=0 的传感器响应。
+        # 两个 Ridge 基线：t=0 绝对响应；早期 5/10 秒的手工统计特征。
         t0_features: dict[str, np.ndarray] = {}
         early_features: dict[str, np.ndarray] = {}
         for row in dev_rows + test_rows:

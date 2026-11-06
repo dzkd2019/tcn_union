@@ -6,7 +6,7 @@
 
 在预先锁定的 12 个测试实验上，5 秒 TCN 的主种子 macro-NMAE 为 **0.02627**，早期特征 Ridge 为 **0.03422**；10 秒 TCN 为 **0.03072**，略高于 10 秒早期 Ridge 的 **0.03003**。因此，旧方案的结果支持继续验证 5 秒方案，但尚不足以证明外部泛化或满足应用误差要求。数据文件未注明传感器响应与浓度物理单位，本文均保留原始单位，不将浓度标为 ppm。
 
-> **10 秒数据增强分支**：在 `feature/augmentation-10s` 分支上，使用“原始响应随机 cutout + 5 秒辅助监督 + 三个固定种子集成”后，10 秒方案的开发集 OOF macro-NMAE 为 **0.024592**（5 秒 clean 为 0.027605；该 OOF 值来自主种子 seed 23，三个种子的配对均值约为 0，OOF 证据不足以单独证明稳定增益，详见文档 §4.1），锁定测试集三 seed 集成 macro-NMAE 为 **0.018321**（5 秒 clean 为 0.020487，旧 10 秒 clean 为 0.024807），H2/NH3/NO2 三个气体的测试 NMAE 均低于 5 秒 clean。方法与完整结果见 [`docs/augmentation_10s.md`](docs/augmentation_10s.md)，学术报告稿件见 [`docs/augmentation_10s_report.md`](docs/augmentation_10s_report.md)，组会汇报稿见 [`docs/组会汇报_10s响应加速.md`](docs/组会汇报_10s响应加速.md)。
+> **当前分支 `feature/gan-augmentation`**：已回退 cutout（老师指出其违背传感器物理规律），改用条件 GAN 在训练折内扩充 10 秒响应，并重新评估 5 秒辅助监督。新方案的动机、GAN 约束、消融矩阵和验收标准见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。cutout 的历史实现保留在 `dev`/旧提交中，本分支不再使用。
 
 ## 数据与校验
 
@@ -151,32 +151,42 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 主种子测试集没有负浓度预测，但有少数预测超出当前已测浓度范围；这些值未被裁剪，不代表模型已验证外推能力。当前记录末端未验证为稳态，因此 5 秒、10 秒相对于 59.6 秒记录窗口缩短约 91.6%、83.2%，不能称为相对稳态响应的加速倍数。
 
-## 最终 10 秒模型
+## 当前分支：PCA-VAE + 噪声扩充
 
-最终模型只保留一条训练路径，探索期的 40 多种增强配方已删除。阅读顺序：
+本分支删除了 cutout。先尝试 GAN 扩充，但生成质量门和下游 OOF 均未通过；随后改用 **PCA 响应基 + 条件 VAE**，并叠加真实测量噪声，作为最终生成式扩充方案。
+
+阅读顺序：
 
 1. `tcn_union/data.py`：CSV 校验、读取、`raw_delta` 特征；
 2. `tcn_union/model.py`：因果 TCN；
-3. `tcn_union/augment.py`：只保留 cutout 和在线 `CutoutDataset`；
-4. `tcn_union/train.py`：训练循环、EMA、checkpoint；
-5. `tcn_union/augmentation_search.py`：最终 10 秒模型的五折 OOF；
-6. `tcn_union/augmentation_train.py`：5 秒 clean + 10 秒最终模型，三 seed 重训；
-7. `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
-8. `tcn_union/plot_augmentation.py`：测试集对比图。
+3. `tcn_union/train.py`：训练循环、辅助监督、可选 EMA、checkpoint；
+4. `tcn_union/gan.py`：条件 WGAN-GP，生成 `(浓度标签) -> 10 秒三路响应`；
+5. `tcn_union/noise.py`：从真实曲线估计测量噪声并生成训练噪声视图；
+6. `tcn_union/gan_quality.py`：生成质量排雷（平滑度、初值/末端、最近邻、多样性、曲线图）；
+7. `tcn_union/vae.py`：PCA 响应基 + 条件 VAE，生成物理形态合理的响应曲线；
+8. `tcn_union/gan_train.py`：clean/aux/noise/生成式/组合模式的五折 OOF 与最终重训；
+9. `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
+10. `tcn_union/plot_rmse_scatter.py`：逐气体真实值-预测值 RMSE 散点图。
 
-更完整的文件说明见 [`docs/最终模型代码结构.md`](docs/最终模型代码结构.md)。
+GAN 的弱物理先验只有平滑惩罚、范围惩罚和“条件只取训练集真实浓度三元组”；这些不能证明生成曲线物理正确，所以必须先过生成质量检查，再进入下游 OOF。详细方案见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。
 
-最终 10 秒方案：cutout 最多 2 秒 + 5 秒辅助监督（位置 25、权重 0.5）+ EMA 0.99 + 三 seed 集成。5 秒 clean 保持不变。最终 10 秒重训 255 epoch，5 秒 clean 231 epoch。
+GAN 在当前 50 个开发实验上生成质量不合格、下游 OOF 也差于 clean，因此没有采用 GAN。为了兼顾创新性和小样本稳定性，最终采用 **PCA 响应基 + 条件 VAE + 真实测量噪声**：
 
-开发集 OOF 与锁定测试集的关键结果：
+- 生成质量：平滑度比值 `0.881`（越接近 1 越好），NH3 初值/末端条件相关 `0.971/0.973`；
+- 训练集：40 条真实 + 0.1× 真实测量噪声 + 3× PCA-VAE 合成（每折 120 条）；
+- seed 23 OOF：clean `0.027097` → `0.024015`；三 seed 平均：clean `0.028348` → `0.023672`；
+- 锁定测试集三 seed 集成：clean `0.024807` → `0.017942`，macro-MAPE `4.6476%` → `3.3927%`；
+- aux 在 noise+VAE 上反而变差，最终不保留 aux。
 
-| 方案 | OOF macro-NMAE | 测试 macro-NMAE（三 seed 集成） | 测试 macro-MAPE（%） |
-|---|---:|---:|---:|
-| 5 秒 clean | 0.027605 | 0.020487 | 4.0176 |
-| 10 秒 clean（旧） | 0.027097 | 0.024807 | 4.6476 |
-| **10 秒最终模型（EMA 0.99）** | **0.024718（seed 23）** | **0.016692** | **3.2587** |
+完整对比见 [`docs/vae_augmentation_results.md`](docs/vae_augmentation_results.md)；GAN 质量失败记录见 [`docs/gan_quality_result.md`](docs/gan_quality_result.md)；纯噪声对照见 [`docs/noise_augmentation_results.md`](docs/noise_augmentation_results.md)。
 
-测试集逐气体 NMAE：H2 `0.01709`、NH3 `0.00785`、NO2 `0.02514`，均低于 5 秒 clean 的 `0.02261 / 0.01153 / 0.02733`。以实验为单位的配对 bootstrap：最终 10 秒 − 旧 10 秒 = `−0.008115`，95% 区间 `[−0.014090, −0.002288]`；最终 10 秒 − 5 秒 = `−0.003796`，区间 `[−0.008327, +0.000412]`。因此“优于旧 10 秒”有区间支持；“优于 5 秒”在点估计和三个气体上成立，但 12 次测试实验下尚未达到显著。
+PCA-VAE 的零基础原理与代码逐段讲解见 [`docs/PCA-VAE学习资料.md`](docs/PCA-VAE学习资料.md)。
+
+向老师汇报的方法选择理由、幻灯片结构和口头稿见 [`docs/PCA-VAE汇报提纲.md`](docs/PCA-VAE汇报提纲.md)。
+
+从数据和模型定义开始、逐步理解训练代码的学习资料见 [`docs/从零理解GasTCN模型与训练.md`](docs/从零理解GasTCN模型与训练.md)。
+
+GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成式增强对比实验.md`](docs/生成式增强对比实验.md)。
 
 ## 复现命令
 
@@ -186,8 +196,13 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 # 生成固定清单与 inventory
 uv run python -m tcn_union.split --data-dir data --output-dir artifacts/splits
 
-# 五折选型、OOF 预测和最终开发集重训
-uv run python -m tcn_union.train --manifest artifacts/splits/manifest.csv --output-dir artifacts/tcn --device cpu
+# 最终 10 秒模型：noise + PCA-VAE 五折 OOF + 三 seed 重训
+uv run python -m tcn_union.gan_train \
+  --manifest artifacts/splits/manifest.csv \
+  --output-dir artifacts/final_vae_hybrid \
+  --modes noise_gan --generator vae \
+  --noise-scale 0.1 --synthetic-ratio 3.0 \
+  --gan-epochs 300 --max-epochs 500
 
 # 锁定测试集评估与基线比较
 uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device cpu
@@ -202,28 +217,36 @@ uv run python -m tcn_union.plot_results --results-dir artifacts/evaluation --out
 uv run python -m unittest discover -s tests -v
 ```
 
-10 秒增强方案的复现命令：
+GAN 方案的复现命令：
 
 ```bash
-# 最终 10 秒模型的五折 OOF（EMA 0.99）
-uv run python -m tcn_union.augmentation_search \
+# 单 seed 四模式五折 OOF（先试点）
+uv run python -m tcn_union.gan_train \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/improvement/ema099_seed23 \
-  --seconds 10 --seed 20260923 --ema-decay 0.99
+  --output-dir artifacts/gan_ablation_pilot \
+  --modes clean aux gan gan_aux \
+  --synthetic-ratio 1.0 --gan-epochs 300 --max-epochs 500 \
+  --seed 20260923 --oof-only
 
-# 5 秒 clean + 10 秒最终模型，三个固定种子重训
-uv run python -m tcn_union.augmentation_train \
+# 三 seed 最终重训（确认方案后）
+uv run python -m tcn_union.gan_train \
   --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/improvement/final_ema
+  --output-dir artifacts/gan_augmentation \
+  --modes gan_aux \
+  --synthetic-ratio 1.0 --gan-epochs 300 --max-epochs 500
 
-# 冻结后评估锁定测试集并绘图
+# 冻结后评估 10 秒 GAN 模型
 uv run python -m tcn_union.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn --model-dir artifacts/improvement/final_ema \
-  --output-dir artifacts/improvement/evaluation_ema
-uv run python -m tcn_union.plot_augmentation \
-  --results-dir artifacts/evaluation_final \
-  --output-dir artifacts/evaluation_final/figures
+  --baseline-dir artifacts/tcn \
+  --model-dir artifacts/gan_augmentation/gan_aux \
+  --output-dir artifacts/gan_evaluation --windows 10 --rmse-plots
+
+# 也可以单独重画逐气体 RMSE 散点图
+uv run python -m tcn_union.plot_rmse_scatter \
+  --predictions artifacts/gan_evaluation/test_predictions.csv \
+  --output-dir artifacts/gan_evaluation/figures \
+  --model candidate --window 10 --seed ensemble
 ```
 
 预测 CLI 输出 JSON，包括 `seconds`、`H2`、`NH3`、`NO2` 和 `unit: "original"`。模型 checkpoint 保存架构、模式、通道顺序、训练文件哈希、训练统计量、种子、epoch 与软件版本。
@@ -231,13 +254,14 @@ uv run python -m tcn_union.plot_augmentation \
 ## 产物
 
 - `artifacts/splits/manifest.csv`、`inventory.csv`：实验划分、浓度标签和输入文件哈希。
-- `artifacts/tcn/cv_scores.csv`、`artifacts/tcn/oof/`、`artifacts/tcn/selection.json`：五折分数、逐文件 OOF 预测和开发集选型结果。
-- `artifacts/tcn/5s/`、`artifacts/tcn/10s/`：三个种子的最终 checkpoint。
-- `artifacts/evaluation/test_metrics.csv`、`test_predictions.csv`、`evaluation.json`：测试逐气体指标、逐文件预测/误差、基线与 bootstrap 结果。
-- `artifacts/evaluation/figures/`：散点图、逐气体 NMAE/MAPE 对比图（例如 `test_mape_by_gas.png`）和残差热图。
-- `artifacts/improvement/final_ema/`：最终 EMA 方案的三 seed checkpoints、`selection.json` 和 OOF 预测。
-- `artifacts/improvement/evaluation_ema/`：冻结后锁定测试的逐种子/集成指标与预测。
-- `artifacts/augmentation_search/summary.csv`：探索期的历史搜索汇总，仅作记录。
+- `artifacts/tcn/`：旧 clean 基线 checkpoint、五折分数与 OOF，用于新方案对照。
+- `artifacts/gan_ablation_pilot/`：GAN 四模式单 seed 试点的 OOF 与 selection。
+- `artifacts/gan_augmentation/`：确认方案后的最终 GAN checkpoint。
+- `artifacts/final_vae_hybrid/`：最终选中的 PCA-VAE + noise 0.1 方案：三 seed checkpoint、OOF、锁定测试指标与 RMSE 散点图。
+- `artifacts/final_noise/`：纯 noise 0.1 对照：三 seed checkpoint、OOF 和测试指标。
+- `artifacts/gan_quality_mlp/`、`artifacts/gan_quality_cp/`：GAN 质量失败记录。
+- `artifacts/gan_evaluation/`：如后续重新启用 GAN，用于冻结测试指标与散点图。
+- `artifacts/augmentation_search/summary.csv`：cutout 时代的历史搜索汇总，仅作追溯，不再使用。
 
 ## 限制与适用范围
 
