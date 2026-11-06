@@ -32,6 +32,11 @@ GAN 在当前 50 个开发实验上失败：
 - 下游训练时使用 3× 真实训练样本数的 VAE 合成样本（40 条真实 → 120 条合成），再叠加真实测量噪声 0.1×；
 - 验证/测试始终是真实曲线。
 
+### 学习资料
+
+如果第一次接触 PCA、VAE 或条件生成，先读：
+[`PCA-VAE学习资料.md`](PCA-VAE学习资料.md)。它从“为什么需要增强”开始，用尽量少的数学讲清 PCA、条件均值、VAE、重参数化和采样，并逐段对照 `tcn_union/vae.py`。
+
 ### 论文版架构图
 
 - 矢量 PDF：[`figures/fig_tcn_architecture.pdf`](../figures/fig_tcn_architecture.pdf)
