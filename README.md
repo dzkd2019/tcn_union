@@ -188,6 +188,56 @@ PCA-VAE 的零基础原理与代码逐段讲解见 [`docs/PCA-VAE学习资料.md
 
 GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成式增强对比实验.md`](docs/生成式增强对比实验.md)。
 
+## GPU / ROCm 支持
+
+代码不再写死 CUDA：所有训练/评估命令的 `--device` 默认是 `auto`，会按以下顺序选择：
+
+- 有可用 NVIDIA CUDA → `cuda`；
+- 有可用 AMD ROCm → 仍然使用 PyTorch 的 `cuda` 设备名（ROCm 版 PyTorch 沿用这套 API）；
+- 都没有 → `cpu`。
+
+### NVIDIA CUDA 机器
+
+```bash
+uv sync
+uv run python -m tcn_union.gan_train ... --device auto
+```
+
+### AMD ROCm 机器
+
+```bash
+# 默认：ROCm 7.2 + Python 3.14 + torch 2.14.1
+bash scripts/setup_rocm.sh
+
+# 运行训练/评估时加 --no-sync，避免 uv 把 ROCm torch 换回 lock 中的版本
+uv run --no-sync python -m tcn_union.gan_train ... --device auto
+```
+
+脚本默认从**南京大学 PyTorch wheel 镜像**安装：
+
+```text
+https://mirrors.nju.edu.cn/pytorch/whl/rocm7.2
+```
+
+也可以用腾讯镜像或显式指定版本：
+
+```bash
+ROCM_INDEX=https://mirrors.tencent.com/pytorch-wheels/whl/rocm7.2 \
+TORCH_SPEC=torch==2.14.1+rocm7.2 bash scripts/setup_rocm.sh
+```
+
+注意：
+
+- `torch==2.14.1+rocm7.2` 提供 Python 3.14 的 wheel；如果机器只有 ROCm 6.2，需要匹配 Python 3.12 和 `torch==2.5.1+rocm6.2`，不要混用版本；
+- 如果系统检测到 `/dev/kfd` 或 `rocm-smi`，但当前 PyTorch 是 CUDA 构建，`--device auto` 会直接报错并提示运行 `scripts/setup_rocm.sh`，不会静默退回 CPU；
+- 如果国内 PyPI 也慢，可在 `uv sync` 前设置 `UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple`（只影响非 torch 的 Python 包）。
+
+设备检查：
+
+```bash
+uv run --no-sync python -c "import torch; print(torch.__version__, torch.version.cuda, torch.version.hip, torch.cuda.is_available())"
+```
+
 ## 复现命令
 
 从项目根目录运行：
@@ -205,7 +255,7 @@ uv run python -m tcn_union.gan_train \
   --gan-epochs 300 --max-epochs 500
 
 # 锁定测试集评估与基线比较
-uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device cpu
+uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device auto
 
 # 单文件预测示例（10 秒模型将路径中的 5s 改为 10s）
 uv run python -m tcn_union.predict --checkpoint artifacts/tcn/5s/seed_20260923.pt --csv data/2.csv
