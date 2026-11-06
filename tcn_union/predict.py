@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 
 from .data import load_prediction_prefix, make_features
+from .device import configure_threads, describe_device, resolve_device
 from .model import GasTCN
 
 
@@ -54,13 +56,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Predict gas concentrations from a response prefix")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--csv", type=Path, required=True)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     args = parser.parse_args()
-    if args.device.startswith("cuda") and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but is not available")
-    if args.device not in {"cpu", "cuda", "cuda:0"}:
-        raise ValueError("device must be cpu, cuda, or cuda:0")
-    result = predict(args.checkpoint, args.csv, torch.device(args.device))
+    device = resolve_device(args.device)
+    configure_threads(device)
+    print(f"[device] {describe_device(device)}", file=sys.stderr)
+    result = predict(args.checkpoint, args.csv, device)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
 
 

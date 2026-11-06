@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from .device import configure_threads, describe_device, resolve_device
 from .direct_vae import DirectVAEConfig, fit_direct_vae
 from .gan import GANConfig, fit_gan
 from .generative_metrics import AXES, evaluate_generation
@@ -154,11 +155,11 @@ def main() -> None:
     parser.add_argument("--samples", type=int, default=200)
     parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--seed", type=int, default=20260923)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     args = parser.parse_args()
-    if args.device == "cpu":
-        torch.set_num_threads(1)
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    configure_threads(device)
+    print(f"[device] {describe_device(device)}")
     rows = _read_manifest(args.manifest)
     dev_rows = [row for row in rows if row["split"] == "development"]
     real, _ = _load_dev_prefixes(dev_rows)

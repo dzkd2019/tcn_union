@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from .data import TIME_STEP_SECONDS
+from .device import configure_threads, describe_device, resolve_device
 from .gan import GANConfig, fit_gan
 from .train import _read_manifest
 from .vae import VAEConfig, fit_vae
@@ -154,20 +155,21 @@ def main() -> None:
     parser.add_argument("--samples", type=int, default=100)
     parser.add_argument("--gan-epochs", type=int, default=300)
     parser.add_argument("--seed", type=int, default=20260923)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     parser.add_argument("--generator", choices=["gan", "vae"], default="gan")
     parser.add_argument("--vae-components", type=int, default=6)
     parser.add_argument("--vae-beta", type=float, default=0.1)
     args = parser.parse_args()
-    if args.device == "cpu":
-        torch.set_num_threads(1)
+    device = resolve_device(args.device)
+    configure_threads(device)
+    print(f"[device] {describe_device(device)}")
     check_quality(
         args.manifest,
         args.output_dir,
         args.samples,
         args.gan_epochs,
         args.seed,
-        torch.device(args.device),
+        device,
         args.generator,
         args.vae_components,
         args.vae_beta,

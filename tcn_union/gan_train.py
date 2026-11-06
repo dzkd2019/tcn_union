@@ -21,6 +21,7 @@ import numpy as np
 import torch
 
 from .data import TIME_STEP_SECONDS, make_features
+from .device import configure_threads, describe_device, resolve_device
 from .direct_vae import DirectVAEConfig, fit_direct_vae
 from .evaluate import AXES, _metric_summary
 from .gan import GANConfig, fit_gan
@@ -366,7 +367,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="GAN 扩充 + 辅助监督消融")
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     parser.add_argument("--seed", type=int, default=BASE_SEED)
     parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
@@ -391,9 +392,9 @@ def main() -> None:
         parser.error("--noise-copies 必须为正")
     if args.max_epochs < 1:
         parser.error("--max-epochs 必须为正")
-    if args.device == "cpu":
-        torch.set_num_threads(1)
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    configure_threads(device)
+    print(f"[device] {describe_device(device)}", flush=True)
     rows = _read_manifest(args.manifest)
     dev_rows = [row for row in rows if row["split"] == "development"]
     dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)

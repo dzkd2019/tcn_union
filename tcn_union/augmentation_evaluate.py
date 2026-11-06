@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 import torch
 
+from .device import configure_threads, describe_device, resolve_device
 from .evaluate import (
     AXES,
     _bootstrap_difference,
@@ -193,15 +194,15 @@ def main() -> None:
     parser.add_argument("--baseline-dir", type=Path, required=True)
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     parser.add_argument("--mode", default="raw_delta")
     parser.add_argument("--seeds", type=int, nargs="+", default=[20260923, 20260924, 20260925])
     parser.add_argument("--windows", type=int, nargs="+", default=[5, 10])
     parser.add_argument("--rmse-plots", action="store_true", help="额外生成逐气体 RMSE 散点图")
     args = parser.parse_args()
-    if args.device == "cpu":
-        torch.set_num_threads(1)
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    configure_threads(device)
+    print(f"[device] {describe_device(device)}")
     report = evaluate(
         args.manifest,
         args.baseline_dir,

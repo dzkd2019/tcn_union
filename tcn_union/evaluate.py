@@ -21,6 +21,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 
 from .data import load_run, make_features
+from .device import configure_threads, describe_device, resolve_device
 from .model import GasTCN
 
 ALPHAS = [0.01, 0.1, 1.0, 10.0, 100.0]
@@ -435,15 +436,11 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     args = parser.parse_args()
-    if args.device.startswith("cuda") and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but is not available")
-    if args.device not in {"cpu", "cuda", "cuda:0"}:
-        raise ValueError("device must be cpu, cuda, or cuda:0")
-    device = torch.device(args.device)
-    if device.type == "cpu":
-        torch.set_num_threads(1)
+    device = resolve_device(args.device)
+    configure_threads(device)
+    print(f"[device] {describe_device(device)}")
     report = evaluate(args.manifest, args.model_dir, args.output_dir, device)
     print(f"Wrote {args.output_dir / 'evaluation.json'} for {report['test_n']} locked test runs")
 
