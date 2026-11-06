@@ -137,7 +137,14 @@ MAPE 排序与 NMAE 并不完全相同：10 秒 TCN 的 macro-MAPE 略低于早�
 
 ```bash
 uv run python -m tcn_union.split --data-dir data --output-dir artifacts/splits
-uv run python -m tcn_union.train --manifest artifacts/splits/manifest.csv --output-dir artifacts/tcn --device cpu
+# 旧 clean 基线 checkpoint 已保存在 artifacts/tcn；
+# 当前最终 10 秒模型训练入口为 gan_train（完整命令见 README 的复现命令）。
+uv run python -m tcn_union.gan_train \
+  --manifest artifacts/splits/manifest.csv \
+  --output-dir artifacts/final_vae_hybrid \
+  --modes noise_gan --generator vae \
+  --noise-scale 0.1 --synthetic-ratio 3.0 \
+  --gan-epochs 300 --max-epochs 500
 uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device cpu
 uv run python -m tcn_union.plot_results --results-dir artifacts/evaluation --output-dir artifacts/evaluation/figures
 uv run python -m unittest discover -s tests -v
