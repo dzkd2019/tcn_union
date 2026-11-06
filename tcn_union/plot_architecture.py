@@ -1,13 +1,11 @@
-"""绘制论文版 GasTCN 架构与训练/推理流程图。
+"""绘制参照论文版式的 GasTCN 架构图。
 
-图分成四块：
-(a) 逐折训练数据构造：真实响应、测量噪声、PCA 条件 VAE；
-(b) GasTCN 主结构：输入、三个因果残差块、10 秒主输出；
-(c) 单个残差块的内部数据流与因果填充；
-(d) 五折 OOF、三 seed 重训与推理协议。
+布局参考 example/pic_2.jpg：
+(a) 左侧为主流程：数据构造 → GasTCN 特征提取 → 输出头；
+(b) 右上为残差块内部；
+(c) 右下为因果膨胀卷积与感受野。
 
-图中的卷积核、膨胀率、通道数、Dropout、线性头维度均从 ``GasTCN`` 实例读取，
-避免图和代码不一致。输出 PNG 与矢量 PDF。
+所有参数从 GasTCN 实例读取；输出 PNG 和矢量 PDF。
 """
 from __future__ import annotations
 
@@ -18,7 +16,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.font_manager import FontProperties
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 from torch import nn
 
 from .model import GasTCN
@@ -27,23 +25,21 @@ FONT_FAMILY = "Noto Serif CJK SC"
 FONT_FILE: str | None = None
 
 COLORS = {
-    "data": "#EAF2F8",
-    "noise": "#FFF3E0",
-    "vae": "#E8F2EE",
-    "merge": "#F3F0E8",
-    "model": "#E8EDF2",
-    "detail": "#F7F8FA",
-    "head": "#FFF2DF",
-    "output": "#F0EAF8",
-    "protocol": "#EEF2F0",
-    "test": "#F5F5F5",
-    "edge": "#3D4A57",
-    "text": "#1F2933",
-    "muted": "#5B6770",
-    "accent": "#2A6F77",
-    "aux": "#9A6B2F",
+    "green": "#6FA97A",
+    "green_fill": "#F0F8F2",
+    "pink": "#C97A8B",
+    "pink_fill": "#FDF1F3",
+    "purple": "#9A7CB8",
+    "purple_fill": "#F8F2FC",
+    "blue_fill": "#EDF4FB",
+    "yellow_fill": "#FFF8E7",
+    "box_edge": "#3F4A54",
+    "text": "#1D2730",
+    "muted": "#59656F",
+    "arrow": "#38434D",
 }
-W, H = 7.2, 9.9
+
+W, H = 12.0, 7.5
 
 
 def _configure_font() -> FontProperties:
@@ -54,7 +50,7 @@ def _configure_font() -> FontProperties:
         {
             "font.family": FONT_FAMILY,
             "font.serif": [FONT_FAMILY],
-            "font.size": 8,
+            "font.size": 7,
             "axes.unicode_minus": False,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
@@ -67,10 +63,8 @@ def _configure_font() -> FontProperties:
 
 def _font(size: float, weight: str = "normal") -> FontProperties:
     if FONT_FILE is None:
-        raise RuntimeError("configure the font before drawing")
-    return FontProperties(
-        family=FONT_FAMILY, fname=FONT_FILE, size=size, weight=weight
-    )
+        raise RuntimeError("configure font first")
+    return FontProperties(family=FONT_FAMILY, fname=FONT_FILE, size=size, weight=weight)
 
 
 def _box(
@@ -81,46 +75,60 @@ def _box(
     h: float,
     title: str,
     body: str,
-    color: str,
+    face: str,
+    edge: str = COLORS["box_edge"],
     *,
     dashed: bool = False,
-    title_size: float = 8.2,
-    body_size: float = 7.1,
+    title_size: float = 7.0,
+    body_size: float = 6.0,
+    linewidth: float = 0.8,
 ) -> None:
     ax.add_patch(
         FancyBboxPatch(
             (x, y),
             w,
             h,
-            boxstyle="round,pad=0.025,rounding_size=0.09",
-            facecolor=color,
-            edgecolor=COLORS["edge"],
-            linewidth=0.85,
+            boxstyle="round,pad=0.02,rounding_size=0.06",
+            facecolor=face,
+            edgecolor=edge,
+            linewidth=linewidth,
             linestyle="--" if dashed else "-",
             zorder=3,
         )
     )
-    ax.text(
-        x + w / 2,
-        y + h * 0.70,
-        title,
-        ha="center",
-        va="center",
-        fontproperties=_font(title_size, "bold"),
-        color=COLORS["text"],
-        zorder=4,
-    )
-    ax.text(
-        x + w / 2,
-        y + h * 0.30,
-        body,
-        ha="center",
-        va="center",
-        fontproperties=_font(body_size),
-        color=COLORS["muted"],
-        linespacing=1.25,
-        zorder=4,
-    )
+    if body:
+        ax.text(
+            x + w / 2,
+            y + h * 0.68,
+            title,
+            ha="center",
+            va="center",
+            fontproperties=_font(title_size, "bold"),
+            color=COLORS["text"],
+            zorder=4,
+        )
+        ax.text(
+            x + w / 2,
+            y + h * 0.30,
+            body,
+            ha="center",
+            va="center",
+            fontproperties=_font(body_size),
+            color=COLORS["muted"],
+            linespacing=1.18,
+            zorder=4,
+        )
+    else:
+        ax.text(
+            x + w / 2,
+            y + h / 2,
+            title,
+            ha="center",
+            va="center",
+            fontproperties=_font(title_size, "bold"),
+            color=COLORS["text"],
+            zorder=4,
+        )
 
 
 def _arrow(
@@ -128,11 +136,11 @@ def _arrow(
     start: tuple[float, float],
     end: tuple[float, float],
     *,
-    color: str | None = None,
     dashed: bool = False,
+    color: str = COLORS["arrow"],
+    width: float = 0.8,
+    head: float = 7.0,
     rad: float = 0.0,
-    width: float = 1.0,
-    head: float = 8.0,
 ) -> None:
     ax.add_patch(
         FancyArrowPatch(
@@ -142,30 +150,67 @@ def _arrow(
             mutation_scale=head,
             linewidth=width,
             linestyle="--" if dashed else "-",
-            color=color or COLORS["edge"],
+            color=color,
             connectionstyle=f"arc3,rad={rad}",
             zorder=2,
         )
     )
 
 
-def _panel_title(ax: plt.Axes, x: float, y: float, text: str) -> None:
+def _group(
+    ax: plt.Axes,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    color: str,
+    fill: str,
+    label: str,
+) -> None:
+    ax.add_patch(
+        FancyBboxPatch(
+            (x, y),
+            w,
+            h,
+            boxstyle="round,pad=0.02,rounding_size=0.10",
+            facecolor=fill,
+            edgecolor=color,
+            linewidth=1.1,
+            linestyle="--",
+            zorder=1,
+        )
+    )
     ax.text(
-        x,
-        y,
-        text,
+        x + 0.12,
+        y + h - 0.16,
+        label,
         ha="left",
         va="center",
-        fontproperties=_font(9.6, "bold"),
-        color=COLORS["text"],
+        fontproperties=_font(7.2, "bold"),
+        color=color,
+        zorder=2,
     )
 
 
-def _read_model_specs() -> dict[str, object]:
+def _panel_border(ax: plt.Axes, x: float, y: float, w: float, h: float) -> None:
+    ax.add_patch(
+        FancyBboxPatch(
+            (x, y),
+            w,
+            h,
+            boxstyle="round,pad=0.02,rounding_size=0.10",
+            facecolor="white",
+            edgecolor=COLORS["box_edge"],
+            linewidth=0.9,
+            zorder=0,
+        )
+    )
+
+
+def _read_specs() -> tuple[list[dict[str, object]], list[nn.Linear], int]:
     model = GasTCN(in_channels=6)
-    blocks = list(model.blocks)
     specs = []
-    for index, block in enumerate(blocks):
+    for index, block in enumerate(model.blocks):
         conv1, conv2 = block.conv1, block.conv2
         if not isinstance(conv1, nn.Conv1d) or not isinstance(conv2, nn.Conv1d):
             raise TypeError("residual block must use Conv1d")
@@ -174,7 +219,7 @@ def _read_model_specs() -> dict[str, object]:
                 "index": index + 1,
                 "kernel": int(conv1.kernel_size[0]),
                 "dilation": int(block.dilation),
-                "in_channels": int(conv1.in_channels),
+                "input_channels": int(conv1.in_channels),
                 "channels": int(conv1.out_channels),
                 "dropout": float(block.dropout1.p),
                 "skip": "1×1 Conv" if isinstance(block.projection, nn.Conv1d) else "Identity",
@@ -186,20 +231,12 @@ def _read_model_specs() -> dict[str, object]:
     receptive = 1 + 2 * sum(
         (int(item["kernel"]) - 1) * int(item["dilation"]) for item in specs
     )
-    return {
-        "specs": specs,
-        "linears": linears,
-        "receptive": receptive,
-    }
+    return specs, linears, receptive
 
 
 def draw_architecture(output_path: Path) -> tuple[Path, Path]:
     _configure_font()
-    info = _read_model_specs()
-    specs = info["specs"]
-    linears = info["linears"]
-    receptive = int(info["receptive"])
-
+    specs, linears, receptive = _read_specs()
     png_path = output_path.with_suffix(".png")
     pdf_path = output_path.with_suffix(".pdf")
     png_path.parent.mkdir(parents=True, exist_ok=True)
@@ -210,194 +247,125 @@ def draw_architecture(output_path: Path) -> tuple[Path, Path]:
     ax.set_axis_off()
     fig.patch.set_facecolor("white")
 
-    # ------------------------------------------------------------
-    # (a) 数据构造
-    # ------------------------------------------------------------
-    _panel_title(ax, 0.18, 9.55, "(a) 逐折训练数据构造")
-    ax.text(
-        0.18,
-        9.23,
-        "每折只用 40 个训练实验拟合噪声统计和 PCA-VAE；验证/测试保持真实曲线",
-        fontproperties=_font(6.7),
-        color=COLORS["muted"],
-    )
-    _box(ax, 0.18, 8.28, 1.28, 0.63, "真实响应", "50 条开发实验\n6×51（10 s）", COLORS["data"])
-    _box(ax, 1.78, 8.58, 1.62, 0.48, "测量噪声", "0.1× MAD 估计", COLORS["noise"])
-    _box(ax, 1.78, 8.00, 1.62, 0.48, "PCA + 条件 VAE", "6 PCs / 3× 合成", COLORS["vae"])
-    _box(
-        ax,
-        3.76,
-        8.10,
-        1.60,
-        0.80,
-        "每折训练集",
-        "40 真实 + 40 噪声\n+ 120 合成",
-        COLORS["merge"],
-    )
-    _box(
-        ax,
-        5.78,
-        8.10,
-        1.22,
-        0.80,
-        "验证 / 测试",
-        "10 + 12 条\n真实曲线",
-        COLORS["test"],
-        dashed=True,
-    )
-    _arrow(ax, (1.49, 8.58), (1.73, 8.75), width=0.8)
-    _arrow(ax, (1.49, 8.45), (1.73, 8.23), width=0.8)
-    _arrow(ax, (3.43, 8.80), (3.72, 8.60), width=0.8)
-    _arrow(ax, (3.43, 8.23), (3.72, 8.40), width=0.8)
+    # ---------- 主面板 (a) ----------
+    _panel_border(ax, 0.15, 0.20, 8.00, 7.08)
+    _group(ax, 0.32, 1.42, 2.02, 5.55, COLORS["green"], COLORS["green_fill"], "训练数据构造")
+    _group(ax, 2.56, 1.42, 2.72, 5.55, COLORS["pink"], COLORS["pink_fill"], "GasTCN 特征提取")
+    _group(ax, 5.50, 1.42, 2.42, 5.55, COLORS["purple"], COLORS["purple_fill"], "输出头与预测")
 
-    # ------------------------------------------------------------
-    # (b) GasTCN 主结构
-    # ------------------------------------------------------------
-    _panel_title(ax, 0.18, 7.42, "(b) GasTCN：因果 TCN 与 10 秒主读出")
-    ax.text(
-        0.18,
-        7.10,
-        f"3 个残差块 · 16 通道 · k={int(specs[0]['kernel'])} · d=1/2/4 · 末时刻回归 · 感受野 {receptive} 点",
-        fontproperties=_font(6.6),
-        color=COLORS["muted"],
-    )
-    _box(ax, 0.18, 5.95, 1.02, 0.78, "输入 x", "raw_delta\n6×51（10 s）", COLORS["data"])
-    block_x = [1.42, 2.72, 4.02]
-    for x, spec in zip(block_x, specs, strict=True):
+    _box(ax, 0.52, 5.80, 1.62, 0.64, "真实响应", "50 条开发实验\n6×51（10 s）", COLORS["green_fill"], COLORS["green"])
+    _box(ax, 0.52, 4.92, 1.62, 0.45, "测量噪声", "0.1× 真实噪声", COLORS["yellow_fill"], COLORS["green"])
+    _box(ax, 0.52, 4.14, 1.62, 0.45, "PCA + 条件 VAE", "6 主成分 / 3× 合成", COLORS["green_fill"], COLORS["green"])
+    _box(ax, 0.52, 2.92, 1.62, 0.72, "训练样本", "40 真 + 40 噪\n+ 120 合成", COLORS["green_fill"], COLORS["green"])
+    _box(ax, 0.52, 1.68, 1.62, 0.55, "验证 / 测试", "10 + 12 条真实曲线", "white", COLORS["green"], dashed=True, body_size=5.8)
+    _arrow(ax, (1.33, 5.78), (1.33, 5.39), width=0.7)
+    _arrow(ax, (1.33, 4.90), (1.33, 4.60), width=0.7)
+    _arrow(ax, (1.33, 4.12), (1.33, 3.66), width=0.7)
+
+    # 特征提取
+    _box(ax, 2.78, 5.78, 1.60, 0.50, "输入 x", "raw_delta  6×51", COLORS["blue_fill"], COLORS["pink"], body_size=5.8)
+    block_y = [4.95, 4.10, 3.25]
+    for y, spec in zip(block_y, specs, strict=True):
         _box(
             ax,
-            x,
-            5.88,
-            1.08,
-            0.92,
-            f"残差块 {spec['index']}",
-            f"Conv1d k={spec['kernel']}\nd={spec['dilation']} · 16 ch\nDropout {spec['dropout']:.1f}",
-            COLORS["model"],
-            title_size=7.8,
-            body_size=6.4,
+            2.78,
+            y,
+            1.60,
+            0.62,
+            f"因果残差块 {spec['index']}",
+            f"d={spec['dilation']} · 16 通道\nk={spec['kernel']} · Dropout {spec['dropout']:.1f}",
+            COLORS["pink_fill"],
+            COLORS["pink"],
+            title_size=6.7,
+            body_size=5.6,
         )
-    _box(
-        ax,
-        5.35,
-        5.95,
-        0.96,
-        0.78,
-        "主输出头",
-        f"Linear {linears[0].in_features}→{linears[0].out_features}\n"
-        f"ReLU\nLinear {linears[1].in_features}→{linears[1].out_features}",
-        COLORS["head"],
-        title_size=7.6,
-        body_size=6.2,
-    )
-    _box(
-        ax,
-        6.38,
-        5.95,
-        0.68,
-        0.78,
-        "三气体",
-        "10 s\nH2/NH3/NO2",
-        COLORS["output"],
-        title_size=7.0,
-        body_size=5.8,
-    )
+    _box(ax, 2.78, 2.38, 1.60, 0.48, "隐藏序列 H", "[B, 16, 51]", COLORS["pink_fill"], COLORS["pink"], body_size=5.8)
+    _arrow(ax, (3.58, 5.76), (3.58, 5.59), width=0.7)
+    for upper, lower in pairwise(block_y):
+        _arrow(ax, (3.58, upper), (3.58, lower + 0.64), width=0.7)
+    _arrow(ax, (3.58, block_y[-1]), (3.58, 2.88), width=0.7)
 
+    # 从数据组到特征组
+    ax.plot([2.15, 2.36, 2.36], [3.28, 3.28, 6.03], color=COLORS["arrow"], linewidth=0.8, zorder=2)
+    _arrow(ax, (2.36, 6.03), (2.76, 6.03), width=0.8)
+
+    # 末时刻与输出头
+    _box(ax, 4.52, 2.38, 0.90, 0.48, "末时刻", "h[:, :, −1]", COLORS["blue_fill"], COLORS["pink"], title_size=6.0, body_size=5.4)
+    _arrow(ax, (4.40, 2.62), (4.50, 2.62), width=0.7)
     _box(
         ax,
-        3.90,
-        4.96,
-        1.38,
-        0.48,
-        "5 s 辅助头（可选）",
-        "训练时读取 index 25",
-        COLORS["test"],
+        5.72,
+        5.55,
+        1.62,
+        0.62,
+        "训练协议",
+        "5 折 OOF\n3 seed 预测平均",
+        COLORS["purple_fill"],
+        COLORS["purple"],
         dashed=True,
-        title_size=6.8,
-        body_size=5.8,
+        title_size=6.2,
+        body_size=5.2,
     )
-    _arrow(ax, (4.58, 5.87), (4.58, 5.47), dashed=True, color=COLORS["aux"], width=0.7, head=6.0)
-    ax.text(4.68, 5.62, "辅助损失", fontproperties=_font(5.4), color=COLORS["aux"])
-    ax.text(5.35, 5.20, "最终方案未启用", fontproperties=_font(5.8), color=COLORS["aux"])
-
-    for x1, x2 in [(1.20, 1.40), (2.50, 2.70), (3.80, 4.00), (5.10, 5.28), (6.28, 6.36)]:
-        _arrow(ax, (x1 + 0.01, 6.34), (x2 - 0.01, 6.34), width=0.9)
-    ax.text(2.58, 6.94, "隐藏序列 H ∈ R^{16×51}", ha="center", fontproperties=_font(6.5), color=COLORS["accent"])
-
-    # 数据到模型：绕到面板标题下方，避免穿过 (b) 标题
-    ax.plot([4.56, 4.56, 0.69], [8.08, 7.76, 7.76], color=COLORS["edge"], linewidth=0.9, zorder=2)
-    _arrow(ax, (0.69, 7.76), (0.69, 6.75), width=0.9)
-    ax.text(2.42, 7.67, "训练特征", fontproperties=_font(6.2), color=COLORS["muted"])
-
-    # ------------------------------------------------------------
-    # (c) 残差块内部
-    # ------------------------------------------------------------
-    ax.add_patch(
-        FancyBboxPatch(
-            (0.18, 3.18),
-            6.84,
-            1.50,
-            boxstyle="round,pad=0.02,rounding_size=0.08",
-            facecolor=COLORS["detail"],
-            edgecolor="#D5DCE3",
-            linewidth=0.7,
-            zorder=1,
-        )
+    _box(
+        ax,
+        5.72,
+        4.50,
+        1.62,
+        0.62,
+        "推理",
+        "只用 10 秒主输出\n反 z-score",
+        COLORS["purple_fill"],
+        COLORS["purple"],
+        dashed=True,
+        title_size=6.2,
+        body_size=5.2,
     )
-    _panel_title(ax, 0.30, 4.55, "(c) 单个残差块内部")
-    detail = [
-        (0.32, 0.72, "x", "[B,C,L]", COLORS["data"]),
-        (1.18, 1.00, "因果 Conv1d", "左 padding\n(k−1)d", COLORS["model"]),
-        (2.36, 0.82, "ReLU", "Dropout", COLORS["model"]),
-        (3.32, 1.00, "因果 Conv1d", "同 k、同 d", COLORS["model"]),
-        (4.50, 0.82, "ReLU", "Dropout", COLORS["model"]),
-        (5.48, 0.68, "相加", "残差", COLORS["head"]),
-        (6.30, 0.60, "输出", "[B,16,L]", COLORS["output"]),
+    _box(ax, 5.72, 2.95, 1.62, 0.70, "主输出头", f"Linear {linears[0].in_features}→{linears[0].out_features}\nReLU → Linear 16→3", COLORS["yellow_fill"], COLORS["purple"], title_size=6.7, body_size=5.5)
+    _arrow(ax, (5.44, 2.62), (5.70, 2.62), width=0.7)
+    _arrow(ax, (6.53, 2.93), (6.53, 2.35), width=0.7)
+    _box(ax, 5.72, 1.70, 1.62, 0.56, "输出浓度", "H2 / NH3 / NO2", COLORS["purple_fill"], COLORS["purple"], title_size=6.7, body_size=5.8)
+    ax.text(3.58, 2.18, f"感受野 {receptive} 点", ha="center", va="center", fontproperties=_font(5.8), color=COLORS["pink"])
+    ax.text(4.08, 0.42, "(a) GasTCN 总览", ha="center", va="center", fontproperties=_font(8.4, "bold"), color=COLORS["text"])
+
+    # ---------- 面板 (b) 残差块 ----------
+    _panel_border(ax, 8.34, 4.02, 3.50, 3.26)
+    ax.text(8.48, 7.02, "残差块内部", ha="left", va="center", fontproperties=_font(7.2, "bold"), color=COLORS["pink"])
+    mini = [
+        (6.52, "输入 x", "[B, C, L]", COLORS["blue_fill"]),
+        (6.10, "因果 Conv1d", "k=5, d", COLORS["pink_fill"]),
+        (5.68, "ReLU + Dropout", "0.1", COLORS["pink_fill"]),
+        (5.26, "因果 Conv1d", "k=5, d", COLORS["pink_fill"]),
+        (4.84, "ReLU + Dropout", "0.1", COLORS["pink_fill"]),
+        (4.42, "相加 + ReLU", "残差", COLORS["yellow_fill"]),
     ]
-    for x, w, title, body, color in detail:
-        _box(ax, x, 3.72, w, 0.55, title, body, color, title_size=6.6, body_size=5.7)
-    for (x1, w1, *_), (x2, *_) in pairwise(detail):
-        _arrow(ax, (x1 + w1 + 0.01, 4.00), (x2 - 0.01, 4.00), width=0.75, head=6.5)
-    ax.plot([0.68, 0.68, 5.82, 5.82], [3.64, 3.50, 3.50, 3.64], color=COLORS["aux"], linewidth=0.8, linestyle="--")
-    ax.text(3.25, 3.39, "跳连：块 1 用 1×1 Conv；块 2/3 用 Identity", ha="center", fontproperties=_font(5.6), color=COLORS["aux"])
-    ax.text(
-        0.30,
-        3.26,
-        f"每层左填充 p=(k−1)d，禁止访问未来；RF = 1 + 2(k−1)Σd = {receptive} 点",
-        fontproperties=_font(5.4),
-        color=COLORS["muted"],
-    )
+    for y, title, body, color in mini:
+        _box(ax, 8.52, y, 1.55, 0.30, title, body, color, COLORS["pink"], title_size=5.2, body_size=4.6, linewidth=0.6)
+    for (y1, *_), (y2, *_) in pairwise(mini):
+        _arrow(ax, (9.30, y1), (9.30, y2 + 0.31), width=0.55, head=5.5)
+    ax.plot([10.30, 10.88, 10.88], [6.67, 6.67, 4.57], color=COLORS["pink"], linewidth=0.7, linestyle="--")
+    _arrow(ax, (10.88, 4.57), (10.10, 4.57), color=COLORS["pink"], width=0.7, head=5.5)
+    ax.text(10.92, 5.62, "跳连\n1×1 Conv / Identity", ha="left", va="center", fontproperties=_font(4.8), color=COLORS["pink"])
+    ax.text(8.48, 4.18, "左 padding = (k−1)d，只看过去", ha="left", va="center", fontproperties=_font(5.0), color=COLORS["muted"])
+    ax.text(10.09, 3.88, "(b) 残差块", ha="center", va="center", fontproperties=_font(8.0, "bold"), color=COLORS["text"])
 
-    # ------------------------------------------------------------
-    # (d) 训练 / 推理协议
-    # ------------------------------------------------------------
-    _panel_title(ax, 0.18, 2.82, "(d) 五折 OOF、三 seed 重训与推理")
-    protocol = [
-        (0.18, 1.12, "5 折 OOF", "40 训 / 10 验", COLORS["protocol"]),
-        (1.46, 1.18, "早停", "验证 macro-NMAE", COLORS["protocol"]),
-        (2.80, 1.10, "轮数", "5 折最佳 epoch\n取中位数", COLORS["protocol"]),
-        (4.06, 1.12, "全开发集重训", "50 条 × 3 seeds", COLORS["protocol"]),
-        (5.34, 1.14, "三 seed 集成", "预测平均", COLORS["head"]),
-        (6.64, 0.38, "输出", "y", COLORS["output"]),
-    ]
-    for x, w, title, body, color in protocol:
-        _box(ax, x, 1.87, w, 0.66, title, body, color, title_size=6.8, body_size=5.9)
-    for (x1, w1, *_), (x2, *_) in pairwise(protocol):
-        _arrow(ax, (x1 + w1 + 0.01, 2.20), (x2 - 0.01, 2.20), width=0.75, head=6.5)
-    ax.text(0.20, 1.54, "锁定 12 个测试实验：方案冻结后才评估；推理只使用 10 秒主输出，不读取未来采样。", fontproperties=_font(6.4), color=COLORS["muted"])
-    ax.text(0.20, 1.29, "增强只作用于训练折；验证/测试始终使用真实曲线。", fontproperties=_font(6.4), color=COLORS["muted"])
-    ax.text(0.20, 0.82, "输入 6 通道 = 三路原始响应 + 三路相对增量；输出反 z-score 到原始浓度单位。", fontproperties=_font(6.1), color=COLORS["muted"])
-    ax.text(0.20, 0.55, "所有卷积只在左侧补零；主输出读取 t=10 s 的最后一个隐藏位置。", fontproperties=_font(6.1), color=COLORS["muted"])
+    # ---------- 面板 (c) 因果膨胀卷积 ----------
+    _panel_border(ax, 8.34, 0.20, 3.50, 3.56)
+    ax.text(8.48, 3.52, "因果膨胀卷积", ha="left", va="center", fontproperties=_font(7.2, "bold"), color=COLORS["pink"])
+    x_start, x_step = 8.80, 0.21
+    rows = [(2.92, 1, 5, "d=1"), (2.12, 2, 9, "d=2"), (1.32, 4, 17, "d=4")]
+    for y, dilation, span, label in rows:
+        for index in range(9):
+            color = "#BFC8D0" if index < 8 - (span - 1) // 2 else COLORS["pink"]
+            ax.add_patch(Rectangle((x_start + index * x_step, y), 0.09, 0.09, facecolor=color, edgecolor="none", zorder=2))
+        ax.text(x_start - 0.12, y + 0.04, label, ha="right", va="center", fontproperties=_font(5.2), color=COLORS["muted"])
+        ax.text(x_start + 9 * x_step + 0.08, y + 0.04, f"{span} 点", ha="left", va="center", fontproperties=_font(4.8), color=COLORS["pink"])
+    ax.text(8.48, 3.28, "灰点：左侧补零 / 粉色：当前输出可见范围", ha="left", va="center", fontproperties=_font(4.8), color=COLORS["muted"])
+    ax.text(8.48, 0.82, f"RF = 1 + 2(k−1)(1+2+4) = {receptive} 点", ha="left", va="center", fontproperties=_font(5.4), color=COLORS["text"])
+    ax.text(8.48, 0.60, "主输出读取 t=10 s；因果卷积保证不访问未来", ha="left", va="center", fontproperties=_font(4.9), color=COLORS["muted"])
+    ax.text(10.09, 0.36, "(c) 因果卷积", ha="center", va="center", fontproperties=_font(8.0, "bold"), color=COLORS["text"])
 
-    figure_title = "GasTCN：三气体 10 秒早期响应预测模型与训练流程"
-    ax.text(
-        W / 2,
-        9.83,
-        figure_title,
-        ha="center",
-        va="center",
-        fontproperties=_font(11.2, "bold"),
-        color=COLORS["text"],
-    )
+    # 标题
+    ax.text(6.0, 7.38, "GasTCN：三气体 10 秒早期响应预测模型", ha="center", va="center", fontproperties=_font(11.0, "bold"), color=COLORS["text"])
 
     fig.savefig(png_path, dpi=300, bbox_inches="tight", facecolor="white")
     fig.savefig(pdf_path, bbox_inches="tight", facecolor="white")
@@ -406,7 +374,7 @@ def draw_architecture(output_path: Path) -> tuple[Path, Path]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="绘制论文版 GasTCN 架构与算法图")
+    parser = argparse.ArgumentParser(description="绘制参照论文版式的 GasTCN 架构图")
     parser.add_argument("--output", type=Path, default=Path("figures/fig_tcn_architecture.png"))
     args = parser.parse_args()
     for path in draw_architecture(args.output):
