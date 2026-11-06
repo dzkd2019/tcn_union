@@ -180,6 +180,8 @@ GAN 在当前 50 个开发实验上生成质量不合格、下游 OOF 也差于 
 
 完整对比见 [`docs/vae_augmentation_results.md`](docs/vae_augmentation_results.md)；GAN 质量失败记录见 [`docs/gan_quality_result.md`](docs/gan_quality_result.md)；纯噪声对照见 [`docs/noise_augmentation_results.md`](docs/noise_augmentation_results.md)。
 
+PCA-VAE 的零基础原理与代码逐段讲解见 [`docs/PCA-VAE学习资料.md`](docs/PCA-VAE学习资料.md)。
+
 ## 复现命令
 
 从项目根目录运行：
