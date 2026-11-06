@@ -242,6 +242,8 @@ uv run --no-sync python -c "import torch; print(torch.__version__, torch.version
 
 从项目根目录运行：
 
+> ROCm 用户：先执行 `bash scripts/setup_rocm.sh`，然后把下面命令中的 `uv run` 全部替换为 `uv run --no-sync`，避免 uv 重新同步并覆盖 ROCm 版 torch。
+
 ```bash
 # 生成固定清单与 inventory
 uv run python -m tcn_union.split --data-dir data --output-dir artifacts/splits
