@@ -1,15 +1,12 @@
-"""训练核心：数据、TCN 训练循环和 checkpoint 保存。
+"""训练核心：数据校验、z-score、TCN 训练循环和 checkpoint 保存。
 
-最终 10 秒模型的训练入口见 ``gan_train.py``；本模块的
-``train()`` / ``main()`` 是旧的 5/10 秒 clean 基线，保留用于历史复现。
+最终 10 秒模型的完整训练入口见 ``gan_train.py``；本模块只保留可复用的
+底层函数，避免把数据划分、增强策略和命令行逻辑混在一起。
 """
 
 from __future__ import annotations
 
-import argparse
-import csv
 import hashlib
-import json
 import math
 import random
 import sys
@@ -27,8 +24,6 @@ from .model import GasTCN
 
 BASE_SEED = 20260923
 SEEDS = [20260923, 20260924, 20260925]
-SECONDS = [5.0, 10.0]
-MODES = ["raw_delta", "delta"]
 MAX_EPOCHS = 500
 PATIENCE = 50
 BATCH_SIZE = 8
@@ -184,10 +179,14 @@ def _train_network(
     CV 最多训练 500 轮，按反标准化预测的验证 macro-NMAE 保存最佳权重，并在
     50 轮无改善时早停；最终全开发集重训使用折最佳轮数中位数，不使用测试集早停。
     """
+    # 固定随机种子：保证同一 seed 下的初始化、打乱顺序和 Dropout 可复现。
     set_seed(seed)
+
+    # z-score 统计量只从当前训练折拟合，验证集复用同一组统计量，避免泄漏。
     stats = fit_scalers(x_train, y_train)
     x_train_z, y_train_z = _scaled(x_train, y_train, stats)
 
+    # 小样本训练集直接放进内存；每个 epoch 重新打乱一次。
     dataset = TensorDataset(
         torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
     )
@@ -196,6 +195,7 @@ def _train_network(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
     )
 
+    # 模型输入通道数由特征决定：raw_delta 为 6，delta 为 3。
     model = GasTCN(x_train.shape[1]).to(device)
     if ema_decay is not None and not 0.0 < ema_decay < 1.0:
         raise ValueError("ema_decay must be in (0, 1)")
@@ -205,6 +205,7 @@ def _train_network(
             name: value.detach().clone()
             for name, value in model.state_dict().items()
         }
+    # AdamW 负责参数更新；SmoothL1 对离群误差没有平方损失那么敏感。
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-3, weight_decay=1e-3, betas=(0.9, 0.999)
     )
@@ -218,11 +219,13 @@ def _train_network(
     val_tensors = None
 
     if x_validation is not None and y_validation is not None:
+        # 验证集必须用训练折的均值和标准差标准化，不能重新拟合。
         x_val_z = (x_validation - stats["x_mean"][None, :, None]) / stats[
             "x_std"
         ][None, :, None]
         val_tensors = torch.from_numpy(x_val_z).to(device)
     for epoch in range(1, epochs + 1):
+        # ---- 训练阶段：只更新参数，不做验证 ----
         model.train()
         for batch_x, batch_y in loader:
             batch_x = batch_x.to(device)
@@ -231,6 +234,7 @@ def _train_network(
             prediction = model(batch_x)
             loss = criterion(prediction, batch_y)
             if aux_positions:
+                # 辅助头只在训练时加损失；推理仍然只使用最后一个位置的主输出。
                 for auxiliary in model.forward_positions(batch_x, aux_positions):
                     loss = loss + aux_weight * criterion(auxiliary, batch_y)
             if not torch.isfinite(loss):
@@ -254,6 +258,7 @@ def _train_network(
                         ema_state[name].mul_(ema_decay).add_(
                             parameter.detach(), alpha=1.0 - ema_decay
                         )
+        # ---- 验证阶段：算 macro-NMAE，保存最好一轮 ----
         if val_tensors is not None:
             model.eval()
             training_state = None
@@ -275,6 +280,7 @@ def _train_network(
                 raise FloatingPointError(
                     f"non-finite validation score at epoch {epoch}"
                 )
+            # 只按验证 macro-NMAE 选 epoch；测试集从不参与这一步。
             if score < best_score:
                 best_score = score
                 best_epoch = epoch
@@ -287,8 +293,10 @@ def _train_network(
                 stale_epochs = 0
             else:
                 stale_epochs += 1
+            # 连续 PATIENCE 轮没有改善就提前停止，减少过拟合和训练时间。
             if early_stop and stale_epochs >= PATIENCE:
                 break
+    # 验证训练结束后，恢复到验证集最好那一轮的权重（不是最后一轮）。
     if val_tensors is not None:
         if best_state is None or best_prediction is None:
             raise RuntimeError(
@@ -396,215 +404,4 @@ def _save_checkpoint(
     torch.save(payload, output_path)
 
 
-def train(
-    manifest_path: Path, output_dir: Path, device: torch.device
-) -> dict[str, Any]:
-    """旧基线：执行五折预处理选择及最终多种子 TCN 训练。
 
-    参数：`manifest_path` 为锁定实验划分；`output_dir` 接收交叉验证、OOF、
-    checkpoint 和 selection 结果；`device` 为已通过 CLI 校验的 PyTorch 设备。
-    返回：按 5s/10s 汇总所选模式、训练轮数、折分数及随机种子的字典。
-    流程先比较两个窗口下 raw_delta 与 delta 的五折 macro-NMAE；同分选 delta，
-    epoch 数取所选模式各折最佳轮数的中位数向上取整。然后在 50 个开发实验
-    上重新拟合缩放量并训练三个固定种子；不使用 12 个测试实验做选择或评估。
-    """
-    rows = _read_manifest(manifest_path)
-    dev_rows = [row for row in rows if row["split"] == "development"]
-    output_dir.mkdir(parents=True, exist_ok=True)
-    cv_records: list[dict[str, Any]] = []
-    oof_by_combo: dict[tuple[float, str], list[dict[str, Any]]] = {}
-    for seconds in SECONDS:
-        for mode in MODES:
-            combo_features = _features(dev_rows, seconds, mode)
-            oof: list[dict[str, Any]] = []
-            for fold in range(5):
-                train_rows = [
-                    row for row in dev_rows if int(row["fold"]) != fold
-                ]
-                validation_rows = [
-                    row for row in dev_rows if int(row["fold"]) == fold
-                ]
-                x_train = np.stack(
-                    [combo_features[row["file"]] for row in train_rows]
-                )
-                y_train = np.stack(
-                    [row["_labels"] for row in train_rows]
-                ).astype(np.float32)
-                x_val = np.stack(
-                    [combo_features[row["file"]] for row in validation_rows]
-                )
-                y_val = np.stack(
-                    [row["_labels"] for row in validation_rows]
-                ).astype(np.float32)
-                _, _, best_epoch, best_score, prediction = _train_network(
-                    x_train,
-                    y_train,
-                    x_val,
-                    y_val,
-                    y_train,
-                    MAX_EPOCHS,
-                    BASE_SEED,
-                    device,
-                    early_stop=True,
-                )
-                if prediction is None or best_score is None:
-                    raise RuntimeError("missing out-of-fold predictions")
-                _, axis_scores = _macro_nmae(y_val, prediction, y_train)
-                cv_records.append(
-                    {
-                        "seconds": int(seconds),
-                        "mode": mode,
-                        "fold": fold,
-                        "macro_nmae": best_score,
-                        "H2_nmae": axis_scores[0],
-                        "NH3_nmae": axis_scores[1],
-                        "NO2_nmae": axis_scores[2],
-                        "best_epoch": best_epoch,
-                    }
-                )
-                for row, truth, pred in zip(
-                    validation_rows, y_val, prediction, strict=True
-                ):
-                    oof.append(
-                        {
-                            "file": row["file"],
-                            "fold": fold,
-                            "H2_true": truth[0],
-                            "NH3_true": truth[1],
-                            "NO2_true": truth[2],
-                            "H2_pred": pred[0],
-                            "NH3_pred": pred[1],
-                            "NO2_pred": pred[2],
-                        }
-                    )
-            oof_by_combo[(seconds, mode)] = oof
-            dest = output_dir / "oof" / f"{int(seconds)}s_{mode}.csv"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with dest.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(handle, fieldnames=list(oof[0]))
-                writer.writeheader()
-                writer.writerows(oof)
-            print(f"Completed {int(seconds)}s {mode} five-fold validation")
-
-    scores_path = output_dir / "cv_scores.csv"
-    with scores_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(cv_records[0]))
-        writer.writeheader()
-        writer.writerows(cv_records)
-
-    selections: dict[str, Any] = {}
-    for seconds in SECONDS:
-        mode_means = {
-            mode: float(
-                np.mean(
-                    [
-                        r["macro_nmae"]
-                        for r in cv_records
-                        if r["seconds"] == int(seconds) and r["mode"] == mode
-                    ]
-                )
-            )
-            for mode in MODES
-        }
-        selected_mode = (
-            "delta"
-            if mode_means["delta"] <= mode_means["raw_delta"]
-            else "raw_delta"
-        )
-        fold_epochs = [
-            r["best_epoch"]
-            for r in cv_records
-            if r["seconds"] == int(seconds) and r["mode"] == selected_mode
-        ]
-        selected_epochs = math.ceil(float(np.median(fold_epochs)))
-        selections[f"{int(seconds)}s"] = {
-            "seconds": seconds,
-            "selected_mode": selected_mode,
-            "selected_epochs": selected_epochs,
-            "mode_mean_macro_nmae": mode_means,
-            "fold_best_epochs": fold_epochs,
-            "fold_macro_nmae": {
-                mode: [
-                    r["macro_nmae"]
-                    for r in cv_records
-                    if r["seconds"] == int(seconds) and r["mode"] == mode
-                ]
-                for mode in MODES
-            },
-        }
-
-    for key, selection in selections.items():
-        seconds = selection["seconds"]
-        mode = selection["selected_mode"]
-        combo_features = _features(dev_rows, seconds, mode)
-        x_dev = np.stack([combo_features[row["file"]] for row in dev_rows])
-        y_dev = np.stack([row["_labels"] for row in dev_rows]).astype(
-            np.float32
-        )
-        for seed in SEEDS:
-            model, stats, _, _, _ = _train_network(
-                x_dev,
-                y_dev,
-                None,
-                None,
-                y_dev,
-                selection["selected_epochs"],
-                seed,
-                device,
-                early_stop=False,
-            )
-            output_path = output_dir / key / f"seed_{seed}.pt"
-            _save_checkpoint(
-                output_path,
-                model,
-                stats,
-                mode,
-                seconds,
-                dev_rows,
-                seed,
-                selection["selected_epochs"],
-                device,
-            )
-            print(f"Saved {output_path}")
-
-    result = {
-        "protocol": "locked run-level split; test data not evaluated during training",
-        "base_seed": BASE_SEED,
-        "final_seeds": SEEDS,
-        "cv_scores_file": str(scores_path),
-        "selected": selections,
-    }
-    selection_path = output_dir / "selection.json"
-    selection_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    return result
-
-
-def main() -> None:
-    """解析训练 CLI、验证设备并运行交叉验证与最终训练。"""
-    parser = argparse.ArgumentParser(
-        description="Cross-validate and train selected early-response TCNs"
-    )
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--device", default="cpu")
-    args = parser.parse_args()
-    if args.device.startswith("cuda") and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but is not available")
-    if args.device not in {"cpu", "cuda", "cuda:0"}:
-        raise ValueError("device must be cpu, cuda, or cuda:0")
-    device = torch.device(args.device)
-    if device.type == "cpu":
-        torch.set_num_threads(1)
-    result = train(args.manifest, args.output_dir, device)
-    for key, selection in result["selected"].items():
-        print(
-            f"{key}: selected {selection['selected_mode']} at {selection['selected_epochs']} epochs"
-        )
-    print(f"Wrote {args.output_dir / 'selection.json'}")
-
-
-if __name__ == "__main__":
-    main()

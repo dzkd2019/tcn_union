@@ -37,11 +37,13 @@ def estimate_noise_sigma(rows: list[dict[str, Any]], seconds: float) -> np.ndarr
         time = np.asarray(row["_time"], dtype=np.float64)
         response = np.asarray(row["_response"], dtype=np.float64)
         prefix = response[time <= seconds + 1e-9]
+        # 平滑曲线的二阶差分主要来自测量噪声；用 MAD 估计比直接 std 更抗离群点。
         second = np.diff(prefix, n=2, axis=0)
         if second.shape[0] == 0:
             continue
         median = np.median(second, axis=0)
         mad = np.median(np.abs(second - median[None, :]), axis=0)
+        # 高斯白噪声的二阶差分方差为 6σ²，MAD 到标准差的换算系数为 0.6745。
         sigmas.append(mad / 0.6745 / np.sqrt(6.0))
     if not sigmas:
         raise ValueError("没有足够长的训练前缀来估计噪声")
@@ -59,6 +61,7 @@ def noisy_features(
     seed: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """对每条训练响应加高斯噪声并返回特征和标签。"""
+    # 每折重新估计噪声尺度；同一个 seed 下噪声视图可复现。
     rng = np.random.default_rng(seed)
     sigma = estimate_noise_sigma(rows, seconds) * float(config.scale)
     features = []
@@ -70,6 +73,7 @@ def noisy_features(
         prefix = response[mask]
         prefix_time = time[mask]
         for _ in range(config.copies):
+            # 只在原始响应上加噪声，标签保持不变。
             noisy = prefix + rng.normal(0.0, sigma[None, :], size=prefix.shape)
             features.append(make_features(prefix_time, noisy, seconds, mode))
             labels.append(np.asarray(row["_labels"], dtype=np.float64))

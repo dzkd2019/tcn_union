@@ -1,13 +1,12 @@
-"""用条件 GAN 扩充开发集，并评估辅助监督在 GAN 方案中的实际作用。
+"""最终 10 秒模型的训练入口，同时保留增强消融模式。
 
-协议：
-- 只在训练折上拟合 GAN；验证折保持真实曲线，不参与 GAN。
-- 生成样本与真实训练样本一起训练 TCN；验证/测试始终用真实曲线。
-- 通过 ``clean / aux / gan / gan_aux`` 四种模式做消融，回答两个问题：
-  1. GAN 合成数据是否比只用真实数据更好；
-  2. 在 GAN 方案里，5 秒辅助监督是否还有额外收益。
+最终方案（``--modes noise_gan --generator vae``）：
+- 训练折内加 0.1× 真实测量噪声；
+- 用 PCA 条件 VAE 生成 3× 合成样本；
+- 验证/测试始终是真实曲线，测试集只在最后评估。
 
-测试集不参与 GAN 拟合、epoch 选择或模式选择。
+五折 OOF 负责选 epoch；全部 50 个开发实验重训 3 个 seed，预测时做平均。
+其他 generator/mode 只用于对比实验，不影响默认主路径。
 """
 from __future__ import annotations
 
@@ -176,12 +175,17 @@ def cross_validate(
     max_epochs: int = MAX_EPOCHS,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。"""
+    # MODES 决定这一轮是否加噪声/生成样本/辅助头；最终方案是 noise_gan。
     use_noise, use_gan, aux_positions = MODES[mode]
     fold_scores: list[dict[str, Any]] = []
     oof: list[dict[str, Any]] = []
+    # 五折是 manifest 中预先固定的实验级划分，不在这里随机切分。
     for fold in range(5):
         train_rows = [row for row in dev_rows if int(row["fold"]) != fold]
         val_rows = [row for row in dev_rows if int(row["fold"]) == fold]
+
+        # 增强只作用于训练折；验证折始终保留真实曲线。
+        # 噪声和生成器的随机种子都随 fold 改变，避免不同折共用同一批合成样本。
         x_train, y_train, noise_count, gan_count = _augmented_arrays(
             train_rows,
             10.0,
@@ -197,6 +201,8 @@ def cross_validate(
             seed + 1000 * fold,
             device,
         )
+        # 前 len(train_rows) 条是真实样本；后面是噪声/合成样本。
+        # 早停和 NMAE 的分母仍只用真实训练标签，避免合成标签改变评价尺度。
         y_train_real = y_train[: len(train_rows)]
         features = _features(val_rows, 10.0, MODE)
         x_val = np.stack([features[row["file"]] for row in val_rows])
@@ -229,6 +235,7 @@ def cross_validate(
         row.update(_fold_metrics(y_val, prediction, y_train_real))
         row["macro_nmae"] = float(best_score)
         fold_scores.append(row)
+        # 每个验证实验只在它所属的折里预测一次，最后拼成 50 条 OOF。
         for row, truth, pred in zip(val_rows, y_val, prediction, strict=True):
             oof.append(
                 {
@@ -285,8 +292,13 @@ def train_final(
     noise_config: NoiseConfig,
     ema_decay: float | None,
 ) -> None:
-    """在全部 50 个开发实验上训练一个最终模型。"""
+    """在全部 50 个开发实验上训练一个最终模型。
+
+    与 ``cross_validate`` 的区别：这里没有验证集、没有早停，训练轮数由五折
+    最佳 epoch 中位数固定；测试集仍然不参与。
+    """
     use_noise, use_gan, aux_positions = MODES[mode]
+    # 最终训练也只在开发集上构造增强样本。
     x_dev, y_dev, noise_count, gan_count = _augmented_arrays(
         dev_rows,
         10.0,
@@ -302,6 +314,7 @@ def train_final(
         seed + 5000,
         device,
     )
+    # early_stop=False：最终重训没有验证集，用固定 epochs 训练。
     model, stats, _, _, _ = _train_network(
         x_dev,
         y_dev,
@@ -449,6 +462,7 @@ def main() -> None:
             writer.writeheader()
             writer.writerows(oof)
 
+        # 每个方案用 5 折最佳 epoch 的中位数作为全开发集重训轮数。
         epochs = math.ceil(float(np.median([row["best_epoch"] for row in fold_scores])))
         print(
             f"  OOF macro-NMAE={_summary(fold_scores)['macro_nmae']:.6f} epochs={epochs}",
