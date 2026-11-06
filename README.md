@@ -184,6 +184,8 @@ PCA-VAE 的零基础原理与代码逐段讲解见 [`docs/PCA-VAE学习资料.md
 
 向老师汇报的方法选择理由、幻灯片结构和口头稿见 [`docs/PCA-VAE汇报提纲.md`](docs/PCA-VAE汇报提纲.md)。
 
+GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成式增强对比实验.md`](docs/生成式增强对比实验.md)。
+
 ## 复现命令
 
 从项目根目录运行：

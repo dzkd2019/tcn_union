@@ -1,0 +1,162 @@
+{
+  "GAN": {
+    "per_gas": {
+      "H2": {
+        "wasserstein_raw": 4.203108751452241,
+        "wasserstein_normalized": 0.19145472720623305,
+        "acf_distance": 0.08490346569565015,
+        "pairwise_distance_ratio": 0.8983341707293835,
+        "nearest_neighbor_distance": 4.589055896650219,
+        "nearest_neighbor_ratio": 5.739964115293194
+      },
+      "NH3": {
+        "wasserstein_raw": 537.752883088905,
+        "wasserstein_normalized": 0.24496313658215754,
+        "acf_distance": 0.06282272624763867,
+        "pairwise_distance_ratio": 0.9564444760910723,
+        "nearest_neighbor_distance": 5.129665424544023,
+        "nearest_neighbor_ratio": 13.593699116830875
+      },
+      "NO2": {
+        "wasserstein_raw": 1.3473289543976668,
+        "wasserstein_normalized": 0.25340678274530043,
+        "acf_distance": 0.03463315615074031,
+        "pairwise_distance_ratio": 0.8284850845294299,
+        "nearest_neighbor_distance": 3.825703367575962,
+        "nearest_neighbor_ratio": 7.038602142703995
+      }
+    },
+    "macro": {
+      "wasserstein_normalized": 0.22994154884456366,
+      "acf_distance": 0.06078644936467637,
+      "pairwise_distance_ratio": 0.8944212437832952,
+      "nearest_neighbor_distance": 4.514808229590067,
+      "nearest_neighbor_ratio": 8.790755124942686,
+      "all_gases_pairwise_distance_ratio": 0.8330034107850336,
+      "all_gases_nearest_neighbor_distance": 8.962272938659284,
+      "all_gases_nearest_neighbor_ratio": 2.462302764740049
+    },
+    "n_real": 50,
+    "n_fake": 200
+  },
+  "PCA": {
+    "per_gas": {
+      "H2": {
+        "wasserstein_raw": 2.721462546294274,
+        "wasserstein_normalized": 0.12396464146275636,
+        "acf_distance": 0.04674534483324838,
+        "pairwise_distance_ratio": 0.9451510773709753,
+        "nearest_neighbor_distance": 0.9179728819157374,
+        "nearest_neighbor_ratio": 1.1481950797014286
+      },
+      "NH3": {
+        "wasserstein_raw": 230.25433373924363,
+        "wasserstein_normalized": 0.10488799888977063,
+        "acf_distance": 0.06283057372065615,
+        "pairwise_distance_ratio": 0.9306818964560313,
+        "nearest_neighbor_distance": 0.21015171486037615,
+        "nearest_neighbor_ratio": 0.5569055570426262
+      },
+      "NO2": {
+        "wasserstein_raw": 0.8592463564498419,
+        "wasserstein_normalized": 0.16160779003737644,
+        "acf_distance": 0.010912468020197463,
+        "pairwise_distance_ratio": 1.0376325564491131,
+        "nearest_neighbor_distance": 0.679294112549719,
+        "nearest_neighbor_ratio": 1.2497782856458552
+      }
+    },
+    "macro": {
+      "wasserstein_normalized": 0.13015347679663447,
+      "acf_distance": 0.040162795524700666,
+      "pairwise_distance_ratio": 0.9711551767587064,
+      "nearest_neighbor_distance": 0.6024729031086108,
+      "nearest_neighbor_ratio": 0.9849596407966367,
+      "all_gases_pairwise_distance_ratio": 0.9673110755686152,
+      "all_gases_nearest_neighbor_distance": 2.9699205257117147,
+      "all_gases_nearest_neighbor_ratio": 0.81595858233393
+    },
+    "n_real": 50,
+    "n_fake": 200
+  },
+  "VAE": {
+    "per_gas": {
+      "H2": {
+        "wasserstein_raw": 2.1449371325403903,
+        "wasserstein_normalized": 0.09770348041628739,
+        "acf_distance": 0.04564279857664194,
+        "pairwise_distance_ratio": 1.011990652698786,
+        "nearest_neighbor_distance": 0.5059049155792111,
+        "nearest_neighbor_ratio": 0.6327828918568608
+      },
+      "NH3": {
+        "wasserstein_raw": 100.47388430172857,
+        "wasserstein_normalized": 0.04576897422059035,
+        "acf_distance": 0.1839920517486959,
+        "pairwise_distance_ratio": 0.9825854341324991,
+        "nearest_neighbor_distance": 0.28311262678916455,
+        "nearest_neighbor_ratio": 0.7502531931874744
+      },
+      "NO2": {
+        "wasserstein_raw": 0.5019501099899626,
+        "wasserstein_normalized": 0.09440720624019448,
+        "acf_distance": 0.008154579929950828,
+        "pairwise_distance_ratio": 1.0324529332995465,
+        "nearest_neighbor_distance": 0.5005604609419716,
+        "nearest_neighbor_ratio": 0.9209406988528376
+      }
+    },
+    "macro": {
+      "wasserstein_normalized": 0.07929322029235741,
+      "acf_distance": 0.07926314341842956,
+      "pairwise_distance_ratio": 1.009009673376944,
+      "nearest_neighbor_distance": 0.4298593344367824,
+      "nearest_neighbor_ratio": 0.7679922612990576,
+      "all_gases_pairwise_distance_ratio": 1.0028650651925035,
+      "all_gases_nearest_neighbor_distance": 1.1999993570328527,
+      "all_gases_nearest_neighbor_ratio": 0.3296888807930339
+    },
+    "n_real": 50,
+    "n_fake": 200
+  },
+  "PCA+VAE": {
+    "per_gas": {
+      "H2": {
+        "wasserstein_raw": 1.8263372959992952,
+        "wasserstein_normalized": 0.08319102109154347,
+        "acf_distance": 0.003472501264329242,
+        "pairwise_distance_ratio": 0.998613915194921,
+        "nearest_neighbor_distance": 0.3917743202395896,
+        "nearest_neighbor_ratio": 0.4900290147065147
+      },
+      "NH3": {
+        "wasserstein_raw": 96.65363285706478,
+        "wasserstein_normalized": 0.044028731060866286,
+        "acf_distance": 0.03181101239858534,
+        "pairwise_distance_ratio": 0.9930740030396438,
+        "nearest_neighbor_distance": 0.17019728441996607,
+        "nearest_neighbor_ratio": 0.45102564854166155
+      },
+      "NO2": {
+        "wasserstein_raw": 0.4582261202972546,
+        "wasserstein_normalized": 0.08618356084116037,
+        "acf_distance": 0.0008128748669321117,
+        "pairwise_distance_ratio": 1.0302010012081335,
+        "nearest_neighbor_distance": 0.4570350487898081,
+        "nearest_neighbor_ratio": 0.8408618140567049
+      }
+    },
+    "macro": {
+      "wasserstein_normalized": 0.07113443766452338,
+      "acf_distance": 0.012032129509948898,
+      "pairwise_distance_ratio": 1.0072963064808995,
+      "nearest_neighbor_distance": 0.33966888448312127,
+      "nearest_neighbor_ratio": 0.593972159101627,
+      "all_gases_pairwise_distance_ratio": 1.0015007118949157,
+      "all_gases_nearest_neighbor_distance": 1.4601522584571085,
+      "all_gases_nearest_neighbor_ratio": 0.4011635181775898
+    },
+    "n_real": 50,
+    "n_fake": 200
+  }
+}

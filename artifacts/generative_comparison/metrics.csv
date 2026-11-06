@@ -1,0 +1,5 @@
+method,wasserstein_normalized,acf_distance,pairwise_distance_ratio,nearest_neighbor_distance,nearest_neighbor_ratio,all_gases_pairwise_ratio
+GAN,0.229942,0.0607864,0.894421,4.51481,8.79076,0.833003
+PCA,0.130153,0.0401628,0.971155,0.602473,0.98496,0.967311
+VAE,0.0792932,0.0792631,1.00901,0.429859,0.767992,1.00287
+PCA+VAE,0.0711344,0.0120321,1.0073,0.339669,0.593972,1.0015
