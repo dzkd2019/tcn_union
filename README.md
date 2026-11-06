@@ -196,8 +196,13 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成�
 # 生成固定清单与 inventory
 uv run python -m tcn_union.split --data-dir data --output-dir artifacts/splits
 
-# 五折选型、OOF 预测和最终开发集重训
-uv run python -m tcn_union.train --manifest artifacts/splits/manifest.csv --output-dir artifacts/tcn --device cpu
+# 最终 10 秒模型：noise + PCA-VAE 五折 OOF + 三 seed 重训
+uv run python -m tcn_union.gan_train \
+  --manifest artifacts/splits/manifest.csv \
+  --output-dir artifacts/final_vae_hybrid \
+  --modes noise_gan --generator vae \
+  --noise-scale 0.1 --synthetic-ratio 3.0 \
+  --gan-epochs 300 --max-epochs 500
 
 # 锁定测试集评估与基线比较
 uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device cpu

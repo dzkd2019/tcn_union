@@ -111,6 +111,7 @@ class TrainedVAE:
         self.output_max = output_max
 
     def sample(self, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+        """采样合成响应和对应浓度标签。"""
         if count < 1:
             raise ValueError("VAE 采样数量必须为正")
         rng = torch.Generator().manual_seed(seed)
@@ -173,13 +174,14 @@ def fit_vae(
     means = []
     bases = []
     coefficients = []
+    # 每个气体单独做 PCA：H2/NH3/NO2 的幅值和形态差异太大，混在一起不合适。
     for gas in range(3):
         flat = responses[:, gas, :]
-        mean = flat.mean(axis=0)
-        centered = flat - mean[None, :]
+        mean = flat.mean(axis=0)          # 平均响应曲线
+        centered = flat - mean[None, :]   # 每条曲线相对平均形状的差异
         _, _, vt = np.linalg.svd(centered, full_matrices=False)
-        basis = vt[:components]
-        coefficient = centered @ basis.T
+        basis = vt[:components]           # 前 K 个主方向
+        coefficient = centered @ basis.T  # 每条曲线压缩成 K 个系数
         means.append(mean)
         bases.append(basis)
         coefficients.append(coefficient)
@@ -194,9 +196,11 @@ def fit_vae(
     coefficient_std = coefficient_array.std(axis=0).astype(np.float32)
     coefficient_std[coefficient_std < 1e-8] = 1.0
     coefficient_z = coefficient_array / coefficient_std[None, None, :]
+    # 用三个浓度标签线性预测 PCA 系数，得到“标签决定的平均趋势”。
     design = np.concatenate((np.ones((n, 1)), labels_z), axis=1)
     mean_coef = np.linalg.lstsq(design, coefficient_z.reshape(n, -1), rcond=None)[0]
     base = (design @ mean_coef).reshape(n, 3, components)
+    # VAE 只学标签解释不了的残差：个体差异、噪声和未观测因素。
     residual = coefficient_z - base
 
     coefficient_dim = 3 * components
@@ -220,10 +224,12 @@ def fit_vae(
         for batch_residual, batch_label in loader:
             batch_residual = batch_residual.to(device)
             batch_label = batch_label.to(device)
+            # 编码器输出隐变量分布；重参数化让采样仍可反向传播。
             mu, logvar = encoder(batch_residual, batch_label)
             std = torch.exp(0.5 * logvar)
             noise = torch.randn_like(std)
             latent = mu + std * noise
+            # 解码器重建残差；KL 约束隐变量分布接近标准正态。
             reconstructed = decoder(latent, batch_label)
             reconstruction = ((reconstructed - batch_residual) ** 2).mean()
             kl = -0.5 * torch.mean(1.0 + logvar - mu.pow(2) - logvar.exp())

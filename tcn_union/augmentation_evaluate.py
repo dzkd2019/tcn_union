@@ -34,6 +34,7 @@ def _load_predictions(
 ) -> tuple[dict[int, np.ndarray], np.ndarray]:
     features = _load_features(test_rows, float(seconds), mode)
     x = np.stack([features[row["file"]] for row in test_rows])
+    # 三个 seed 各自加载自己的 checkpoint；集成发生在预测层，不是参数层。
     predictions: dict[int, np.ndarray] = {}
     for seed in seeds:
         path = model_dir / f"{seconds}s" / f"seed_{seed}.pt"
@@ -43,6 +44,7 @@ def _load_predictions(
         if int(checkpoint["seconds"]) != seconds or checkpoint.get("mode") != mode:
             raise ValueError(f"{path}: checkpoint protocol does not match {seconds}s/{mode}")
         predictions[seed] = prediction
+    # 先对三个模型在原始浓度单位上的预测取平均，再用平均预测计算指标。
     ensemble = np.mean(np.stack([predictions[seed] for seed in seeds]), axis=0)
     return predictions, ensemble
 
@@ -57,6 +59,7 @@ def evaluate(
     mode: str = "raw_delta",
     windows: list[int] | None = None,
 ) -> dict[str, Any]:
+    # 测试集只在冻结后读取；开发集仅用于 NMAE 归一化尺度。
     dev_rows, test_rows = _manifest(manifest_path)
     if seeds is None:
         seeds = [20260923, 20260924, 20260925]

@@ -71,6 +71,7 @@ def _ridge_fit(x_train: np.ndarray, y_train: np.ndarray, alpha: float) -> dict[s
     `StandardScaler` 避免不同特征尺度影响 L2 惩罚；`Ridge` 默认
     `fit_intercept=True`，截距不做惩罚，与原先手写带截距 Ridge 等价。
     """
+    # 输入和标签都按训练集标准化；Ridge 的截距不参与 L2 惩罚。
     x_scaler = StandardScaler().fit(x_train)
     y_scaler = StandardScaler().fit(y_train)
     model = Ridge(alpha=alpha, fit_intercept=True).fit(
@@ -155,6 +156,7 @@ def _metric_summary(truth: np.ndarray, prediction: np.ndarray, dev_ranges: np.nd
     axis_nmae: list[float] = []
     axis_mape: list[float | None] = []
     for index, axis in enumerate(AXES):
+        # 所有指标先按实验汇总，不把同一实验的多个时间点当独立样本。
         target = truth[:, index]
         predicted = prediction[:, index]
         mae = float(mean_absolute_error(target, predicted))
@@ -173,6 +175,7 @@ def _metric_summary(truth: np.ndarray, prediction: np.ndarray, dev_ranges: np.nd
         else:
             mape = float(100.0 * np.mean(np.abs(predicted - target) / denominator))
             mape_reason = None
+        # NMAE 的分母是开发集该气体浓度极差，而不是测试集自身范围。
         nmae = mae / dev_ranges[index]
         axis_nmae.append(nmae)
         axis_mape.append(mape)
@@ -212,6 +215,7 @@ def _bootstrap_difference(
     per_run = np.mean(np.abs(model_prediction - truth) / dev_ranges[None, :], axis=1) - np.mean(
         np.abs(baseline_prediction - truth) / dev_ranges[None, :], axis=1
     )
+    # 以实验为单位做配对重采样：每个实验的模型/基线误差必须一起被抽到。
     generator = np.random.default_rng(20260923)
     indices = generator.integers(0, len(truth), size=(2000, len(truth)))
     differences = per_run[indices].mean(axis=1)
@@ -264,6 +268,7 @@ def evaluate(manifest_path: Path, model_dir: Path, output_dir: Path, device: tor
     if not selection_path.is_file():
         raise FileNotFoundError(f"training selection not found: {selection_path}")
     selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    # 开发集用于归一化尺度和 Ridge 基线；测试集只在最后评估一次。
     dev_rows, test_rows = _manifest(manifest_path)
     y_dev = np.stack([row["_labels"] for row in dev_rows])
     y_test = np.stack([row["_labels"] for row in test_rows])
@@ -290,7 +295,7 @@ def evaluate(manifest_path: Path, model_dir: Path, output_dir: Path, device: tor
     ridge_selection: dict[str, Any] = {}
     mean_prediction = np.mean(y_dev, axis=0)
     for seconds in (5, 10):
-        # Ridge 输入只使用 t=0 的传感器响应。
+        # 两个 Ridge 基线：t=0 绝对响应；早期 5/10 秒的手工统计特征。
         t0_features: dict[str, np.ndarray] = {}
         early_features: dict[str, np.ndarray] = {}
         for row in dev_rows + test_rows:
