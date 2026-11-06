@@ -39,6 +39,8 @@ GAN 在当前 50 个开发实验上失败：
 
 向老师汇报时的方法选择理由、幻灯片结构和口头稿：[`PCA-VAE汇报提纲.md`](PCA-VAE汇报提纲.md)。
 
+GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比：[`生成式增强对比实验.md`](生成式增强对比实验.md)。
+
 ### 论文版架构图
 
 - 矢量 PDF：[`figures/fig_tcn_architecture.pdf`](../figures/fig_tcn_architecture.pdf)

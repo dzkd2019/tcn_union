@@ -22,9 +22,11 @@ import numpy as np
 import torch
 
 from .data import TIME_STEP_SECONDS, make_features
+from .direct_vae import DirectVAEConfig, fit_direct_vae
 from .evaluate import AXES, _metric_summary
 from .gan import GANConfig, fit_gan
 from .noise import NoiseConfig, noisy_features
+from .pca_generator import PCAConfig, fit_pca
 from .train import (
     BASE_SEED,
     MAX_EPOCHS,
@@ -57,17 +59,23 @@ def _generative_features(
     count: int,
     config: GANConfig,
     vae_config: VAEConfig,
+    pca_config: PCAConfig,
+    direct_vae_config: DirectVAEConfig,
     generator: str,
     seed: int,
     device: torch.device,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """在给定训练行上拟合 GAN 或 PCA-VAE，并生成 TCN 可用的特征。"""
+    """在给定训练行上拟合指定生成器，并生成 TCN 可用的特征。"""
     if generator == "vae":
         model = fit_vae(rows, vae_config, seed, device)
     elif generator == "gan":
         model = fit_gan(rows, config, seed, device)
+    elif generator == "pca":
+        model = fit_pca(rows, pca_config, seed)
+    elif generator == "direct_vae":
+        model = fit_direct_vae(rows, direct_vae_config, seed, device)
     else:
-        raise ValueError("generator 必须是 gan 或 vae")
+        raise ValueError("generator 必须是 gan/vae/pca/direct_vae")
     responses, labels = model.sample(count, seed + 1)
     times = np.arange(round(config.seconds / TIME_STEP_SECONDS) + 1) * TIME_STEP_SECONDS
     features = np.stack(
@@ -85,6 +93,8 @@ def _augmented_arrays(
     noise_config: NoiseConfig,
     gan_config: GANConfig,
     vae_config: VAEConfig,
+    pca_config: PCAConfig,
+    direct_vae_config: DirectVAEConfig,
     generator: str,
     seed: int,
     device: torch.device,
@@ -105,7 +115,15 @@ def _augmented_arrays(
     if use_gan:
         gan_count = max(1, round(synthetic_ratio * len(rows)))
         x_gan, y_gan = _generative_features(
-            rows, gan_count, gan_config, vae_config, generator, seed, device
+            rows,
+            gan_count,
+            gan_config,
+            vae_config,
+            pca_config,
+            direct_vae_config,
+            generator,
+            seed,
+            device,
         )
         x = np.concatenate((x, x_gan), axis=0)
         y = np.concatenate((y, y_gan), axis=0)
@@ -149,6 +167,8 @@ def cross_validate(
     device: torch.device,
     gan_config: GANConfig,
     vae_config: VAEConfig,
+    pca_config: PCAConfig,
+    direct_vae_config: DirectVAEConfig,
     generator: str,
     synthetic_ratio: float,
     noise_config: NoiseConfig,
@@ -171,6 +191,8 @@ def cross_validate(
             noise_config,
             gan_config,
             vae_config,
+            pca_config,
+            direct_vae_config,
             generator,
             seed + 1000 * fold,
             device,
@@ -256,6 +278,8 @@ def train_final(
     output_path: Path,
     gan_config: GANConfig,
     vae_config: VAEConfig,
+    pca_config: PCAConfig,
+    direct_vae_config: DirectVAEConfig,
     generator: str,
     synthetic_ratio: float,
     noise_config: NoiseConfig,
@@ -272,6 +296,8 @@ def train_final(
         noise_config,
         gan_config,
         vae_config,
+        pca_config,
+        direct_vae_config,
         generator,
         seed + 5000,
         device,
@@ -300,6 +326,8 @@ def train_final(
         "vae_components": vae_config.components if generator == "vae" else None,
         "vae_latent_dim": vae_config.latent_dim if generator == "vae" else None,
         "vae_beta": vae_config.beta if generator == "vae" else None,
+        "pca_components": pca_config.components if generator == "pca" else None,
+        "direct_vae_latent_dim": direct_vae_config.latent_dim if generator == "direct_vae" else None,
         "noise_count": noise_count,
         "gan_count": gan_count,
         "synthetic_count": noise_count + gan_count,
@@ -331,11 +359,12 @@ def main() -> None:
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
     parser.add_argument("--noise-scale", type=float, default=1.0)
     parser.add_argument("--noise-copies", type=int, default=1)
-    parser.add_argument("--generator", choices=["gan", "vae"], default="gan")
+    parser.add_argument("--generator", choices=["gan", "pca", "vae", "direct_vae"], default="gan")
     parser.add_argument("--gan-epochs", type=int, default=300)
     parser.add_argument("--vae-components", type=int, default=6)
     parser.add_argument("--vae-latent-dim", type=int, default=4)
     parser.add_argument("--vae-beta", type=float, default=0.1)
+    parser.add_argument("--pca-components", type=int, default=6)
     parser.add_argument("--ema-decay", type=float, default=None)
     parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
     parser.add_argument("--oof-only", action="store_true")
@@ -356,11 +385,23 @@ def main() -> None:
     dev_rows = [row for row in rows if row["split"] == "development"]
     dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    gan_config = GANConfig(seconds=10.0, epochs=args.gan_epochs)
+    gan_config = GANConfig(
+        seconds=10.0,
+        epochs=args.gan_epochs,
+        residual=False,
+        anchor_endpoints=False,
+    )
     vae_config = VAEConfig(
         seconds=10.0,
         epochs=args.gan_epochs,
         components=args.vae_components,
+        latent_dim=args.vae_latent_dim,
+        beta=args.vae_beta,
+    )
+    pca_config = PCAConfig(seconds=10.0, components=args.pca_components)
+    direct_vae_config = DirectVAEConfig(
+        seconds=10.0,
+        epochs=args.gan_epochs,
         latent_dim=args.vae_latent_dim,
         beta=args.vae_beta,
     )
@@ -379,6 +420,7 @@ def main() -> None:
         "vae_components": args.vae_components,
         "vae_latent_dim": args.vae_latent_dim,
         "vae_beta": args.vae_beta,
+        "pca_components": args.pca_components,
         "ema_decay": args.ema_decay,
         "selected": {},
     }
@@ -391,6 +433,8 @@ def main() -> None:
             device,
             gan_config,
             vae_config,
+            pca_config,
+            direct_vae_config,
             args.generator,
             args.synthetic_ratio,
             noise_config,
@@ -423,6 +467,8 @@ def main() -> None:
                     path,
                     gan_config,
                     vae_config,
+                    pca_config,
+                    direct_vae_config,
                     args.generator,
                     args.synthetic_ratio,
                     noise_config,
