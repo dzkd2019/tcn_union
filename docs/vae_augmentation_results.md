@@ -37,6 +37,8 @@ GAN 在当前 50 个开发实验上失败：
 如果第一次接触 PCA、VAE 或条件生成，先读：
 [`PCA-VAE学习资料.md`](PCA-VAE学习资料.md)。它从“为什么需要增强”开始，用尽量少的数学讲清 PCA、条件均值、VAE、重参数化和采样，并逐段对照 `tcn_union/vae.py`。
 
+向老师汇报时的方法选择理由、幻灯片结构和口头稿：[`PCA-VAE汇报提纲.md`](PCA-VAE汇报提纲.md)。
+
 ### 论文版架构图
 
 - 矢量 PDF：[`figures/fig_tcn_architecture.pdf`](../figures/fig_tcn_architecture.pdf)

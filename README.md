@@ -182,6 +182,8 @@ GAN 在当前 50 个开发实验上生成质量不合格、下游 OOF 也差于 
 
 PCA-VAE 的零基础原理与代码逐段讲解见 [`docs/PCA-VAE学习资料.md`](docs/PCA-VAE学习资料.md)。
 
+向老师汇报的方法选择理由、幻灯片结构和口头稿见 [`docs/PCA-VAE汇报提纲.md`](docs/PCA-VAE汇报提纲.md)。
+
 ## 复现命令
 
 从项目根目录运行：
