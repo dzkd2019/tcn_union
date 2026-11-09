@@ -176,6 +176,7 @@ GAN 在当前 50 个开发实验上生成质量不合格、下游 OOF 也差于 
 - 训练集：40 条真实 + 0.1× 真实测量噪声 + 3× PCA-VAE 合成（每折 120 条）；
 - seed 23 OOF：clean `0.027097` → `0.024015`；三 seed 平均：clean `0.028348` → `0.023672`；
 - 锁定测试集三 seed 集成：clean `0.024807` → `0.017942`，macro-MAPE `4.6476%` → `3.3927%`；
+- 逐气体 MAPE / NMAE / 归一化 RMSE 对比图见 [`fig_final_gas_metrics.png`](artifacts/final_vae_hybrid/evaluation/figures/fig_final_gas_metrics.png)；
 - aux 在 noise+VAE 上反而变差，最终不保留 aux。
 
 完整对比见 [`docs/vae_augmentation_results.md`](docs/vae_augmentation_results.md)；GAN 质量失败记录见 [`docs/gan_quality_result.md`](docs/gan_quality_result.md)；纯噪声对照见 [`docs/noise_augmentation_results.md`](docs/noise_augmentation_results.md)。
@@ -266,6 +267,11 @@ uv run python -m tcn_union.predict --checkpoint artifacts/tcn/5s/seed_20260923.p
 
 # 重新绘制测试结果图
 uv run python -m tcn_union.plot_results --results-dir artifacts/evaluation --output-dir artifacts/evaluation/figures
+
+# 最终方案逐气体 MAPE / NMAE / 归一化 RMSE
+uv run python -m tcn_union.plot_final_gas_metrics \
+  --evaluation artifacts/final_vae_hybrid/evaluation/evaluation.json \
+  --output-dir artifacts/final_vae_hybrid/evaluation/figures
 
 # 回归检查
 uv run python -m unittest discover -s tests -v
