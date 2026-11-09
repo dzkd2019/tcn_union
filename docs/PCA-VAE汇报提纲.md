@@ -140,6 +140,8 @@ GAN 最好版本的平滑度比值约 12.8、初值 MAE 约 94、末端 MAE 约 
 
 PCA-VAE 三 seed 平均 OOF 更稳（标准差约 0.00055，纯 noise 约 0.00235），测试集成略优于纯 noise。
 
+逐气体 MAPE、NMAE、归一化 RMSE（RMSE / 开发集浓度极差）对比见 [`fig_final_gas_metrics.png`](../artifacts/final_vae_hybrid/evaluation/figures/fig_final_gas_metrics.png)，完整表格见 [`vae_augmentation_results.md`](vae_augmentation_results.md)。
+
 ---
 
 ## 6. 向老师汇报的幻灯片结构
