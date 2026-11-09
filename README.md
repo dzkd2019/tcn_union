@@ -188,6 +188,8 @@ PCA-VAE 的零基础原理与代码逐段讲解见 [`docs/PCA-VAE学习资料.md
 
 GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成式增强对比实验.md`](docs/生成式增强对比实验.md)。
 
+PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见 [`docs/PCA主成分数选择证据.md`](docs/PCA主成分数选择证据.md)。
+
 ## GPU / ROCm 支持
 
 代码不再写死 CUDA：所有训练/评估命令的 `--device` 默认是 `auto`，会按以下顺序选择：
