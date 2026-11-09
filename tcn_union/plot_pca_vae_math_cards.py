@@ -93,7 +93,7 @@ def card_overview(path: Path) -> None:
     ax.text(7.42, 3.98, "标签学主趋势，VAE 学残差", ha="center", fontsize=11, color=ORANGE)
     ax.text(10.24, 3.98, "回到 3×51 曲线", ha="center", fontsize=11, color=TEAL)
     _math(ax, 0.95, 2.45, r"$X_{n,g}\in\mathbb{R}^{51},\quad g\in\{\mathrm{H2},\mathrm{NH3},\mathrm{NO2}\},\quad K=6$", 18)
-    _math(ax, 0.95, 1.85, r"$\hat X_{n,g}=\bar X_g+V_{g,K}\,(B_g^{T}\tilde z_n+\hat r_{n,g})$", 19)
+    _math(ax, 0.95, 1.85, r"$\hat X_{n,g}=\bar X_g+V_{g,K}\,\left(s_g\odot(B_g^{T}\tilde z_n+\hat r_{n,g})\right)$", 19)
     ax.text(0.95, 1.20, "所有 PCA/条件均值/VAE 只在训练折上拟合；验证和测试保持真实曲线。", fontsize=11, color=MUTED)
     fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
     plt.close(fig)
