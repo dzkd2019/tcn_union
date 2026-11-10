@@ -38,6 +38,7 @@ from tcn_union.evaluation.evaluate import AXES
 
 GASES = AXES
 SEEDS = (20260923, 20260924, 20260925)
+SEEDS6 = (20260923, 20260924, 20260925, 20260926, 20260927, 20260928)
 OUTPUT_DIR = ROOT / "artifacts/3sigma"
 FIGS = OUTPUT_DIR / "figs"
 
@@ -135,19 +136,23 @@ def main() -> None:
         sigma, macro = _three_sigma(truth, prediction)
         rows.append({"config": label, **{gas: sigma[gas] for gas in GASES}, "macro": macro})
 
-    # TCN 四配置等权集成（对应最终部署候选的 TCN 侧）。
-    tcn_labels = ("log 目标（3 seed）", "log + noise0.2（3 seed）", "none+低浓度加权（3 seed）", "逐气体目标 log,none,log（3 seed）")
+    # TCN 四配置等权集成（对应最终部署候选的 TCN 侧，6 seed/配置）。
+    tcn_sources = [
+        [f"artifacts/3sigma/log_p0/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        [f"artifacts/3sigma/log_p0_noise02/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        [f"artifacts/3sigma/pergas_p0/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        ["artifacts/variance_search/pg422_final/noise_gan/oof.csv"]
+        + [f"artifacts/3sigma/baseline_pg422/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6[1:]],
+    ]
     tcn_predictions = []
     reference_truth = None
-    for label, _mode, paths in CONFIGS:
-        if label not in tcn_labels:
-            continue
+    for paths in tcn_sources:
         truth, prediction = _ensemble([ROOT / path for path in paths])
         reference_truth = truth
         tcn_predictions.append(prediction)
     tcn_mean = np.mean(tcn_predictions, axis=0)
     sigma, macro = _three_sigma(reference_truth, tcn_mean)
-    rows.append({"config": "TCN 四配置集成（3 seed×4）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
+    rows.append({"config": "TCN 四配置集成（6 seed×4）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
 
     # 混合模型：TCN 四配置平均 + Ridge（w=0.5）。
     with (OUTPUT_DIR / "hybrid_oof.csv").open(encoding="utf-8") as handle:
@@ -155,7 +160,7 @@ def main() -> None:
     hybrid_truth = np.array([[float(row[f"{gas}_true"]) for gas in GASES] for row in hybrid_rows])
     hybrid_pred = np.array([[float(row[f"{gas}_pred"]) for gas in GASES] for row in hybrid_rows])
     sigma, macro = _three_sigma(hybrid_truth, hybrid_pred)
-    rows.append({"config": "TCN 四配置 + Ridge（w=0.5）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
+    rows.append({"config": "TCN 四配置 + Ridge（6 seed, w=0.4, clip）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
 
     summary_path = OUTPUT_DIR / "experiments_summary.csv"
     with summary_path.open("w", newline="", encoding="utf-8") as handle:
