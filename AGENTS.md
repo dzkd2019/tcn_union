@@ -61,3 +61,11 @@ When introducing a new architectural layer or significant abstraction, briefly e
 - Why a simpler alternative is insufficient.
 
 Do not introduce complexity merely to demonstrate good software architecture.
+
+## 8. 图表输出规范
+
+- 绘图时同时输出 **PNG** 和 **SVG** 两种格式；
+- 不再输出 PDF 图片；
+- PNG 用于 PPT、网页和快速预览，SVG 用于论文/报告的矢量插图；
+- 文件名保持一致，仅扩展名不同，例如 `fig_name.png` 与 `fig_name.svg`。
+- 如果旧脚本仍输出 PDF，修改该脚本时一并改为 PNG + SVG。
