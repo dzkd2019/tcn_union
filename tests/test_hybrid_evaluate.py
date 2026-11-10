@@ -14,6 +14,7 @@ import torch
 
 from tcn_union.evaluation.hybrid_evaluate import (
     _available_seeds,
+    _clip_to_development_range,
     _fit_ridge,
     _fuse,
     _mean_predictions,
@@ -103,6 +104,16 @@ class FusionTest(unittest.TestCase):
         ridge_prediction = rng.uniform(1.0, 10.0, size=(5, 3))
         fused = _fuse(tcn_ensemble, ridge_prediction, 0.0)
         np.testing.assert_array_equal(fused, tcn_ensemble)
+
+
+class ClipTest(unittest.TestCase):
+    def test_clip_to_development_range_uses_per_gas_bounds(self) -> None:
+        y_dev = np.array([[0.0, 0.0, 0.0], [10.0, 20.0, 30.0]])
+        prediction = np.array([[-1.0, 5.0, 40.0], [20.0, 10.0, -5.0]])
+        clipped = _clip_to_development_range(prediction, y_dev)
+        np.testing.assert_allclose(
+            clipped, np.array([[0.0, 5.0, 30.0], [10.0, 10.0, 0.0]])
+        )
 
 
 class CheckpointLoadingTest(unittest.TestCase):
