@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .data import load_prediction_prefix, make_features
-from .device import configure_threads, describe_device, resolve_device
-from .model import GasTCN
+from tcn_union.core.data import load_prediction_prefix, make_features
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
+from tcn_union.core.model import GasTCN
 
 
 def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict[str, float | str]:

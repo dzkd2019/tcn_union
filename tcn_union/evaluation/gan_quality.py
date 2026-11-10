@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from .data import TIME_STEP_SECONDS
-from .device import configure_threads, describe_device, resolve_device
-from .gan import GANConfig, fit_gan
-from .train import _read_manifest
-from .vae import VAEConfig, fit_vae
+from tcn_union.augmentation.gan import GANConfig, fit_gan
+from tcn_union.augmentation.vae import VAEConfig, fit_vae
+from tcn_union.core.data import TIME_STEP_SECONDS
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
+from tcn_union.training.train import _read_manifest
 
 plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "Noto Sans CJK SC", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False

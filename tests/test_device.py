@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from tcn_union.device import configure_threads, describe_device, resolve_device
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
 
 
 class DeviceTest(unittest.TestCase):

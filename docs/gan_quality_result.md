@@ -67,13 +67,13 @@
 
 ```bash
 # MLP 版本（旧实现，需 checkout 4f3329a 之前的 gan.py）
-uv run python -m tcn_union.gan_quality \
+uv run python -m tcn_union.evaluation.gan_quality \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_quality_mlp \
   --samples 100 --gan-epochs 300
 
 # control-point 版本（当前实现）
-uv run python -m tcn_union.gan_quality \
+uv run python -m tcn_union.evaluation.gan_quality \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_quality_cp \
   --samples 100 --gan-epochs 300

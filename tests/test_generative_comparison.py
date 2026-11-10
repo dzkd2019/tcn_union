@@ -6,10 +6,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from tcn_union.direct_vae import DirectVAEConfig, fit_direct_vae
-from tcn_union.generative_metrics import evaluate_generation
-from tcn_union.pca_generator import PCAConfig, fit_pca
-from tcn_union.train import _read_manifest
+from tcn_union.augmentation.direct_vae import DirectVAEConfig, fit_direct_vae
+from tcn_union.augmentation.pca_generator import PCAConfig, fit_pca
+from tcn_union.evaluation.generative_metrics import evaluate_generation
+from tcn_union.training.train import _read_manifest
 
 
 def _rows(count: int = 8) -> list[dict]:

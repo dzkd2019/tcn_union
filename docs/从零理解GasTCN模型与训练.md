@@ -72,11 +72,11 @@
 
 ## 2. 数据读取与特征构造
 
-核心文件：[`tcn_union/data.py`](../tcn_union/data.py)
+核心文件：[`tcn_union/core/data.py`](../tcn_union/core/data.py)
 
 ### 2.1 读取一次实验
 
-[`load_run()`](../tcn_union/data.py#L60-L84) 做这些检查：
+[`load_run()`](../tcn_union/core/data.py#L60-L84) 做这些检查：
 
 - CSV 列顺序必须是：
 
@@ -101,7 +101,7 @@ labels:    [3]
 
 ### 2.2 构造模型输入
 
-[`make_features()`](../tcn_union/data.py#L147-L195) 做两件事：
+[`make_features()`](../tcn_union/core/data.py#L147-L195) 做两件事：
 
 1. 截取前缀；
 2. 计算 `raw_delta` 六通道。
@@ -244,11 +244,11 @@ d=4: 隔三个点看
 
 ## 4. 模型定义
 
-核心文件：[`tcn_union/model.py`](../tcn_union/model.py)
+核心文件：[`tcn_union/core/model.py`](../tcn_union/core/model.py)
 
 ### 4.1 残差块
 
-[`CausalResidualBlock`](../tcn_union/model.py#L13-L51)：
+[`CausalResidualBlock`](../tcn_union/core/model.py#L13-L51)：
 
 ```python
 residual = self.projection(x)
@@ -279,7 +279,7 @@ y=\mathrm{ReLU}\left(\mathrm{proj}(x)+F(x)\right)
 
 ### 4.2 三个残差块
 
-[`GasTCN.__init__`](../tcn_union/model.py#L62-L75)：
+[`GasTCN.__init__`](../tcn_union/core/model.py#L62-L75)：
 
 ```python
 self.blocks = nn.Sequential(
@@ -343,7 +343,7 @@ return self.head(hidden[:, :, -1])
 
 ### 4.5 辅助头（可选）
 
-[`forward_positions()`](../tcn_union/model.py#L89-L108) 允许在隐藏序列的多个过去位置解码：
+[`forward_positions()`](../tcn_union/core/model.py#L89-L108) 允许在隐藏序列的多个过去位置解码：
 
 ```python
 hidden = self.blocks(x)
@@ -358,7 +358,7 @@ outputs = [self.head(hidden[:, :, index]) for index in positions]
 
 ## 5. 训练流程
 
-核心文件：[`tcn_union/train.py`](../tcn_union/train.py)
+核心文件：[`tcn_union/training/train.py`](../tcn_union/training/train.py)
 
 ### 5.1 训练前先划分数据
 
@@ -371,7 +371,7 @@ outputs = [self.head(hidden[:, :, index]) for index in positions]
 
 ### 5.2 标准化（z-score）
 
-[`fit_scalers()`](../tcn_union/train.py#L50-L68)：
+[`fit_scalers()`](../tcn_union/training/train.py#L50-L68)：
 
 \[
 x'=\frac{x-\mu_x}{\sigma_x}
@@ -403,7 +403,7 @@ y_std  = np.std(y_train, axis=0)   # [3]
 
 ### 5.3 DataLoader
 
-[`_train_network()`](../tcn_union/train.py#L154-L301) 里：
+[`_train_network()`](../tcn_union/training/train.py#L154-L301) 里：
 
 ```python
 dataset = TensorDataset(torch.from_numpy(x_train_z), torch.from_numpy(y_train_z))
@@ -498,11 +498,11 @@ return model, stats, best_epoch, best_score, best_prediction
 
 ## 6. 五折 OOF 和最终重训
 
-核心文件：[`tcn_union/gan_train.py`](../tcn_union/gan_train.py)
+核心文件：[`tcn_union/training/gan_train.py`](../tcn_union/training/gan_train.py)
 
 ### 6.1 五折 OOF
 
-[`cross_validate()`](../tcn_union/gan_train.py#L163-L270)：
+[`cross_validate()`](../tcn_union/training/gan_train.py#L163-L270)：
 
 ```python
 for fold in range(5):
@@ -596,7 +596,7 @@ ensemble = np.mean(seed_predictions, axis=0)
 
 ## 8. 评估
 
-核心文件：[`tcn_union/evaluate.py`](../tcn_union/evaluate.py)
+核心文件：[`tcn_union/evaluation/evaluate.py`](../tcn_union/evaluation/evaluate.py)
 
 ### 8.1 反标准化
 
@@ -639,12 +639,12 @@ ensemble = np.mean(seed_predictions, axis=0)
 
 | 顺序 | 文件 | 重点 |
 |---|---|---|
-| 1 | [`data.py`](../tcn_union/data.py) | `load_run`、`make_features` |
-| 2 | [`model.py`](../tcn_union/model.py) | `CausalResidualBlock`、`GasTCN.forward` |
-| 3 | [`train.py`](../tcn_union/train.py) | `fit_scalers`、`_train_network` |
-| 4 | [`gan_train.py`](../tcn_union/gan_train.py) | `cross_validate`、`train_final` |
-| 5 | [`evaluate.py`](../tcn_union/evaluate.py) | `_metric_summary`、测试集评估 |
-| 6 | [`predict.py`](../tcn_union/predict.py) | 单文件推理 |
+| 1 | [`data.py`](../tcn_union/core/data.py) | `load_run`、`make_features` |
+| 2 | [`model.py`](../tcn_union/core/model.py) | `CausalResidualBlock`、`GasTCN.forward` |
+| 3 | [`train.py`](../tcn_union/training/train.py) | `fit_scalers`、`_train_network` |
+| 4 | [`gan_train.py`](../tcn_union/training/gan_train.py) | `cross_validate`、`train_final` |
+| 5 | [`evaluate.py`](../tcn_union/evaluation/evaluate.py) | `_metric_summary`、测试集评估 |
+| 6 | [`predict.py`](../tcn_union/cli/predict.py) | 单文件推理 |
 
 ### 最小代码练习
 
@@ -652,8 +652,8 @@ ensemble = np.mean(seed_predictions, axis=0)
 
 ```python
 from pathlib import Path
-from tcn_union.data import load_run, make_features
-from tcn_union.model import GasTCN
+from tcn_union.core.data import load_run, make_features
+from tcn_union.core.model import GasTCN
 import torch
 
 time, response, labels = load_run(Path("data/0.csv"))

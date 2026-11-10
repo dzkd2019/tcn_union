@@ -52,7 +52,7 @@
 
 ## 3. 增强算子
 
-符号：单次实验的三路响应为 $x(t)\in\mathbb{R}^3$，$t\in\{0, 0.2, \dots, 59.6\}$ 秒；标签为 $y\in\mathbb{R}^3$；输入前缀时长为 $L$；特征由 `tcn_union/data.py:make_features` 从原始响应构造。
+符号：单次实验的三路响应为 $x(t)\in\mathbb{R}^3$，$t\in\{0, 0.2, \dots, 59.6\}$ 秒；标签为 $y\in\mathbb{R}^3$；输入前缀时长为 $L$；特征由 `tcn_union/core/data.py:make_features` 从原始响应构造。
 
 ### 3.1 原始信号域的通道影响（工程约束）
 
@@ -100,7 +100,7 @@ $$x' = \lambda x_i + (1-\lambda) x_j,\qquad y' = \lambda y_i + (1-\lambda) y_j,\
 
 - 收益一：输入多样性随前缀长度成倍增加；产出"任意时刻可出结果"的加速模型，与本课题的早期预测目标一致。
 - 收益二：5 秒与 10 秒由**同一套权重**评估，消除"两个窗口各自训练、重训方差成为混淆变量"的结构性问题。
-- 实现可行性：`GasTCN` 的卷积为因果等长、输出头只读取 `hidden[:, :, -1]`，**网络本身天然支持任意长度**，无需改架构；只需放宽 `make_features` 中 `seconds not in {5.0, 10.0}` 的硬校验（`tcn_union/data.py:162`），并保证同一 batch 内长度一致（按长度分桶或每批采样单一 $L$）。
+- 实现可行性：`GasTCN` 的卷积为因果等长、输出头只读取 `hidden[:, :, -1]`，**网络本身天然支持任意长度**，无需改架构；只需放宽 `make_features` 中 `seconds not in {5.0, 10.0}` 的硬校验（`tcn_union/core/data.py:162`），并保证同一 batch 内长度一致（按长度分桶或每批采样单一 $L$）。
 - 训练分布：每批从 $\mathcal L$ 中均匀采样 $L$，其中 5.0 与 10.0 必在集合内（保证与旧协议可直接比较）。
 
 ### 3.5 G 类：参数化生成（仅作对照，低优先）
@@ -194,10 +194,10 @@ $$r = \frac{\big\lVert x(20) - \tfrac12[x(10)+x(30)]\big\rVert}{\big\lVert x(30)
 | 文件 | 改动 |
 |---|---|
 | `tcn_union/augment.py`（新增） | 标定函数（Σ、σ_d、可加性、t₉₀）；算子 S1–S5；`mixup_pairs`；长度采样；配置与子种子管理 |
-| `tcn_union/data.py` | 放宽 `make_features` 的 `seconds` 校验（P4）；不改 `delta`/`raw_delta` 定义 |
-| `tcn_union/train.py` | 折内接入增强；早停/多种子协议（P1）；`_save_checkpoint` 增加 `augmentation` 元数据；CLI `--augment` |
-| `tcn_union/evaluate.py` | 新增逐档指标汇总；测试端输入构造不变 |
-| `tcn_union/plot_results.py` | `WINDOWS` 常量与 `_primary_row` 的"恰 12 条"断言随窗口集合调整 |
+| `tcn_union/core/data.py` | 放宽 `make_features` 的 `seconds` 校验（P4）；不改 `delta`/`raw_delta` 定义 |
+| `tcn_union/training/train.py` | 折内接入增强；早停/多种子协议（P1）；`_save_checkpoint` 增加 `augmentation` 元数据；CLI `--augment` |
+| `tcn_union/evaluation/evaluate.py` | 新增逐档指标汇总；测试端输入构造不变 |
+| `tcn_union/visualization/plot_results.py` | `WINDOWS` 常量与 `_primary_row` 的"恰 12 条"断言随窗口集合调整 |
 | `tests/` | 新增 `test_augment.py`（形状、因果性、标签一致性、折隔离、可复现性）；更新 `test_data.py` 的窗口形状断言 |
 | `README.md`、`docs/huibao.md` | 更新结果表与协议说明（P5） |
 
@@ -213,7 +213,7 @@ uv run python -m tcn_union.train --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/tcn_aug --augment artifacts/augmentation/config_mixup.json --device cpu
 
 # P5：评估与绘图
-uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv \
+uv run python -m tcn_union.evaluation.evaluate --manifest artifacts/splits/manifest.csv \
   --model-dir artifacts/tcn_aug --output-dir artifacts/evaluation_aug --device cpu
 ```
 

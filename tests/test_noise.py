@@ -5,8 +5,12 @@ from pathlib import Path
 
 import numpy as np
 
-from tcn_union.noise import NoiseConfig, estimate_noise_sigma, noisy_features
-from tcn_union.train import _read_manifest
+from tcn_union.augmentation.noise import (
+    NoiseConfig,
+    estimate_noise_sigma,
+    noisy_features,
+)
+from tcn_union.training.train import _read_manifest
 
 
 def _rows(count: int = 6) -> list[dict]:

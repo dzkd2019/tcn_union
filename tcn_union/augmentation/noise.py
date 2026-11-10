@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from .data import make_features
+from tcn_union.core.data import make_features
 
 
 @dataclass(frozen=True)

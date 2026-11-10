@@ -18,12 +18,12 @@
 
 | 文件 | 作用 |
 |---|---|
-| `tcn_union/gan.py` | 条件 WGAN-GP：`(浓度标签, 噪声) -> 10 秒三路响应`，只允许用训练折拟合 |
-| `tcn_union/gan_quality.py` | GAN 生成质量快速检查：平滑度、初值/末端、最近邻、多样性、真实/合成曲线图 |
-| `tcn_union/gan_train.py` | `clean / aux / gan / gan_aux` 四种模式的五折 OOF 与最终重训 |
-| `tcn_union/train.py` | 通用 TCN 训练循环，保留辅助监督和可选 EMA，已删除 cutout |
-| `tcn_union/augmentation_evaluate.py` | 冻结后评估，支持只评估 10 秒窗口 |
-| `tcn_union/plot_rmse_scatter.py` | 逐气体真实值-预测值散点图，标注 RMSE/MAE |
+| `tcn_union/augmentation/gan.py` | 条件 WGAN-GP：`(浓度标签, 噪声) -> 10 秒三路响应`，只允许用训练折拟合 |
+| `tcn_union/evaluation/gan_quality.py` | GAN 生成质量快速检查：平滑度、初值/末端、最近邻、多样性、真实/合成曲线图 |
+| `tcn_union/training/gan_train.py` | `clean / aux / gan / gan_aux` 四种模式的五折 OOF 与最终重训 |
+| `tcn_union/training/train.py` | 通用 TCN 训练循环，保留辅助监督和可选 EMA，已删除 cutout |
+| `tcn_union/evaluation/augmentation_evaluate.py` | 冻结后评估，支持只评估 10 秒窗口 |
+| `tcn_union/visualization/plot_rmse_scatter.py` | 逐气体真实值-预测值散点图，标注 RMSE/MAE |
 
 ### GAN 的物理约束
 
@@ -103,13 +103,13 @@ GAN 本身不自动满足传感器物理。当前实现加入：
 
 ```bash
 # 0) 先看 GAN 生成质量（不跑下游）
-uv run python -m tcn_union.gan_quality \
+uv run python -m tcn_union.evaluation.gan_quality \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_quality \
   --samples 100 --gan-epochs 300
 
 # 1) 单 seed 四模式五折 OOF（先试点）
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_ablation_pilot \
   --modes clean aux gan gan_aux \
@@ -117,21 +117,21 @@ uv run python -m tcn_union.gan_train \
   --seed 20260923 --oof-only
 
 # 2) 三 seed 最终重训（确认方案后）
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_augmentation \
   --modes gan_aux \
   --synthetic-ratio 1.0 --gan-epochs 300 --max-epochs 500
 
 # 3) 冻结后评估 10 秒 GAN 模型（baseline 用旧 clean checkpoint）
-uv run python -m tcn_union.augmentation_evaluate \
+uv run python -m tcn_union.evaluation.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
   --baseline-dir artifacts/tcn \
   --model-dir artifacts/gan_augmentation/gan_aux \
   --output-dir artifacts/gan_evaluation --windows 10 --rmse-plots
 
 # 4) 也可以单独重画逐气体 RMSE 散点图
-uv run python -m tcn_union.plot_rmse_scatter \
+uv run python -m tcn_union.visualization.plot_rmse_scatter \
   --predictions artifacts/gan_evaluation/test_predictions.csv \
   --output-dir artifacts/gan_evaluation/figures \
   --model candidate --window 10 --seed ensemble

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .plot_rmse_scatter import plot_error_sigma
+from tcn_union.visualization.plot_rmse_scatter import plot_error_sigma
 
 PREDICTION_COLUMNS = [
     "H2_true",

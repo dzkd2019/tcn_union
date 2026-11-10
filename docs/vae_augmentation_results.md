@@ -21,7 +21,7 @@ GAN 在当前 50 个开发实验上失败：
 
 ## 2. 实现
 
-代码：[`tcn_union/vae.py`](../tcn_union/vae.py)
+代码：[`tcn_union/augmentation/vae.py`](../tcn_union/augmentation/vae.py)
 
 默认配置：
 
@@ -35,7 +35,7 @@ GAN 在当前 50 个开发实验上失败：
 ### 学习资料
 
 如果第一次接触 PCA、VAE 或条件生成，先读：
-[`PCA-VAE学习资料.md`](PCA-VAE学习资料.md)。它从“为什么需要增强”开始，用尽量少的数学讲清 PCA、条件均值、VAE、重参数化和采样，并逐段对照 `tcn_union/vae.py`。
+[`PCA-VAE学习资料.md`](PCA-VAE学习资料.md)。它从“为什么需要增强”开始，用尽量少的数学讲清 PCA、条件均值、VAE、重参数化和采样，并逐段对照 `tcn_union/augmentation/vae.py`。
 
 向老师汇报时的方法选择理由、幻灯片结构和口头稿：[`PCA-VAE汇报提纲.md`](PCA-VAE汇报提纲.md)。
 
@@ -191,14 +191,14 @@ TCN 训练（10 秒，3 个固定 seed）
 
 ```bash
 # 生成质量检查
-uv run python -m tcn_union.gan_quality \
+uv run python -m tcn_union.evaluation.gan_quality \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/vae_quality \
   --samples 100 --gan-epochs 300 --generator vae \
   --vae-components 6 --vae-beta 0.1
 
 # 开发集 OOF：noise 0.1 + VAE 3×
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/final_vae_hybrid \
   --modes noise_gan \
@@ -208,7 +208,7 @@ uv run python -m tcn_union.gan_train \
   --max-epochs 500 --oof-only
 
 # 三 seed 最终模型 + 测试评估
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/final_vae_hybrid \
   --modes noise_gan \
@@ -217,7 +217,7 @@ uv run python -m tcn_union.gan_train \
   --synthetic-ratio 3.0 --gan-epochs 300 \
   --max-epochs 500
 
-uv run python -m tcn_union.augmentation_evaluate \
+uv run python -m tcn_union.evaluation.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
   --baseline-dir artifacts/tcn \
   --model-dir artifacts/final_vae_hybrid/noise_gan \

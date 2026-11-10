@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from tcn_union.model import GasTCN
+from tcn_union.core.model import GasTCN
 
 
 class AuxiliaryPositionTest(unittest.TestCase):

@@ -13,8 +13,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from .data import TIME_STEP_SECONDS, make_features
-from .train import set_seed
+from tcn_union.core.data import TIME_STEP_SECONDS, make_features
+from tcn_union.training.train import set_seed
 
 
 @dataclass(frozen=True)

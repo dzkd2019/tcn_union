@@ -20,14 +20,15 @@ from typing import Any
 import numpy as np
 import torch
 
-from .data import TIME_STEP_SECONDS, make_features
-from .device import configure_threads, describe_device, resolve_device
-from .direct_vae import DirectVAEConfig, fit_direct_vae
-from .evaluate import AXES, _metric_summary
-from .gan import GANConfig, fit_gan
-from .noise import NoiseConfig, noisy_features
-from .pca_generator import PCAConfig, fit_pca
-from .train import (
+from tcn_union.augmentation.direct_vae import DirectVAEConfig, fit_direct_vae
+from tcn_union.augmentation.gan import GANConfig, fit_gan
+from tcn_union.augmentation.noise import NoiseConfig, noisy_features
+from tcn_union.augmentation.pca_generator import PCAConfig, fit_pca
+from tcn_union.augmentation.vae import VAEConfig, fit_vae
+from tcn_union.core.data import TIME_STEP_SECONDS, make_features
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
+from tcn_union.evaluation.evaluate import AXES, _metric_summary
+from tcn_union.training.train import (
     BASE_SEED,
     MAX_EPOCHS,
     SEEDS,
@@ -37,7 +38,6 @@ from .train import (
     _save_checkpoint,
     _train_network,
 )
-from .vae import VAEConfig, fit_vae
 
 MODE = "raw_delta"
 AUX_POSITIONS = (25,)

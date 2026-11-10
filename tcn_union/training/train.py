@@ -19,8 +19,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from .data import load_run, make_features
-from .model import GasTCN
+from tcn_union.core.data import load_run, make_features
+from tcn_union.core.model import GasTCN
 
 BASE_SEED = 20260923
 SEEDS = [20260923, 20260924, 20260925]

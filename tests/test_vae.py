@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from tcn_union.train import _read_manifest
-from tcn_union.vae import VAEConfig, fit_vae, synthesize_features
+from tcn_union.augmentation.vae import VAEConfig, fit_vae, synthesize_features
+from tcn_union.training.train import _read_manifest
 
 
 def _rows(count: int = 6) -> list[dict]:

@@ -146,17 +146,17 @@ K=6 的最终方案（noise 0.1 + PCA-VAE 3×，三 seed 预测平均）在锁�
 
 ```bash
 # 解释方差 + 五折重构误差
-uv run python -m tcn_union.analyze_pca_components \
+uv run python -m tcn_union.evaluation.analyze_pca_components \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/pca_analysis
 
 # 汇总图（含下游 OOF）
-uv run python -m tcn_union.plot_pca_k_selection \
+uv run python -m tcn_union.visualization.plot_pca_k_selection \
   --components artifacts/pca_analysis/pca_components.csv \
   --output-dir artifacts/pca_analysis
 
 # 单个 K 的下游 OOF
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/pca_analysis/k4 \
   --modes noise_gan --generator vae --vae-components 4 \
