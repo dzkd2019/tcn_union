@@ -1,9 +1,12 @@
 """复现 OOF 上的 TCN 集 + Ridge 混合 3σ（不读锁定测试集）。
 
-只使用开发集：TCN 侧读取多个 seed/多配置的 ``oof.csv``，先在预测层平均；
+两条协议同时输出：
+- v1：每个配置 3 个 seed（20260923–25）先按配置平均、再跨配置平均，Ridge 权重 0.5；
+- v2：在 v1 基础上追加 seed 20260926–28（6 seed），Ridge 权重 0.4，并把融合预测
+  裁剪到开发集逐气体标签范围。v2 的超参只在 OOF 上确定。
+
 Ridge 侧按 manifest 的 5 折划分逐折拟合（log 浓度目标，alpha=0.03，57 维手工
-特征与 ``tcn_union.evaluation.hybrid_evaluate`` 一致），最后按
-``pred = (1 - w) * tcn_mean + w * ridge`` 融合。
+特征与 ``tcn_union.evaluation.hybrid_evaluate`` 一致），预测后与 TCN 集平均融合。
 
 用法（项目根目录）：
     .venv/bin/python artifacts/3sigma/scripts/compute_hybrid_oof.py
@@ -24,30 +27,42 @@ sys.path.insert(0, str(ROOT))
 
 from tcn_union.evaluation.evaluate import AXES, _manifest
 from tcn_union.evaluation.hybrid_evaluate import (
+    _clip_to_development_range,
     _fit_ridge,
     _predict_ridge,
     _ridge_features_for_rows,
 )
 
 GASES = AXES
-# 每个配置的 OOF 文件（同配置不同 seed 先平均，再在配置间平均）。
-TCN_OOF = {
-    "log_p0": [ROOT / "artifacts/3sigma/log_p0" / f"seed_{seed}" / "noise_gan/oof.csv"
-               for seed in (20260923, 20260924, 20260925)],
-    "log_n02": [ROOT / "artifacts/3sigma/log_p0_noise02" / f"seed_{seed}" / "noise_gan/oof.csv"
-                for seed in (20260923, 20260924, 20260925)],
-    "none_pg422": [
-        ROOT / "artifacts/variance_search/pg422_final/noise_gan/oof.csv",
-        ROOT / "artifacts/3sigma/baseline_pg422/seed_20260924/noise_gan/oof.csv",
-        ROOT / "artifacts/3sigma/baseline_pg422/seed_20260925/noise_gan/oof.csv",
-    ],
-    "pergas_p0": [
-        ROOT / "artifacts/3sigma/pergas_p0" / f"seed_{seed}" / "noise_gan/oof.csv"
-        for seed in (20260923, 20260924, 20260925)
-    ],
-}
-RIDGE_WEIGHT = 0.5
+SEEDS_V1 = (20260923, 20260924, 20260925)
+SEEDS_V2 = (20260923, 20260924, 20260925, 20260926, 20260927, 20260928)
+RIDGE_WEIGHT_V1 = 0.5
+RIDGE_WEIGHT_V2 = 0.4
 OUTPUT_DIR = ROOT / "artifacts/3sigma"
+
+
+def _config_paths(name: str, seeds: tuple[int, ...]) -> list[Path]:
+    """返回一个 TCN 配置在给定 seed 集合下的 OOF 文件路径。"""
+    base = {
+        "log_p0": ("noise_gan", "log_p0"),
+        "log_n02": ("noise_gan", "log_p0_noise02"),
+        "pergas_p0": ("noise_gan", "pergas_p0"),
+        "none_pg422": ("noise_gan", "baseline_pg422"),
+    }[name]
+    mode, directory = base
+    paths = []
+    for seed in seeds:
+        if name == "none_pg422" and seed == 20260923:
+            # 历史基线 seed23 的 OOF 在 variance_search 下。
+            paths.append(ROOT / "artifacts/variance_search/pg422_final/noise_gan/oof.csv")
+        else:
+            paths.append(
+                ROOT / "artifacts/3sigma" / directory / f"seed_{seed}" / mode / "oof.csv"
+            )
+    return paths
+
+
+TCN_CONFIGS = ("log_p0", "log_n02", "pergas_p0", "none_pg422")
 
 
 def _load_frame(path: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -75,7 +90,7 @@ def _config_prediction(paths: list[Path], reference_files: list[str]) -> np.ndar
     return np.mean(predictions, axis=0)
 
 
-def _three_sigma(truth: np.ndarray, prediction: np.ndarray) -> dict[str, float]:
+def _three_sigma(truth: np.ndarray, prediction: np.ndarray) -> dict[str, object]:
     """逐气体 3σ 与宏平均、MAPE、平均相对偏差。"""
     sigma = {}
     mape = {}
@@ -101,6 +116,15 @@ def _macro_three_sigma(truth: np.ndarray, prediction: np.ndarray) -> float:
     return float(_three_sigma(truth, prediction)["three_sigma_macro"])
 
 
+def _interval(values: list[float]) -> dict[str, object]:
+    array = np.asarray(values)
+    return {
+        "mean": float(array.mean()),
+        "ci95": [float(np.percentile(array, 2.5)), float(np.percentile(array, 97.5))],
+        "p_improve": float(np.mean(array < 0.0)),
+    }
+
+
 def main() -> None:
     dev_rows, _ = _manifest(ROOT / "artifacts/splits/manifest.csv")
     files = [row["file"] for row in dev_rows]
@@ -116,46 +140,55 @@ def main() -> None:
         model = _fit_ridge(x_all[train], truth[train])
         ridge_oof[validation] = _predict_ridge(model, x_all[validation])
 
-    tcn_by_config = {
-        name: _config_prediction(paths, files) for name, paths in TCN_OOF.items()
-    }
-    tcn_mean = np.mean(list(tcn_by_config.values()), axis=0)
-    hybrid = (1.0 - RIDGE_WEIGHT) * tcn_mean + RIDGE_WEIGHT * ridge_oof
+    def tcn_mean(seeds: tuple[int, ...]) -> dict[str, np.ndarray]:
+        by_config = {
+            name: _config_prediction(_config_paths(name, seeds), files)
+            for name in TCN_CONFIGS
+        }
+        return {"mean": np.mean(list(by_config.values()), axis=0), "configs": by_config}
 
-    # 实验级配对 bootstrap：评估混合相对“旧协议基线/纯 TCN 集”的宏 3σ 改善区间。
-    baseline = tcn_by_config["none_pg422"]
+    tcn_v1 = tcn_mean(SEEDS_V1)
+    tcn_v2 = tcn_mean(SEEDS_V2)
+    hybrid_v1 = (1.0 - RIDGE_WEIGHT_V1) * tcn_v1["mean"] + RIDGE_WEIGHT_V1 * ridge_oof
+    hybrid_v2 = (1.0 - RIDGE_WEIGHT_V2) * tcn_v2["mean"] + RIDGE_WEIGHT_V2 * ridge_oof
+    hybrid_v2 = _clip_to_development_range(hybrid_v2, truth)
+
+    baseline = tcn_v2["configs"]["none_pg422"]
     rng = np.random.default_rng(0)
     delta_baseline: list[float] = []
     delta_tcn: list[float] = []
     for _ in range(4000):
         pick = rng.integers(0, len(files), len(files))
-        hybrid_score = _macro_three_sigma(truth[pick], hybrid[pick])
+        hybrid_score = _macro_three_sigma(truth[pick], hybrid_v2[pick])
         delta_baseline.append(hybrid_score - _macro_three_sigma(truth[pick], baseline[pick]))
-        delta_tcn.append(hybrid_score - _macro_three_sigma(truth[pick], tcn_mean[pick]))
-
-    def _interval(values: list[float]) -> dict[str, object]:
-        array = np.asarray(values)
-        return {
-            "mean": float(array.mean()),
-            "ci95": [float(np.percentile(array, 2.5)), float(np.percentile(array, 97.5))],
-            "p_improve": float(np.mean(array < 0.0)),
-        }
+        delta_tcn.append(
+            hybrid_score - _macro_three_sigma(truth[pick], tcn_v2["mean"][pick])
+        )
 
     result = {
         "protocol": "OOF 50 development runs; ridge fitted per fold; locked test untouched",
-        "tcn_configs": {name: [str(path) for path in paths] for name, paths in TCN_OOF.items()},
-        "ridge_weight": RIDGE_WEIGHT,
-        "baseline_none_pg422": _three_sigma(truth, baseline),
-        "tcn_mean": _three_sigma(truth, tcn_mean),
-        "ridge": _three_sigma(truth, ridge_oof),
-        "hybrid": _three_sigma(truth, hybrid),
-        "per_config": {
-            name: _three_sigma(truth, prediction)
-            for name, prediction in tcn_by_config.items()
+        "v1": {
+            "seeds": list(SEEDS_V1),
+            "ridge_weight": RIDGE_WEIGHT_V1,
+            "tcn_mean": _three_sigma(truth, tcn_v1["mean"]),
+            "hybrid": _three_sigma(truth, hybrid_v1),
         },
-        "bootstrap_delta_macro3sigma": {
-            "hybrid_minus_baseline": _interval(delta_baseline),
-            "hybrid_minus_tcn_mean": _interval(delta_tcn),
+        "v2": {
+            "seeds": list(SEEDS_V2),
+            "ridge_weight": RIDGE_WEIGHT_V2,
+            "clip_to_development_range": True,
+            "tcn_mean": _three_sigma(truth, tcn_v2["mean"]),
+            "ridge": _three_sigma(truth, ridge_oof),
+            "hybrid": _three_sigma(truth, hybrid_v2),
+            "baseline_none_pg422": _three_sigma(truth, baseline),
+            "per_config": {
+                name: _three_sigma(truth, prediction)
+                for name, prediction in tcn_v2["configs"].items()
+            },
+            "bootstrap_delta_macro3sigma": {
+                "hybrid_minus_baseline": _interval(delta_baseline),
+                "hybrid_minus_tcn_mean": _interval(delta_tcn),
+            },
         },
     }
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -169,26 +202,21 @@ def main() -> None:
         )
         for index, name in enumerate(files):
             writer.writerow(
-                [
-                    name,
-                    int(folds[index]),
-                    *truth[index].tolist(),
-                    *hybrid[index].tolist(),
-                ]
+                [name, int(folds[index]), *truth[index].tolist(), *hybrid_v2[index].tolist()]
             )
-    for name, summary in (
-        ("baseline", result["baseline_none_pg422"]),
-        ("tcn_mean", result["tcn_mean"]),
-        ("ridge", result["ridge"]),
-        ("hybrid", result["hybrid"]),
-    ):
-        per_gas = "  ".join(
-            f"{gas}={summary['three_sigma'][gas]:.2f}" for gas in GASES
-        )
-        print(
-            f"{name:<10} {per_gas}  macro={summary['three_sigma_macro']:.2f}  "
-            f"MAPE={summary['mape_macro']:.2f}"
-        )
+
+    for version, summary in (("v1", result["v1"]), ("v2", result["v2"])):
+        for name in ("tcn_mean", "ridge", "hybrid"):
+            if name not in summary:
+                continue
+            per_gas = "  ".join(
+                f"{gas}={summary[name]['three_sigma'][gas]:.2f}" for gas in GASES
+            )
+            print(
+                f"{version} {name:<9} {per_gas}  macro={summary[name]['three_sigma_macro']:.2f}  "
+                f"MAPE={summary[name]['mape_macro']:.2f}"
+            )
+    print("bootstrap:", json.dumps(result["v2"]["bootstrap_delta_macro3sigma"], ensure_ascii=False))
     print(f"Wrote {OUTPUT_DIR / 'hybrid_oof_summary.json'}")
 
 
