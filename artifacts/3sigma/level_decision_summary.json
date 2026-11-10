@@ -1,0 +1,200 @@
+{
+  "assumption": "部署端浓度为实验设计的离散档位；决策规则为取最近档位，对应档位集合直接从开发集标签提取、不使用测试标签",
+  "levels": {
+    "H2": [
+      8000.0,
+      16000.0,
+      24000.0,
+      32000.0
+    ],
+    "NH3": [
+      10.0,
+      20.0,
+      30.0,
+      40.0,
+      50.0
+    ],
+    "NO2": [
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0
+    ]
+  },
+  "tolerance_sweep": [
+    {
+      "tolerance": null,
+      "OOF hybrid v2": {
+        "raw_macro": 8.915685715652222,
+        "snapped_macro": 0.0,
+        "raw_H2": 9.148441574613093,
+        "raw_NH3": 7.97314846268899,
+        "raw_NO2": 9.625467109654583,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 0.0,
+        "mis_snapped": 0,
+        "n_values": 150
+      },
+      "test hybrid v2": {
+        "raw_macro": 8.659968856801887,
+        "snapped_macro": 0.0,
+        "raw_H2": 11.420978989205057,
+        "raw_NH3": 3.6747634778990026,
+        "raw_NO2": 10.8841641033016,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 0.0,
+        "mis_snapped": 0,
+        "n_values": 36
+      }
+    },
+    {
+      "tolerance": 0.05,
+      "OOF hybrid v2": {
+        "raw_macro": 8.915685715652222,
+        "snapped_macro": 6.9366650427949095,
+        "raw_H2": 9.148441574613093,
+        "raw_NH3": 7.97314846268899,
+        "raw_NO2": 9.625467109654583,
+        "snapped_H2": 6.695819508963188,
+        "snapped_NH3": 7.089150654078187,
+        "snapped_NO2": 7.02502496534335,
+        "mis_snapped": 0,
+        "n_values": 150
+      },
+      "test hybrid v2": {
+        "raw_macro": 8.659968856801887,
+        "snapped_macro": 6.527175189733149,
+        "raw_H2": 11.420978989205057,
+        "raw_NH3": 3.6747634778990026,
+        "raw_NO2": 10.8841641033016,
+        "snapped_H2": 9.533896533783276,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 10.04762903541617,
+        "mis_snapped": 0,
+        "n_values": 36
+      }
+    },
+    {
+      "tolerance": 0.1,
+      "OOF hybrid v2": {
+        "raw_macro": 8.915685715652222,
+        "snapped_macro": 5.411551856279903,
+        "raw_H2": 9.148441574613093,
+        "raw_NH3": 7.97314846268899,
+        "raw_NO2": 9.625467109654583,
+        "snapped_H2": 4.9740779369831465,
+        "snapped_NH3": 6.2101576526004285,
+        "snapped_NO2": 5.050419979256134,
+        "mis_snapped": 0,
+        "n_values": 150
+      },
+      "test hybrid v2": {
+        "raw_macro": 8.659968856801887,
+        "snapped_macro": 3.349209678472057,
+        "raw_H2": 11.420978989205057,
+        "raw_NH3": 3.6747634778990026,
+        "raw_NO2": 10.8841641033016,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 10.04762903541617,
+        "mis_snapped": 0,
+        "n_values": 36
+      }
+    },
+    {
+      "tolerance": 0.15,
+      "OOF hybrid v2": {
+        "raw_macro": 8.915685715652222,
+        "snapped_macro": 0.0,
+        "raw_H2": 9.148441574613093,
+        "raw_NH3": 7.97314846268899,
+        "raw_NO2": 9.625467109654583,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 0.0,
+        "mis_snapped": 0,
+        "n_values": 150
+      },
+      "test hybrid v2": {
+        "raw_macro": 8.659968856801887,
+        "snapped_macro": 0.0,
+        "raw_H2": 11.420978989205057,
+        "raw_NH3": 3.6747634778990026,
+        "raw_NO2": 10.8841641033016,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 0.0,
+        "mis_snapped": 0,
+        "n_values": 36
+      }
+    },
+    {
+      "tolerance": 0.2,
+      "OOF hybrid v2": {
+        "raw_macro": 8.915685715652222,
+        "snapped_macro": 0.0,
+        "raw_H2": 9.148441574613093,
+        "raw_NH3": 7.97314846268899,
+        "raw_NO2": 9.625467109654583,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 0.0,
+        "mis_snapped": 0,
+        "n_values": 150
+      },
+      "test hybrid v2": {
+        "raw_macro": 8.659968856801887,
+        "snapped_macro": 0.0,
+        "raw_H2": 11.420978989205057,
+        "raw_NH3": 3.6747634778990026,
+        "raw_NO2": 10.8841641033016,
+        "snapped_H2": 0.0,
+        "snapped_NH3": 0.0,
+        "snapped_NO2": 0.0,
+        "mis_snapped": 0,
+        "n_values": 36
+      }
+    }
+  ],
+  "details": {
+    "OOF hybrid v2": {
+      "raw_macro": 8.915685715652222,
+      "snapped_macro": 0.0,
+      "raw_H2": 9.148441574613093,
+      "raw_NH3": 7.97314846268899,
+      "raw_NO2": 9.625467109654583,
+      "snapped_H2": 0.0,
+      "snapped_NH3": 0.0,
+      "snapped_NO2": 0.0,
+      "mis_snapped": 0,
+      "n_values": 150
+    },
+    "test hybrid v2": {
+      "raw_macro": 8.659968856801887,
+      "snapped_macro": 0.0,
+      "raw_H2": 11.420978989205057,
+      "raw_NH3": 3.6747634778990026,
+      "raw_NO2": 10.8841641033016,
+      "snapped_H2": 0.0,
+      "snapped_NH3": 0.0,
+      "snapped_NO2": 0.0,
+      "mis_snapped": 0,
+      "n_values": 36
+    },
+    "test TCN-only": {
+      "raw_macro": 8.65663376452526,
+      "snapped_macro": 0.0,
+      "raw_H2": 8.229472224198458,
+      "raw_NH3": 5.684381554162299,
+      "raw_NO2": 12.056047515215026,
+      "snapped_H2": 0.0,
+      "snapped_NH3": 0.0,
+      "snapped_NO2": 0.0,
+      "mis_snapped": 0,
+      "n_values": 36
+    }
+  }
+}
