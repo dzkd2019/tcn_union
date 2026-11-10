@@ -146,6 +146,18 @@ def _fuse(
     return (1.0 - ridge_weight) * tcn_prediction + ridge_weight * ridge_prediction
 
 
+def _clip_to_development_range(
+    prediction: np.ndarray, y_dev: np.ndarray
+) -> np.ndarray:
+    """把三气体预测裁剪到开发集标签的逐气体最小/最大值。
+
+    浓度不可能超出实验设计范围；裁剪是部署端可执行的物理约束，不接触测试标签。
+    """
+    lower = y_dev.min(axis=0)
+    upper = y_dev.max(axis=0)
+    return np.clip(prediction, lower[None, :], upper[None, :])
+
+
 def _three_sigma(truth: np.ndarray, prediction: np.ndarray) -> dict[str, float]:
     """相对误差 3σ（%）：3 * std(100*(pred-true)/max(|true|,1e-9), ddof=1)。
 
@@ -303,6 +315,7 @@ def evaluate_hybrid(
     windows: list[int],
     seeds: list[int],
     ridge_weight: float = 0.5,
+    clip_to_development_range: bool = False,
 ) -> dict[str, Any]:
     """对锁定测试集做一次 TCN 集 + Ridge 混合评估并写出三项产物。
 
@@ -310,7 +323,8 @@ def evaluate_hybrid(
     ``10s/seed_<seed>.pt``，允许每个目录只含部分 seed）；`output_dir` 是产物
     目录；`device` 指定推理设备；`windows` 目前只支持 10 秒（Ridge 特征固定
     为 10 秒前缀）；`seeds` 是要集成的 TCN 种子；`ridge_weight` 是 Ridge
-    预测的融合权重。
+    预测的融合权重；`clip_to_development_range` 为真时把融合预测裁剪到开发集
+    逐气体标签范围（物理约束，不使用测试标签）。
     返回：含协议、目录、seed、融合权重、指标与 3σ 的报告字典；同时写出
     ``test_predictions.csv``、``test_metrics.csv`` 和 ``evaluation.json``。
     """
@@ -365,6 +379,8 @@ def evaluate_hybrid(
             [seed_predictions[seed] for seed in seeds]
         )
         fused = _fuse(tcn_ensemble, ridge_test, ridge_weight)
+        if clip_to_development_range:
+            fused = _clip_to_development_range(fused, y_dev)
         for model_name, prediction in (
             ("candidate", fused),
             ("ridge", ridge_test),
@@ -407,7 +423,9 @@ def evaluate_hybrid(
     report = {
         "protocol": (
             "locked 12-run test; hybrid candidate = TCN ensemble mean mixed with "
-            "dev-fitted manual57-feature Ridge (log target); test read once"
+            "dev-fitted manual57-feature Ridge (log target)"
+            + ("; fused predictions clipped to development label range" if clip_to_development_range else "")
+            + "; test read once per candidate version"
         ),
         "test_n": len(test_rows),
         "locked_test_runs": [row["file"] for row in test_rows],
@@ -416,6 +434,7 @@ def evaluate_hybrid(
         "seeds": [int(seed) for seed in seeds],
         "model_dirs": [str(model_dir) for model_dir in model_dirs],
         "ridge_weight": float(ridge_weight),
+        "clip_to_development_range": bool(clip_to_development_range),
         "ridge": {
             "alpha": RIDGE_ALPHA,
             "target_space": "log",
@@ -466,6 +485,11 @@ def main() -> None:
         default=0.5,
         help="Ridge 预测的融合权重：0 为纯 TCN 集平均，1 为纯 Ridge",
     )
+    parser.add_argument(
+        "--clip-to-development-range",
+        action="store_true",
+        help="把融合预测裁剪到开发集逐气体标签范围（物理约束）",
+    )
     args = parser.parse_args()
     if not 0.0 <= args.ridge_weight <= 1.0:
         parser.error("--ridge-weight 必须在 [0, 1]")
@@ -482,6 +506,7 @@ def main() -> None:
         args.windows,
         args.seeds,
         args.ridge_weight,
+        clip_to_development_range=args.clip_to_development_range,
     )
     print(
         f"Wrote {args.output_dir / 'evaluation.json'} for {report['test_n']} locked test runs"
