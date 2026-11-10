@@ -1,7 +1,8 @@
-"""log 目标变换的训练、checkpoint 与推理还原测试（CPU 合成数据）。
+"""目标变换的训练、checkpoint 与推理还原测试（CPU 合成数据）。
 
 不依赖仓库中的真实数据：训练路径用正浓度合成标签，推理路径用手工 checkpoint
-和合成 CSV，覆盖 log 模式在训练、保存和 predict/evaluate 两条推理链路上的还原。
+和合成 CSV，覆盖单值与逐气体（如 none,log,log）配置在训练、保存和
+predict/evaluate 两条推理链路上的还原。
 """
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ def _synthetic(seed: int, runs: int = 8) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _save_manual_checkpoint(
-    path: Path, target_transform: str = "log"
+    path: Path, target_transform: str | list[str] = "log"
 ) -> GasTCN:
     """用恒等输入标准化保存一个已知模型的 checkpoint，便于手算推理期望。"""
     torch.manual_seed(0)
@@ -72,6 +73,24 @@ def _raw_logits(model: GasTCN, features: np.ndarray) -> np.ndarray:
         )
 
 
+def _write_prefix_csv(
+    tmp_path: Path, seed: int
+) -> tuple[Path, np.ndarray, np.ndarray]:
+    """写一份 10 秒合成前缀 CSV，返回路径与构造特征用的时间/响应。"""
+    rng = np.random.default_rng(seed)
+    time = np.arange(51, dtype=np.float64) * 0.2
+    responses = rng.normal(size=(51, 3))
+    csv_path = tmp_path / "sample.csv"
+    np.savetxt(
+        csv_path,
+        np.column_stack((time, responses)),
+        delimiter=",",
+        header="time,H2,NH3,NO2",
+        comments="",
+    )
+    return csv_path, time, responses
+
+
 class LogTargetTrainingTest(unittest.TestCase):
     def test_log_training_uses_log_space_and_returns_positive_predictions(
         self,
@@ -106,6 +125,42 @@ class LogTargetTrainingTest(unittest.TestCase):
         for parameter in model.parameters():
             self.assertTrue(torch.isfinite(parameter).all())
 
+    def test_per_gas_training_mixes_log_and_raw_targets(self) -> None:
+        x, y = _synthetic(6)
+        model, stats, epochs, score, prediction = _train_network(
+            x,
+            y,
+            x,
+            y,
+            y,
+            2,
+            123,
+            torch.device("cpu"),
+            True,
+            target_transform="none,log,log",
+        )
+        self.assertEqual(epochs, 2)
+        self.assertIsNotNone(score)
+        self.assertIsNotNone(prediction)
+        self.assertTrue(np.isfinite(prediction).all())
+        # NH3/NO2 在 log 空间训练，还原后必为正；H2 保持原始浓度空间，在当前
+        # 固定合成数据下也为正，一并断言避免还原逻辑产生异常符号。
+        self.assertTrue((prediction > 0).all())
+        self.assertTrue((prediction[:, 1:] > 0).all())
+        raw = y.astype(np.float64)
+        expected_mean = np.stack(
+            (raw[:, 0], np.log(raw[:, 1]), np.log(raw[:, 2])), axis=1
+        ).mean(axis=0)
+        self.assertTrue(
+            np.allclose(stats["y_mean"], expected_mean, rtol=1e-5, atol=1e-5)
+        )
+        # 逐气体配置确实生效：统计量不等于三气体都在原始空间的结果。
+        self.assertFalse(
+            np.allclose(stats["y_mean"], raw.mean(axis=0), rtol=1e-5, atol=1e-5)
+        )
+        for parameter in model.parameters():
+            self.assertTrue(torch.isfinite(parameter).all())
+
     def test_invalid_target_transform_rejected(self) -> None:
         x, y = _synthetic(1, runs=4)
         with self.assertRaises(ValueError):
@@ -121,6 +176,24 @@ class LogTargetTrainingTest(unittest.TestCase):
                 False,
                 target_transform="sqrt",
             )
+
+    def test_invalid_per_gas_specs_rejected(self) -> None:
+        x, y = _synthetic(7, runs=4)
+        # 非法配置：长度不为 3（空串/两值/四值）、未知气体空间、大小写错误。
+        for spec in ("", "none,log", "none,log,log,log", "none,log,sqrt", "NONE,log,log"):
+            with self.assertRaises(ValueError, msg=spec):
+                _train_network(
+                    x,
+                    y,
+                    None,
+                    None,
+                    y,
+                    1,
+                    123,
+                    torch.device("cpu"),
+                    False,
+                    target_transform=spec,
+                )
 
     def test_default_none_matches_explicit_none(self) -> None:
         x, y = _synthetic(2)
@@ -170,6 +243,42 @@ class LogTargetInferenceTest(unittest.TestCase):
             np.testing.assert_allclose(prediction, expected, rtol=1e-6, atol=1e-6)
             self.assertTrue((prediction > 0).all())
 
+    def test_per_gas_checkpoint_restores_each_gas(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "seed.pt"
+            model = _save_manual_checkpoint(
+                path, target_transform=["none", "log", "log"]
+            )
+            payload = torch.load(path, map_location="cpu", weights_only=False)
+            self.assertEqual(payload["target_transform"], ["none", "log", "log"])
+            features = np.random.default_rng(8).normal(size=(2, 6, 51)).astype(
+                np.float32
+            )
+            prediction, checkpoint = _tcn_predict(
+                path, features, torch.device("cpu")
+            )
+            self.assertEqual(
+                checkpoint["target_transform"], ["none", "log", "log"]
+            )
+            raw = _raw_logits(model, features) * LOG_STD + LOG_MEAN
+            expected = raw.copy()
+            # H2 保持原始空间，NH3/NO2 逐气体取指数还原。
+            expected[:, 1:] = np.exp(raw[:, 1:])
+            np.testing.assert_allclose(prediction, expected, rtol=1e-6, atol=1e-6)
+            self.assertTrue((prediction[:, 1:] > 0).all())
+
+    def test_uniform_per_gas_spec_stored_as_single_value(self) -> None:
+        # 三气体一致时 checkpoint 仍写单值字符串，与旧推理协议/旧 checkpoint 兼容。
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "log.pt"
+            _save_manual_checkpoint(log_path, target_transform="log,log,log")
+            payload = torch.load(log_path, map_location="cpu", weights_only=False)
+            self.assertEqual(payload["target_transform"], "log")
+            none_path = Path(tmp) / "none.pt"
+            _save_manual_checkpoint(none_path, target_transform="none")
+            payload = torch.load(none_path, map_location="cpu", weights_only=False)
+            self.assertEqual(payload["target_transform"], "none")
+
     def test_old_checkpoint_without_key_defaults_to_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "seed.pt"
@@ -193,17 +302,7 @@ class LogTargetInferenceTest(unittest.TestCase):
             tmp_path = Path(tmp)
             checkpoint_path = tmp_path / "seed.pt"
             model = _save_manual_checkpoint(checkpoint_path)
-            rng = np.random.default_rng(5)
-            time = np.arange(51, dtype=np.float64) * 0.2
-            responses = rng.normal(size=(51, 3))
-            csv_path = tmp_path / "sample.csv"
-            np.savetxt(
-                csv_path,
-                np.column_stack((time, responses)),
-                delimiter=",",
-                header="time,H2,NH3,NO2",
-                comments="",
-            )
+            csv_path, time, responses = _write_prefix_csv(tmp_path, 5)
             features = make_features(time, responses, 10.0, "raw_delta")
             expected = np.exp(
                 _raw_logits(model, features[None, :, :]) * LOG_STD + LOG_MEAN
@@ -217,6 +316,26 @@ class LogTargetInferenceTest(unittest.TestCase):
             )
             self.assertEqual(result["unit"], "original")
             self.assertEqual(result["seconds"], 10.0)
+
+    def test_predict_restores_per_gas_concentrations_from_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            checkpoint_path = tmp_path / "seed.pt"
+            model = _save_manual_checkpoint(
+                checkpoint_path, target_transform=["none", "log", "log"]
+            )
+            csv_path, time, responses = _write_prefix_csv(tmp_path, 9)
+            features = make_features(time, responses, 10.0, "raw_delta")
+            raw = _raw_logits(model, features[None, :, :]) * LOG_STD + LOG_MEAN
+            expected = raw[0].copy()
+            expected[1:] = np.exp(expected[1:])
+            result = predict(checkpoint_path, csv_path, torch.device("cpu"))
+            np.testing.assert_allclose(
+                [result["H2"], result["NH3"], result["NO2"]],
+                expected,
+                rtol=1e-5,
+                atol=1e-5,
+            )
 
 
 if __name__ == "__main__":

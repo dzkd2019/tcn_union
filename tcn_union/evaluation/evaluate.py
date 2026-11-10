@@ -23,6 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from tcn_union.core.data import load_run, make_features
 from tcn_union.core.device import configure_threads, describe_device, resolve_device
 from tcn_union.core.model import GasTCN
+from tcn_union.training.train import _restore_target
 
 ALPHAS = [0.01, 0.1, 1.0, 10.0, 100.0]
 AXES = ["H2", "NH3", "NO2"]
@@ -235,9 +236,10 @@ def _tcn_predict(checkpoint_path: Path, features: np.ndarray, device: torch.devi
     参数：`checkpoint_path` 是最终模型文件；`features` 为
     `[runs,channels,time]` 特征；`device` 是计算设备。
     返回：`(预测[runs,3], checkpoint内容)`。输入使用训练保存的均值/标准差，
-    输出使用标签统计量反标准化；checkpoint 的 `target_transform` 为 `log` 时
-    再取指数还原到原始浓度（旧 checkpoint 缺该键时按 `none` 处理）；
-    eval/no_grad 确保推理时 dropout 关闭且不建梯度。
+    输出使用标签统计量反标准化；checkpoint 的 `target_transform` 为单值或
+    逐气体配置时，由 `_restore_target` 逐气体取指数还原到原始浓度（旧
+    checkpoint 缺该键时按 `none` 处理）；eval/no_grad 确保推理时 dropout
+    关闭且不建梯度。
     """
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     x = (features - np.asarray(checkpoint["input_mean"], dtype=np.float32)[None, :, None]) / np.asarray(
@@ -255,9 +257,7 @@ def _tcn_predict(checkpoint_path: Path, features: np.ndarray, device: torch.devi
                 for sample in x
             ]
         )
-    if checkpoint.get("target_transform", "none") == "log":
-        # log 目标的模型输出经反标准化后仍是 log 浓度，需要指数还原。
-        output = np.exp(output)
+    output = _restore_target(output, checkpoint.get("target_transform"))
     return output, checkpoint
 
 

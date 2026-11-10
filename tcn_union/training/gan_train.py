@@ -36,6 +36,7 @@ from tcn_union.training.train import (
     _macro_nmae,
     _read_manifest,
     _save_checkpoint,
+    _target_flags,
     _train_network,
 )
 
@@ -177,12 +178,12 @@ def cross_validate(
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
-    target_transform: str = "none",
+    target_transform: str | list[str] = "none",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。
 
-    `target_transform` 透传给 ``_train_network``：`log` 时在 log 浓度空间
-    训练和早停，返回的验证预测仍是原始浓度。
+    `target_transform` 透传给 ``_train_network``：单值或逐气体配置，log 气体
+    在 log 浓度空间训练和早停，返回的验证预测仍是原始浓度。
     """
     # MODES 决定这一轮是否加噪声/生成样本/辅助头；最终方案是 noise_gan。
     use_noise, use_gan, aux_positions = MODES[mode]
@@ -306,13 +307,13 @@ def train_final(
     ema_decay: float | None,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
-    target_transform: str = "none",
+    target_transform: str | list[str] = "none",
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
     与 ``cross_validate`` 的区别：这里没有验证集、没有早停，训练轮数由五折
     最佳 epoch 中位数固定；测试集仍然不参与。`target_transform` 同时传给
-    训练和 checkpoint，供推理端还原原始浓度。
+    训练和 checkpoint（逐气体配置会以长度 3 列表记录），供推理端还原原始浓度。
     """
     use_noise, use_gan, aux_positions = MODES[mode]
     # 最终训练也只在开发集上构造增强样本。
@@ -420,9 +421,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--target-transform",
-        choices=["none", "log"],
         default="none",
-        help="标签空间：none 原始浓度（默认），log 对数浓度以对齐相对误差",
+        help=(
+            "标签空间：none/log 表示三气体共用，或按 H2,NH3,NO2 逗号分隔，"
+            "如 none,log,log；log 气体在 log 浓度空间训练以对齐相对误差"
+        ),
     )
     parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
     parser.add_argument("--oof-only", action="store_true")
@@ -436,6 +439,11 @@ def main() -> None:
         parser.error("--noise-copies 必须为正")
     if args.max_epochs < 1:
         parser.error("--max-epochs 必须为正")
+    try:
+        # 提前校验标签空间配置，避免读到 manifest、开始五折训练后才报错。
+        _target_flags(args.target_transform)
+    except ValueError as exc:
+        parser.error(str(exc))
     weight_powers = None
     if args.sample_weight_powers:
         fields = [field.strip() for field in args.sample_weight_powers.split(",")]
