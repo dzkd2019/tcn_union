@@ -177,6 +177,7 @@ def cross_validate(
     max_epochs: int = MAX_EPOCHS,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
+    gas_loss_weights: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -233,6 +234,7 @@ def cross_validate(
             ema_decay=ema_decay,
             sample_weight_power=sample_weight_power,
             sample_weight_powers=sample_weight_powers,
+            gas_loss_weights=gas_loss_weights,
             validation_metric=validation_metric,
             target_transform=target_transform,
         )
@@ -307,6 +309,7 @@ def train_final(
     ema_decay: float | None,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
+    gas_loss_weights: tuple[float, float, float] | None = None,
     target_transform: str | list[str] = "none",
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
@@ -348,6 +351,7 @@ def train_final(
         ema_decay=ema_decay,
         sample_weight_power=sample_weight_power,
         sample_weight_powers=sample_weight_powers,
+        gas_loss_weights=gas_loss_weights,
         target_transform=target_transform,
     )
     metadata = {
@@ -421,6 +425,12 @@ def main() -> None:
         help="三气体分别的低浓度权重，如 4,2,2；优先于 --sample-weight-power",
     )
     parser.add_argument(
+        "--gas-loss-weights",
+        type=str,
+        default=None,
+        help="三气体损失权重（H2,NH3,NO2），如 1,1,2 表示加强 NO2；默认等权",
+    )
+    parser.add_argument(
         "--validation-metric",
         choices=["nmae", "three_sigma"],
         default="nmae",
@@ -460,6 +470,17 @@ def main() -> None:
             weight_powers = tuple(float(field) for field in fields)
         except ValueError:
             parser.error("--sample-weight-powers 必须全部是数字")
+    gas_weights = None
+    if args.gas_loss_weights:
+        fields = [field.strip() for field in args.gas_loss_weights.split(",")]
+        if len(fields) != 3:
+            parser.error("--gas-loss-weights 必须是三个逗号分隔的数字")
+        try:
+            gas_weights = tuple(float(field) for field in fields)
+        except ValueError:
+            parser.error("--gas-loss-weights 必须全部是数字")
+        if any(weight < 0.0 for weight in gas_weights) or sum(gas_weights) <= 0.0:
+            parser.error("--gas-loss-weights 必须非负且和为正")
     device = resolve_device(args.device)
     configure_threads(device)
     print(f"[device] {describe_device(device)}", flush=True)
@@ -506,6 +527,7 @@ def main() -> None:
         "ema_decay": args.ema_decay,
         "sample_weight_power": args.sample_weight_power,
         "sample_weight_powers": weight_powers,
+        "gas_loss_weights": gas_weights,
         "validation_metric": args.validation_metric,
         "target_transform": args.target_transform,
         "selected": {},
@@ -528,6 +550,7 @@ def main() -> None:
             args.max_epochs,
             sample_weight_power=args.sample_weight_power,
             sample_weight_powers=weight_powers,
+            gas_loss_weights=gas_weights,
             validation_metric=args.validation_metric,
             target_transform=args.target_transform,
         )
@@ -566,6 +589,7 @@ def main() -> None:
                     args.ema_decay,
                     sample_weight_power=args.sample_weight_power,
                     sample_weight_powers=weight_powers,
+                    gas_loss_weights=gas_weights,
                     target_transform=args.target_transform,
                 )
                 print(f"  saved {path}", flush=True)
