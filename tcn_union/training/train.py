@@ -32,6 +32,53 @@ TARGET_TRANSFORMS = ("none", "log")
 LOG_EPS = 1e-6
 
 
+def _target_flags(
+    target_transform: str | list[str] | None,
+) -> tuple[str, ...]:
+    """把 target_transform 配置展开为三气体（H2,NH3,NO2）标记。
+
+    参数：`target_transform` 可为 None（等价 none）、单值 `none`/`log`
+    （三气体共用），或逗号分隔的三值字符串/长度 3 的列表（顺序 H2,NH3,NO2）。
+    返回：长度 3 的字符串元组，取值只能是 none/log；非法配置抛 ValueError。
+    """
+    if target_transform is None:
+        return ("none", "none", "none")
+    if isinstance(target_transform, str):
+        flags = tuple(field.strip() for field in target_transform.split(","))
+    else:
+        flags = tuple(target_transform)
+    if len(flags) == 1:
+        # 单值表示三气体共用，原有行为不变。
+        flags = flags * 3
+    if len(flags) != 3 or any(flag not in TARGET_TRANSFORMS for flag in flags):
+        raise ValueError(
+            "target_transform 必须是 none/log，或按 H2,NH3,NO2 逗号分隔的 none/log"
+        )
+    return flags
+
+
+def _restore_target(
+    prediction: np.ndarray,
+    target_transform: str | list[str] | None = None,
+) -> np.ndarray:
+    """把变换空间的浓度预测逐气体还原到原始浓度。
+
+    参数：`prediction` 最后一维为 3（顺序 H2/NH3/NO2）；`target_transform`
+    是 checkpoint 记录的标签空间，可为 None（缺键等价 none）、单值
+    `none`/`log` 或长度 3 的列表。
+    返回：同形状数组；标记为 log 的气体取指数，none 的气体原样保留。训练端
+    算验证指标与 predict/evaluate 推理端共用该还原口径。
+    """
+    log_axes = np.asarray(
+        [flag == "log" for flag in _target_flags(target_transform)], dtype=bool
+    )
+    if not log_axes.any():
+        return prediction
+    restored = prediction.copy()
+    restored[..., log_axes] = np.exp(restored[..., log_axes])
+    return restored
+
+
 def set_seed(seed: int) -> None:
     """同时重置 Python、NumPy 和 PyTorch 随机数生成器。
 
@@ -166,7 +213,7 @@ def _train_network(
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
-    target_transform: str = "none",
+    target_transform: str | list[str] = "none",
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -184,7 +231,9 @@ def _train_network(
     相对误差 3σ 的宏平均做早停，而不是 macro-NMAE。
     `target_transform="log"` 时先把训练标签变为 `log(max(y,1e-6))`，再在 log
     空间拟合 z-score、计算 SmoothL1 和早停；验证预测会先反标准化再取指数，
-    因此 `three_sigma`/NMAE 仍按原始浓度计算。log 空间的绝对误差近似原始空间
+    因此 `three_sigma`/NMAE 仍按原始浓度计算。也可传入逗号分隔的三值字符串
+    （如 `"none,log,log"`，顺序 H2/NH3/NO2）对每路气体单独选择标签空间，z-score
+    与损失逐气体独立，验证预测逐气体反变换。log 空间的绝对误差近似原始空间
     的相对误差，可让训练目标直接对齐低浓度点的相对误差；默认 `none` 保持
     原始浓度空间，行为与之前完全一致。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
@@ -194,16 +243,21 @@ def _train_network(
     CV 最多训练 500 轮，按反标准化预测的验证 macro-NMAE 保存最佳权重，并在
     50 轮无改善时早停；最终全开发集重训使用折最佳轮数中位数，不使用测试集早停。
     """
-    if target_transform not in TARGET_TRANSFORMS:
-        raise ValueError("target_transform 必须是 none 或 log")
+    # 解析标签空间配置：单值展开为三气体共用，也允许逐气体 none/log。
+    target_flags = _target_flags(target_transform)
     # 固定随机种子：保证同一 seed 下的初始化、打乱顺序和 Dropout 可复现。
     set_seed(seed)
 
     # 可选标签变换：log 空间中的绝对误差近似原始空间的相对误差，
     # 使训练目标与 three_sigma/MAPE 关注的相对误差对齐。默认 none 不变。
     y_train_fit = y_train
-    if target_transform == "log":
-        y_train_fit = np.log(np.maximum(y_train, LOG_EPS)).astype(y_train.dtype)
+    if "log" in target_flags:
+        y_train_fit = y_train.copy()
+        for axis, flag in enumerate(target_flags):
+            if flag == "log":
+                y_train_fit[:, axis] = np.log(
+                    np.maximum(y_train[:, axis], LOG_EPS)
+                )
     # z-score 统计量只从当前训练折拟合，验证集复用同一组统计量，避免泄漏。
     stats = fit_scalers(x_train, y_train_fit)
     x_train_z, y_train_z = _scaled(x_train, y_train_fit, stats)
@@ -317,9 +371,8 @@ def _train_network(
             if training_state is not None:
                 model.load_state_dict(training_state)
             pred = pred_z * stats["y_std"][None, :] + stats["y_mean"][None, :]
-            if target_transform == "log":
-                # log 空间模型输出需先反标准化再取指数，才能与原始浓度标签比较。
-                pred = np.exp(pred)
+            # log 气体先反标准化再取指数，none 气体保持原样；随后统一用原始浓度算指标。
+            pred = _restore_target(pred, target_flags)
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
             if validation_metric == "three_sigma":
@@ -408,17 +461,25 @@ def _save_checkpoint(
     device: torch.device,
     *,
     augmentation: dict[str, Any] | None = None,
-    target_transform: str = "none",
+    target_transform: str | list[str] = "none",
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
 
     参数：`output_path` 是 checkpoint 输出路径；`model` 为已训练网络；
     `stats` 为训练集 z-score 参数；`mode/seconds` 定义特征协议；`train_rows`
     提供训练文件哈希；`seed/epochs/device` 记录训练配置；`target_transform`
-    记录标签空间（`none` 为原始浓度，`log` 时推理端需对还原结果取指数）。
+    记录标签空间（写出时三气体一致则存单值字符串，否则存长度 3 的列表，
+    `log` 对应气体在推理端需对还原结果取指数）。
     返回：无。文件除 state_dict 外还记录架构、通道顺序、标签/输入缩放量、
     数据哈希及软件版本，保证预测端可还原训练时的数据变换。
     """
+    # 三气体一致时仍写单值字符串（兼容旧 checkpoint）；逐气体时写长度 3 列表。
+    target_flags = _target_flags(target_transform)
+    stored_transform: str | list[str] = (
+        target_flags[0]
+        if all(flag == target_flags[0] for flag in target_flags)
+        else list(target_flags)
+    )
     payload = {
         "state_dict": {
             key: value.detach().cpu()
@@ -440,7 +501,7 @@ def _save_checkpoint(
         "input_std": stats["x_std"].tolist(),
         "label_mean": stats["y_mean"].tolist(),
         "label_std": stats["y_std"].tolist(),
-        "target_transform": target_transform,
+        "target_transform": stored_transform,
         "training_files": {row["file"]: row["sha256"] for row in train_rows},
         "seed": seed,
         "epochs": epochs,
