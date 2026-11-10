@@ -212,6 +212,7 @@ def _train_network(
     ema_decay: float | None = None,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
+    gas_loss_weights: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
@@ -227,8 +228,9 @@ def _train_network(
     `aux_weight`，不改变主输出和推理接口。`ema_decay` 非空时维护权重的
     指数滑动平均，并用 EMA 权重做验证、早停和最终返回。
     `sample_weight_power>0` 时按 (每气体训练中位数浓度 / 样本浓度)^power 加权，
-    让低浓度样本对损失贡献更大；`validation_metric="three_sigma"` 时用验证集
-    相对误差 3σ 的宏平均做早停，而不是 macro-NMAE。
+    让低浓度样本对损失贡献更大；`gas_loss_weights` 为长度 3 的非负列表，按
+    H2/NH3/NO2 加权各气体在联合损失中的占比（默认等权）；`validation_metric
+    ="three_sigma"` 时用验证集相对误差 3σ 的宏平均做早停，而不是 macro-NMAE。
     `target_transform="log"` 时先把训练标签变为 `log(max(y,1e-6))`，再在 log
     空间拟合 z-score、计算 SmoothL1 和早停；验证预测会先反标准化再取指数，
     因此 `three_sigma`/NMAE 仍按原始浓度计算。也可传入逗号分隔的三值字符串
@@ -272,6 +274,14 @@ def _train_network(
         power_vector = np.asarray(sample_weight_powers, dtype=np.float64)
     else:
         power_vector = np.full(3, float(sample_weight_power))
+    if gas_loss_weights is not None:
+        if len(gas_loss_weights) != 3 or any(w < 0 for w in gas_loss_weights):
+            raise ValueError("gas_loss_weights 必须是三个非负数")
+        gas_weight_vector = np.asarray(gas_loss_weights, dtype=np.float64)
+        if gas_weight_vector.sum() <= 0.0:
+            raise ValueError("gas_loss_weights 之和必须为正")
+    else:
+        gas_weight_vector = np.ones(3, dtype=np.float64)
     safe_y = np.maximum(y_train.astype(np.float64), 1e-9)
     if np.any(power_vector > 0.0):
         median_y = np.median(safe_y, axis=0, keepdims=True)
@@ -306,6 +316,10 @@ def _train_network(
         model.parameters(), lr=1e-3, weight_decay=1e-3, betas=(0.9, 0.999)
     )
     criterion = nn.SmoothL1Loss(beta=1.0, reduction="none")
+    # 每气体损失权重放到训练设备上，避免 torch 与 numpy 混算。
+    gas_weight_tensor = torch.as_tensor(
+        gas_weight_vector, dtype=torch.float32, device=device
+    )
 
     best_score = math.inf
     best_epoch = 0
@@ -329,11 +343,13 @@ def _train_network(
             batch_weight = batch_weight.to(device)
             optimizer.zero_grad(set_to_none=True)
             prediction = model(batch_x)
-            loss = (criterion(prediction, batch_y) * batch_weight).mean()
+            weighted = criterion(prediction, batch_y) * batch_weight
+            loss = ((weighted @ gas_weight_tensor) / gas_weight_vector.sum()).mean()
             if aux_positions:
                 # 辅助头只在训练时加损失；推理仍然只使用最后一个位置的主输出。
                 for auxiliary in model.forward_positions(batch_x, aux_positions):
-                    aux_loss = (criterion(auxiliary, batch_y) * batch_weight).mean()
+                    aux_weighted = criterion(auxiliary, batch_y) * batch_weight
+                    aux_loss = ((aux_weighted @ gas_weight_tensor) / gas_weight_vector.sum()).mean()
                     loss = loss + aux_weight * aux_loss
             if not torch.isfinite(loss):
                 raise FloatingPointError(
@@ -375,13 +391,21 @@ def _train_network(
             pred = _restore_target(pred, target_flags)
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
+            # 早停分数与训练损失使用同一组气体权重：默认等权时与原口径一致。
             if validation_metric == "three_sigma":
                 relative = 100.0 * (pred - y_validation) / np.maximum(
                     np.abs(y_validation), 1e-9
                 )
-                score = float(3.0 * np.mean(np.std(relative, axis=0, ddof=1)))
+                per_gas = np.std(relative, axis=0, ddof=1)
+                score = float(
+                    3.0 * np.sum(per_gas * gas_weight_vector) / gas_weight_vector.sum()
+                )
             elif validation_metric == "nmae":
-                score, _ = _macro_nmae(y_validation, pred, train_range_y)
+                score, axis_scores = _macro_nmae(y_validation, pred, train_range_y)
+                score = float(
+                    np.sum(np.asarray(axis_scores) * gas_weight_vector)
+                    / gas_weight_vector.sum()
+                )
             else:
                 raise ValueError("validation_metric 必须是 nmae 或 three_sigma")
             if not np.isfinite(score):
