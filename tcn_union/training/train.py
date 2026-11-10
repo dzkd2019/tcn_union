@@ -160,6 +160,9 @@ def _train_network(
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
     ema_decay: float | None = None,
+    sample_weight_power: float = 0.0,
+    sample_weight_powers: tuple[float, float, float] | None = None,
+    validation_metric: str = "nmae",
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -172,6 +175,9 @@ def _train_network(
     `aux_positions` 非空时在同一隐藏序列的过去位置增加辅助损失，权重为
     `aux_weight`，不改变主输出和推理接口。`ema_decay` 非空时维护权重的
     指数滑动平均，并用 EMA 权重做验证、早停和最终返回。
+    `sample_weight_power>0` 时按 (每气体训练中位数浓度 / 样本浓度)^power 加权，
+    让低浓度样本对损失贡献更大；`validation_metric="three_sigma"` 时用验证集
+    相对误差 3σ 的宏平均做早停，而不是 macro-NMAE。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -186,9 +192,29 @@ def _train_network(
     stats = fit_scalers(x_train, y_train)
     x_train_z, y_train_z = _scaled(x_train, y_train, stats)
 
+    # 低浓度样本的绝对误差小，但相对误差大；按浓度中位数反比加权，
+    # 让损失更关注低浓度尾部。power=0 时退化为原来的等权训练。
+    if sample_weight_power < 0.0:
+        raise ValueError("sample_weight_power 不能为负")
+    if sample_weight_powers is not None:
+        if len(sample_weight_powers) != 3 or any(p < 0 for p in sample_weight_powers):
+            raise ValueError("sample_weight_powers 必须是三个非负数")
+        power_vector = np.asarray(sample_weight_powers, dtype=np.float64)
+    else:
+        power_vector = np.full(3, float(sample_weight_power))
+    safe_y = np.maximum(y_train.astype(np.float64), 1e-9)
+    if np.any(power_vector > 0.0):
+        median_y = np.median(safe_y, axis=0, keepdims=True)
+        sample_weights = np.clip(median_y / safe_y, 0.1, 10.0) ** power_vector[None, :]
+        sample_weights = sample_weights / sample_weights.mean(axis=0, keepdims=True)
+    else:
+        sample_weights = np.ones_like(safe_y, dtype=np.float64)
+
     # 小样本训练集直接放进内存；每个 epoch 重新打乱一次。
     dataset = TensorDataset(
-        torch.from_numpy(x_train_z), torch.from_numpy(y_train_z)
+        torch.from_numpy(x_train_z),
+        torch.from_numpy(y_train_z),
+        torch.from_numpy(sample_weights.astype(np.float32)),
     )
     generator = torch.Generator().manual_seed(seed)
     loader = DataLoader(
@@ -209,7 +235,7 @@ def _train_network(
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-3, weight_decay=1e-3, betas=(0.9, 0.999)
     )
-    criterion = nn.SmoothL1Loss(beta=1.0, reduction="mean")
+    criterion = nn.SmoothL1Loss(beta=1.0, reduction="none")
 
     best_score = math.inf
     best_epoch = 0
@@ -227,16 +253,18 @@ def _train_network(
     for epoch in range(1, epochs + 1):
         # ---- 训练阶段：只更新参数，不做验证 ----
         model.train()
-        for batch_x, batch_y in loader:
+        for batch_x, batch_y, batch_weight in loader:
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
+            batch_weight = batch_weight.to(device)
             optimizer.zero_grad(set_to_none=True)
             prediction = model(batch_x)
-            loss = criterion(prediction, batch_y)
+            loss = (criterion(prediction, batch_y) * batch_weight).mean()
             if aux_positions:
                 # 辅助头只在训练时加损失；推理仍然只使用最后一个位置的主输出。
                 for auxiliary in model.forward_positions(batch_x, aux_positions):
-                    loss = loss + aux_weight * criterion(auxiliary, batch_y)
+                    aux_loss = (criterion(auxiliary, batch_y) * batch_weight).mean()
+                    loss = loss + aux_weight * aux_loss
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     f"non-finite training loss at epoch {epoch}"
@@ -275,7 +303,15 @@ def _train_network(
             pred = pred_z * stats["y_std"][None, :] + stats["y_mean"][None, :]
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
-            score, _ = _macro_nmae(y_validation, pred, train_range_y)
+            if validation_metric == "three_sigma":
+                relative = 100.0 * (pred - y_validation) / np.maximum(
+                    np.abs(y_validation), 1e-9
+                )
+                score = float(3.0 * np.mean(np.std(relative, axis=0, ddof=1)))
+            elif validation_metric == "nmae":
+                score, _ = _macro_nmae(y_validation, pred, train_range_y)
+            else:
+                raise ValueError("validation_metric 必须是 nmae 或 three_sigma")
             if not np.isfinite(score):
                 raise FloatingPointError(
                     f"non-finite validation score at epoch {epoch}"

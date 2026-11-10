@@ -174,6 +174,9 @@ def cross_validate(
     noise_config: NoiseConfig,
     ema_decay: float | None,
     max_epochs: int = MAX_EPOCHS,
+    sample_weight_power: float = 0.0,
+    sample_weight_powers: tuple[float, float, float] | None = None,
+    validation_metric: str = "nmae",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。"""
     # MODES 决定这一轮是否加噪声/生成样本/辅助头；最终方案是 noise_gan。
@@ -222,6 +225,9 @@ def cross_validate(
             aux_positions=aux_positions,
             aux_weight=AUX_WEIGHT,
             ema_decay=ema_decay,
+            sample_weight_power=sample_weight_power,
+            sample_weight_powers=sample_weight_powers,
+            validation_metric=validation_metric,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("五折训练没有产生验证预测")
@@ -292,6 +298,8 @@ def train_final(
     synthetic_ratio: float,
     noise_config: NoiseConfig,
     ema_decay: float | None,
+    sample_weight_power: float = 0.0,
+    sample_weight_powers: tuple[float, float, float] | None = None,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
@@ -329,6 +337,8 @@ def train_final(
         aux_positions=aux_positions,
         aux_weight=AUX_WEIGHT,
         ema_decay=ema_decay,
+        sample_weight_power=sample_weight_power,
+        sample_weight_powers=sample_weight_powers,
     )
     metadata = {
         "mode": mode,
@@ -380,6 +390,24 @@ def main() -> None:
     parser.add_argument("--vae-beta", type=float, default=0.1)
     parser.add_argument("--pca-components", type=int, default=6)
     parser.add_argument("--ema-decay", type=float, default=None)
+    parser.add_argument(
+        "--sample-weight-power",
+        type=float,
+        default=0.0,
+        help="低浓度损失权重；0 表示等权，1/2 表示按浓度中位数反比加权",
+    )
+    parser.add_argument(
+        "--sample-weight-powers",
+        type=str,
+        default=None,
+        help="三气体分别的低浓度权重，如 4,2,2；优先于 --sample-weight-power",
+    )
+    parser.add_argument(
+        "--validation-metric",
+        choices=["nmae", "three_sigma"],
+        default="nmae",
+        help="早停指标：macro-NMAE 或相对误差 3σ 宏平均",
+    )
     parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
     parser.add_argument("--oof-only", action="store_true")
     args = parser.parse_args()
@@ -392,6 +420,15 @@ def main() -> None:
         parser.error("--noise-copies 必须为正")
     if args.max_epochs < 1:
         parser.error("--max-epochs 必须为正")
+    weight_powers = None
+    if args.sample_weight_powers:
+        fields = [field.strip() for field in args.sample_weight_powers.split(",")]
+        if len(fields) != 3:
+            parser.error("--sample-weight-powers 必须是三个逗号分隔的数字")
+        try:
+            weight_powers = tuple(float(field) for field in fields)
+        except ValueError:
+            parser.error("--sample-weight-powers 必须全部是数字")
     device = resolve_device(args.device)
     configure_threads(device)
     print(f"[device] {describe_device(device)}", flush=True)
@@ -436,6 +473,9 @@ def main() -> None:
         "vae_beta": args.vae_beta,
         "pca_components": args.pca_components,
         "ema_decay": args.ema_decay,
+        "sample_weight_power": args.sample_weight_power,
+        "sample_weight_powers": weight_powers,
+        "validation_metric": args.validation_metric,
         "selected": {},
     }
     for mode in args.modes:
@@ -454,6 +494,9 @@ def main() -> None:
             noise_config,
             args.ema_decay,
             args.max_epochs,
+            sample_weight_power=args.sample_weight_power,
+            sample_weight_powers=weight_powers,
+            validation_metric=args.validation_metric,
         )
         mode_dir = args.output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
@@ -488,6 +531,8 @@ def main() -> None:
                     args.synthetic_ratio,
                     noise_config,
                     args.ema_decay,
+                    sample_weight_power=args.sample_weight_power,
+                    sample_weight_powers=weight_powers,
                 )
                 print(f"  saved {path}", flush=True)
 
