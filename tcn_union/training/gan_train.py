@@ -177,8 +177,13 @@ def cross_validate(
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
+    target_transform: str = "none",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """对一种训练模式跑五折 OOF。"""
+    """对一种训练模式跑五折 OOF。
+
+    `target_transform` 透传给 ``_train_network``：`log` 时在 log 浓度空间
+    训练和早停，返回的验证预测仍是原始浓度。
+    """
     # MODES 决定这一轮是否加噪声/生成样本/辅助头；最终方案是 noise_gan。
     use_noise, use_gan, aux_positions = MODES[mode]
     fold_scores: list[dict[str, Any]] = []
@@ -228,6 +233,7 @@ def cross_validate(
             sample_weight_power=sample_weight_power,
             sample_weight_powers=sample_weight_powers,
             validation_metric=validation_metric,
+            target_transform=target_transform,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("五折训练没有产生验证预测")
@@ -300,11 +306,13 @@ def train_final(
     ema_decay: float | None,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
+    target_transform: str = "none",
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
     与 ``cross_validate`` 的区别：这里没有验证集、没有早停，训练轮数由五折
-    最佳 epoch 中位数固定；测试集仍然不参与。
+    最佳 epoch 中位数固定；测试集仍然不参与。`target_transform` 同时传给
+    训练和 checkpoint，供推理端还原原始浓度。
     """
     use_noise, use_gan, aux_positions = MODES[mode]
     # 最终训练也只在开发集上构造增强样本。
@@ -339,6 +347,7 @@ def train_final(
         ema_decay=ema_decay,
         sample_weight_power=sample_weight_power,
         sample_weight_powers=sample_weight_powers,
+        target_transform=target_transform,
     )
     metadata = {
         "mode": mode,
@@ -370,6 +379,7 @@ def train_final(
         epochs,
         device,
         augmentation=metadata,
+        target_transform=target_transform,
     )
 
 
@@ -407,6 +417,12 @@ def main() -> None:
         choices=["nmae", "three_sigma"],
         default="nmae",
         help="早停指标：macro-NMAE 或相对误差 3σ 宏平均",
+    )
+    parser.add_argument(
+        "--target-transform",
+        choices=["none", "log"],
+        default="none",
+        help="标签空间：none 原始浓度（默认），log 对数浓度以对齐相对误差",
     )
     parser.add_argument("--max-epochs", type=int, default=MAX_EPOCHS)
     parser.add_argument("--oof-only", action="store_true")
@@ -476,6 +492,7 @@ def main() -> None:
         "sample_weight_power": args.sample_weight_power,
         "sample_weight_powers": weight_powers,
         "validation_metric": args.validation_metric,
+        "target_transform": args.target_transform,
         "selected": {},
     }
     for mode in args.modes:
@@ -497,6 +514,7 @@ def main() -> None:
             sample_weight_power=args.sample_weight_power,
             sample_weight_powers=weight_powers,
             validation_metric=args.validation_metric,
+            target_transform=args.target_transform,
         )
         mode_dir = args.output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
@@ -533,6 +551,7 @@ def main() -> None:
                     args.ema_decay,
                     sample_weight_power=args.sample_weight_power,
                     sample_weight_powers=weight_powers,
+                    target_transform=args.target_transform,
                 )
                 print(f"  saved {path}", flush=True)
 

@@ -22,7 +22,9 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
     `torch.device`，由 CLI 明确选择 CPU 或可用 CUDA。
     返回：JSON 可序列化的原始浓度预测字典，含窗口秒数和原始单位标记。
     先按 checkpoint 的 mode 构造因果特征、复用训练统计量标准化，再反标准化
-    网络输出；不截断负预测或超训练范围结果，以免掩盖模型误差。
+    网络输出；checkpoint 的 `target_transform` 为 `log` 时还需取指数还原到原始
+    浓度（旧 checkpoint 缺该键时按 `none` 处理）。不截断负预测或超训练范围
+    结果，以免掩盖模型误差。
     """
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     seconds = float(checkpoint["seconds"])
@@ -40,6 +42,9 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
     with torch.no_grad():
         prediction_z = model(torch.from_numpy(features).unsqueeze(0).to(device)).cpu().numpy()[0]
     prediction = prediction_z * np.asarray(checkpoint["label_std"]) + np.asarray(checkpoint["label_mean"])
+    if checkpoint.get("target_transform", "none") == "log":
+        # log 目标的模型输出经反标准化后仍是 log 浓度，需要指数还原。
+        prediction = np.exp(prediction)
     if not np.isfinite(prediction).all():
         raise FloatingPointError("model produced a non-finite concentration prediction")
     return {
