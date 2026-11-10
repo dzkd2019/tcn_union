@@ -195,6 +195,14 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成�
 
 PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见 [`docs/PCA主成分数选择证据.md`](docs/PCA主成分数选择证据.md)。
 
+## 3σ 方差优化（`experiment/3sigma-target` 分支）
+
+针对“相对误差 3σ 偏大”的问题，在 `experiment/3sigma-target` 分支上修正了评估协议（OOF 改为 3 seed 预测层平均；锁定测试集在最终候选冻结后一次性评估），并尝试 log/逐气体目标、多配置多 seed 集成与 TCN+Ridge 混合。当前结果：
+
+- OOF 宏平均 3σ：旧协议基线 14.73% → TCN 四配置集成 11.53% → **TCN+Ridge 混合 9.58%**；
+- 12 点锁定测试集宏平均 3σ：旧方案 11.18% → **混合 9.74%**（逐气体 H2 13.25 / NH3 3.74 / NO2 12.22；逐气体尚未全部低于 10%，5% 目标仅 NH3 达到）；
+- 误差结构诊断与完整实验记录见 [`docs/3sigma_error_diagnosis.md`](docs/3sigma_error_diagnosis.md) 与 [`docs/误差方差优化_v2.md`](docs/误差方差优化_v2.md)，负结果与复现命令同样记录在其中。
+
 ## GPU / ROCm 支持
 
 代码不再写死 CUDA：所有训练/评估命令的 `--device` 默认是 `auto`，会按以下顺序选择：
