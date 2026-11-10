@@ -236,8 +236,10 @@ TORCH_SPEC=torch==2.14.1+rocm7.2 bash scripts/setup_rocm.sh
 注意：
 
 - `torch==2.14.1+rocm7.2` 提供 Python 3.14 的 wheel；如果机器只有 ROCm 6.2，需要匹配 Python 3.12 和 `torch==2.5.1+rocm6.2`，不要混用版本；
+- 脚本会卸载 lock 中随 torch 依赖闭包带入的 CUDA-only 包（`nvidia-*`、`cuda-*`、`triton`），保持 ROCm 环境干净；
 - 如果系统检测到 `/dev/kfd` 或 `rocm-smi`，但当前 PyTorch 是 CUDA 构建，`--device auto` 会直接报错并提示运行 `scripts/setup_rocm.sh`，不会静默退回 CPU；
-- 如果国内 PyPI 也慢，可在 `uv sync` 前设置 `UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple`（只影响非 torch 的 Python 包）。
+- 如果国内 PyPI 也慢，可在 `uv sync` 前设置 `UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple`（只影响非 torch 的 Python 包）；
+- 也可以在 shell 里 `export UV_NO_SYNC=1`，之后直接用 `uv run ...`，不必每条命令都加 `--no-sync`。
 
 设备检查：
 

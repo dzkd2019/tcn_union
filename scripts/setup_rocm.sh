@@ -22,16 +22,23 @@ if ! command -v rocm-smi >/dev/null 2>&1 && [[ ! -e /dev/kfd ]]; then
   echo "警告：没有检测到 ROCm 驱动（/dev/kfd 或 rocm-smi），仍继续安装。" >&2
 fi
 
-echo "[1/3] 安装项目其余依赖，但不让 uv 安装 PyPI 的 torch"
+echo "[1/4] 安装项目其余依赖，但不让 uv 安装 PyPI 的 torch"
 uv sync --no-install-package torch
 
-echo "[2/3] 从镜像安装 ROCm 版 torch：${TORCH_SPEC}"
-uv pip install \
+echo "[2/4] 卸载 lock 中随 torch 依赖闭包带入的 CUDA-only 包"
+CUDA_PACKAGES="$(uv pip freeze --python .venv/bin/python | cut -d= -f1 | grep -E '^(nvidia-|cuda-|triton$)' || true)"
+if [[ -n "${CUDA_PACKAGES}" ]]; then
+  uv pip uninstall --python .venv/bin/python ${CUDA_PACKAGES}
+fi
+
+echo "[3/4] 从镜像安装 ROCm 版 torch：${TORCH_SPEC}"
+# 新版 uv 在环境已设置 UV_DEFAULT_INDEX 时会忽略 --index-url，
+# 因此这里用环境变量指定本次安装的索引。
+UV_DEFAULT_INDEX="${ROCM_INDEX}" uv pip install \
   --python .venv/bin/python \
-  --index-url "${ROCM_INDEX}" \
   "${TORCH_SPEC}"
 
-echo "[3/3] 验证 ROCm 后端"
+echo "[4/4] 验证 ROCm 后端"
 .venv/bin/python - <<'PY'
 import torch
 
@@ -51,6 +58,6 @@ PY
 cat <<'EOF'
 
 ROCm 版 PyTorch 已安装。
-注意：以后运行训练时请使用 `uv run --no-sync ...`，避免 uv 重新同步依赖时
-把 ROCm torch 替换成 lock 中的 PyPI 版本。
+注意：以后运行训练时请使用 `uv run --no-sync ...`（或先 export UV_NO_SYNC=1），
+避免 uv 重新同步依赖时把 ROCm torch 替换成 lock 中的 PyPI 版本。
 EOF
