@@ -194,6 +194,103 @@ def _plot_std_bars(records: list[dict], output_dir: Path) -> None:
     plt.close(figure)
 
 
+
+def _plot_current_abs_rel(schemes: dict[str, pd.DataFrame], output_dir: Path) -> None:
+    """当前方案：绝对误差和相对误差随真实浓度的 2×3 散点图。"""
+    frame = schemes["current"]
+    figure, panels = plt.subplots(2, 3, figsize=(12.6, 7.0), constrained_layout=True)
+    for column, gas in enumerate(GASES):
+        truth = frame[f"{gas}_true"].to_numpy(dtype=float)
+        prediction = frame[f"{gas}_pred"].to_numpy(dtype=float)
+        absolute = np.abs(prediction - truth)
+        relative = 100.0 * (prediction - truth) / np.maximum(np.abs(truth), 1e-9)
+        threshold = float(np.median(truth))
+        low = truth <= threshold
+        span = max(float(truth.max() - truth.min()), 1e-9)
+        jitter = np.linspace(-0.012, 0.012, len(truth)) * span
+
+        for row, values, ylabel in (
+            (0, absolute, "绝对误差"),
+            (1, relative, "相对误差 / %"),
+        ):
+            panel = panels[row, column]
+            panel.scatter(
+                truth[low] + jitter[low],
+                values[low],
+                s=19,
+                color="#0072B2",
+                alpha=0.75,
+                edgecolor="white",
+                linewidth=0.25,
+                label="低浓度",
+                zorder=3,
+            )
+            panel.scatter(
+                truth[~low] + jitter[~low],
+                values[~low],
+                s=22,
+                marker="s",
+                color="#D55E00",
+                alpha=0.72,
+                edgecolor="white",
+                linewidth=0.25,
+                label="高浓度",
+                zorder=3,
+            )
+            panel.axvline(threshold, color="#777777", linestyle=":", linewidth=1.0)
+            panel.axhline(0.0, color="#999999", linewidth=0.6)
+            panel.set_xlabel(f"真实浓度（{gas}）", fontsize=8.5)
+            panel.set_ylabel(ylabel, fontsize=8.5)
+            panel.set_title(f"{gas} · {'绝对误差' if row == 0 else '相对误差'}", fontsize=9.5, loc="left")
+            panel.grid(alpha=0.2, linewidth=0.5)
+            panel.tick_params(labelsize=7.5)
+
+        low_sigma = 3.0 * relative[low].std(ddof=1)
+        high_sigma = 3.0 * relative[~low].std(ddof=1)
+        bottom = panels[1, column]
+        bottom.text(
+            0.02,
+            0.96,
+            f"低浓度 3σ={low_sigma:.1f}%",
+            transform=bottom.transAxes,
+            ha="left",
+            va="top",
+            fontsize=6.8,
+            color="#0072B2",
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
+        )
+        bottom.text(
+            0.98,
+            0.96,
+            f"高浓度 3σ={high_sigma:.1f}%",
+            transform=bottom.transAxes,
+            ha="right",
+            va="top",
+            fontsize=6.8,
+            color="#D55E00",
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
+        )
+
+    handles, labels = panels[0, 0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+    )
+    figure.suptitle(
+        "当前方案：绝对误差与相对误差随真实浓度的变化（62 点）",
+        fontsize=10.5,
+    )
+    for suffix in ("png", "pdf"):
+        path = output_dir / f"fig_current_abs_rel_vs_concentration.{suffix}"
+        figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
+        print(f"Wrote {path}")
+    plt.close(figure)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="cutout+aux 与当前方案的 62 点误差诊断")
     parser.add_argument("--root", type=Path, default=Path("."))
@@ -211,6 +308,7 @@ def main() -> None:
     _plot_all62(schemes, args.output_dir)
     _plot_absolute(schemes, args.output_dir)
     _plot_std_bars(records, args.output_dir)
+    _plot_current_abs_rel(schemes, args.output_dir)
     for row in records:
         print(
             f"{row['scheme']:10s} {row['gas']:3s} {row['half']:4s} "
