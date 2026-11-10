@@ -390,6 +390,13 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
     parser.add_argument("--seed", type=int, default=BASE_SEED)
+    parser.add_argument(
+        "--final-seeds",
+        type=int,
+        nargs="+",
+        default=SEEDS,
+        help="全开发集最终重训使用的种子列表（默认与历史协议一致）",
+    )
     parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
     parser.add_argument("--noise-scale", type=float, default=1.0)
@@ -485,7 +492,7 @@ def main() -> None:
     selection: dict[str, Any] = {
         "protocol": "train-fold-only noise/GAN; clean/aux/noise/gan/combined ablation; test untouched",
         "base_seed": args.seed,
-        "final_seeds": SEEDS,
+        "final_seeds": args.final_seeds,
         "mode": MODE,
         "synthetic_ratio": args.synthetic_ratio,
         "noise_scale": args.noise_scale,
@@ -539,7 +546,7 @@ def main() -> None:
             flush=True,
         )
         if not args.oof_only:
-            for seed in SEEDS:
+            for seed in args.final_seeds:
                 path = mode_dir / "10s" / f"seed_{seed}.pt"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 train_final(
