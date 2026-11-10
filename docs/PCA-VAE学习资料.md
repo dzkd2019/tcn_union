@@ -1,6 +1,6 @@
 # PCA-VAE 数据增强学习资料
 
-> 面向：深度学习新手、数学基础一般、需要读懂本项目 `tcn_union/vae.py` 的读者。  
+> 面向：深度学习新手、数学基础一般、需要读懂本项目 `tcn_union/augmentation/vae.py` 的读者。
 > 目标：先理解“为什么这样做”，再理解“每一步在做什么”，最后能对照代码说出每个变量的含义。
 
 ---
@@ -84,7 +84,7 @@ PCA 先把生成空间限制在“真实曲线张成的低维空间”里：
 responses, labels = _prefix_arrays(rows, config.seconds)
 ```
 
-对应 [`vae.py` 第 142–154 行](../tcn_union/vae.py#L142-L154)。
+对应 [`vae.py` 第 142–154 行](../tcn_union/augmentation/vae.py#L142-L154)。
 
 对每个实验：
 
@@ -139,7 +139,7 @@ PCA 做的事：
 
 ### 3.2 代码怎么算
 
-[`vae.py` 第 176–185 行](../tcn_union/vae.py#L176-L185)：
+[`vae.py` 第 176–185 行](../tcn_union/augmentation/vae.py#L176-L185)：
 
 ```python
 for gas in range(3):
@@ -224,7 +224,7 @@ PCA 系数还是会随浓度变化。代码先做一个简单的线性模型：
 
 ### 4.1 标签标准化
 
-[`vae.py` 第 190–193 行](../tcn_union/vae.py#L190-L193)：
+[`vae.py` 第 190–193 行](../tcn_union/augmentation/vae.py#L190-L193)：
 
 ```python
 label_mean = labels.mean(axis=0)
@@ -242,7 +242,7 @@ labels_z = (labels - label_mean) / label_std
 
 ### 4.2 构造设计矩阵
 
-[`vae.py` 第 197–199 行](../tcn_union/vae.py#L197-L199)：
+[`vae.py` 第 197–199 行](../tcn_union/augmentation/vae.py#L197-L199)：
 
 ```python
 design = np.concatenate((np.ones((n, 1)), labels_z), axis=1)
@@ -262,7 +262,7 @@ base = (design @ mean_coef).reshape(n, 3, components)
 
 ### 4.3 残差
 
-[`vae.py` 第 200 行](../tcn_union/vae.py#L200)：
+[`vae.py` 第 200 行](../tcn_union/augmentation/vae.py#L200)：
 
 ```python
 residual = coefficient_z - base
@@ -298,7 +298,7 @@ VAE（变分自编码器）由两部分组成：
 
 ### 5.2 编码器
 
-[`vae.py` 第 52–66 行](../tcn_union/vae.py#L52-L66)：
+[`vae.py` 第 52–66 行](../tcn_union/augmentation/vae.py#L52-L66)：
 
 ```python
 class _Encoder(nn.Module):
@@ -329,7 +329,7 @@ class _Encoder(nn.Module):
 
 ### 5.3 重参数化技巧
 
-[`vae.py` 第 223–226 行](../tcn_union/vae.py#L223-L226)：
+[`vae.py` 第 223–226 行](../tcn_union/augmentation/vae.py#L223-L226)：
 
 ```python
 mu, logvar = encoder(batch_residual, batch_label)
@@ -352,7 +352,7 @@ z=\mu+\sigma\odot\epsilon,\qquad \epsilon\sim\mathcal N(0,I)
 
 ### 5.4 解码器
 
-[`vae.py` 第 69–81 行](../tcn_union/vae.py#L69-L81)：
+[`vae.py` 第 69–81 行](../tcn_union/augmentation/vae.py#L69-L81)：
 
 ```python
 class _Decoder(nn.Module):
@@ -372,7 +372,7 @@ class _Decoder(nn.Module):
 
 ### 5.5 损失函数
 
-[`vae.py` 第 227–230 行](../tcn_union/vae.py#L227-L230)：
+[`vae.py` 第 227–230 行](../tcn_union/augmentation/vae.py#L227-L230)：
 
 ```python
 reconstructed = decoder(latent, batch_label)
@@ -413,7 +413,7 @@ D_{KL}
 
 ## 6. 采样：怎么生成一条新曲线
 
-[`vae.py` 第 113–136 行](../tcn_union/vae.py#L113-L136)：
+[`vae.py` 第 113–136 行](../tcn_union/augmentation/vae.py#L113-L136)：
 
 ```python
 latent = torch.randn(count, latent_dim)
@@ -480,16 +480,16 @@ condition = labels_z[indices]
 
 | 代码位置 | 作用 | 关键变量 |
 |---|---|---|
-| [`vae.py` 27–49 行](../tcn_union/vae.py#L27-L49) | 配置 | `components=6`, `latent_dim=4`, `beta=0.1` |
-| [`vae.py` 52–66 行](../tcn_union/vae.py#L52-L66) | 编码器 | `mu`, `logvar` |
-| [`vae.py` 69–81 行](../tcn_union/vae.py#L69-L81) | 解码器 | `latent`, `condition` |
-| [`vae.py` 142–154 行](../tcn_union/vae.py#L142-L154) | 读取前缀 | `responses [N,3,51]`, `labels [N,3]` |
-| [`vae.py` 176–188 行](../tcn_union/vae.py#L176-L188) | PCA | `means`, `components`, `coefficients` |
-| [`vae.py` 190–200 行](../tcn_union/vae.py#L190-L200) | 条件均值 + 残差 | `labels_z`, `mean_coef`, `base`, `residual` |
-| [`vae.py` 202–237 行](../tcn_union/vae.py#L202-L237) | 训练 VAE | `reconstruction`, `kl`, `loss` |
-| [`vae.py` 239–254 行](../tcn_union/vae.py#L239-L254) | 保存统计量 | `output_min/max`, `means`, `components` |
-| [`vae.py` 113–136 行](../tcn_union/vae.py#L113-L136) | 采样还原 | `base + residual`, 反 PCA |
-| [`vae.py` 257–272 行](../tcn_union/vae.py#L257-L272) | 生成 TCN 特征 | `make_features` |
+| [`vae.py` 27–49 行](../tcn_union/augmentation/vae.py#L27-L49) | 配置 | `components=6`, `latent_dim=4`, `beta=0.1` |
+| [`vae.py` 52–66 行](../tcn_union/augmentation/vae.py#L52-L66) | 编码器 | `mu`, `logvar` |
+| [`vae.py` 69–81 行](../tcn_union/augmentation/vae.py#L69-L81) | 解码器 | `latent`, `condition` |
+| [`vae.py` 142–154 行](../tcn_union/augmentation/vae.py#L142-L154) | 读取前缀 | `responses [N,3,51]`, `labels [N,3]` |
+| [`vae.py` 176–188 行](../tcn_union/augmentation/vae.py#L176-L188) | PCA | `means`, `components`, `coefficients` |
+| [`vae.py` 190–200 行](../tcn_union/augmentation/vae.py#L190-L200) | 条件均值 + 残差 | `labels_z`, `mean_coef`, `base`, `residual` |
+| [`vae.py` 202–237 行](../tcn_union/augmentation/vae.py#L202-L237) | 训练 VAE | `reconstruction`, `kl`, `loss` |
+| [`vae.py` 239–254 行](../tcn_union/augmentation/vae.py#L239-L254) | 保存统计量 | `output_min/max`, `means`, `components` |
+| [`vae.py` 113–136 行](../tcn_union/augmentation/vae.py#L113-L136) | 采样还原 | `base + residual`, 反 PCA |
+| [`vae.py` 257–272 行](../tcn_union/augmentation/vae.py#L257-L272) | 生成 TCN 特征 | `make_features` |
 
 ---
 
@@ -599,11 +599,11 @@ PCA 只保证曲线在真实曲线的线性组合范围内，不能保证完全�
 
 如果第一次接触，建议按这个顺序：
 
-1. 先运行 `tcn_union/vae.py` 里的 `fit_vae`，打印每个变量的形状；
+1. 先运行 `tcn_union/augmentation/vae.py` 里的 `fit_vae`，打印每个变量的形状；
 2. 只保留 `components=2`，把 PCA 系数画成二维散点，理解“曲线 → 点”；
 3. 用 `TrainedVAE.sample` 生成 5 条曲线，和真实曲线画在一起；
 4. 看 `reconstruction` 和 `kl` 随 epoch 的变化；
-5. 再看 `tcn_union/gan_train.py` 怎么把合成特征拼进训练集；
+5. 再看 `tcn_union/training/gan_train.py` 怎么把合成特征拼进训练集；
 6. 最后看 `docs/vae_augmentation_results.md` 了解为什么选 3×、0.1 噪声。
 
 ### 小练习

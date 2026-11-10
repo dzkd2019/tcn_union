@@ -14,8 +14,8 @@ from typing import Any
 import numpy as np
 import torch
 
-from .device import configure_threads, describe_device, resolve_device
-from .evaluate import (
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
+from tcn_union.evaluation.evaluate import (
     AXES,
     _bootstrap_difference,
     _load_features,
@@ -221,7 +221,10 @@ def main() -> None:
                 f"MAPE={item['macro_MAPE_percent']:.4f}"
             )
     if args.rmse_plots:
-        from .plot_rmse_scatter import plot_error_sigma, plot_rmse_scatter
+        from tcn_union.visualization.plot_rmse_scatter import (
+            plot_error_sigma,
+            plot_rmse_scatter,
+        )
 
         for label in ("baseline", "candidate"):
             for seconds in args.windows:

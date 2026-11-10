@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import torch
 
-from tcn_union.train import _train_network
+from tcn_union.training.train import _train_network
 
 
 class EmaTrainingTest(unittest.TestCase):

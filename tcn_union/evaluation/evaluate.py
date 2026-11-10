@@ -20,9 +20,9 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 
-from .data import load_run, make_features
-from .device import configure_threads, describe_device, resolve_device
-from .model import GasTCN
+from tcn_union.core.data import load_run, make_features
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
+from tcn_union.core.model import GasTCN
 
 ALPHAS = [0.01, 0.1, 1.0, 10.0, 100.0]
 AXES = ["H2", "NH3", "NO2"]

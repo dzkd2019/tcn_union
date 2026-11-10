@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
 
-from .train import _read_manifest
+from tcn_union.training.train import _read_manifest
 
 plt.rcParams["font.family"] = "Noto Serif CJK SC"
 plt.rcParams["font.serif"] = ["Noto Serif CJK SC"]

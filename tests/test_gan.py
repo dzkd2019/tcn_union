@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from tcn_union.gan import GANConfig, fit_gan, synthesize_features
-from tcn_union.train import _read_manifest
+from tcn_union.augmentation.gan import GANConfig, fit_gan, synthesize_features
+from tcn_union.training.train import _read_manifest
 
 
 def _rows(count: int) -> list[dict]:

@@ -6,9 +6,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from tcn_union.data import load_run, make_features
-from tcn_union.model import GasTCN
-from tcn_union.train import fit_scalers
+from tcn_union.core.data import load_run, make_features
+from tcn_union.core.model import GasTCN
+from tcn_union.training.train import fit_scalers
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .plot_all62 import combine_predictions
-from .plot_rmse_scatter import plot_error_sigma
+from tcn_union.visualization.plot_all62 import combine_predictions
+from tcn_union.visualization.plot_rmse_scatter import plot_error_sigma
 
 plt.rcParams.update(
     {

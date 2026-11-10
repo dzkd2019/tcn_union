@@ -157,16 +157,16 @@ TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072
 
 阅读顺序：
 
-1. `tcn_union/data.py`：CSV 校验、读取、`raw_delta` 特征；
-2. `tcn_union/model.py`：因果 TCN；
-3. `tcn_union/train.py`：训练循环、辅助监督、可选 EMA、checkpoint；
-4. `tcn_union/gan.py`：条件 WGAN-GP，生成 `(浓度标签) -> 10 秒三路响应`；
-5. `tcn_union/noise.py`：从真实曲线估计测量噪声并生成训练噪声视图；
-6. `tcn_union/gan_quality.py`：生成质量排雷（平滑度、初值/末端、最近邻、多样性、曲线图）；
-7. `tcn_union/vae.py`：PCA 响应基 + 条件 VAE，生成物理形态合理的响应曲线；
-8. `tcn_union/gan_train.py`：clean/aux/noise/生成式/组合模式的五折 OOF 与最终重训；
-9. `tcn_union/augmentation_evaluate.py`：冻结后锁定测试评估；
-10. `tcn_union/plot_rmse_scatter.py`：逐气体真实值-预测值 RMSE 散点图。
+1. `tcn_union/core/data.py`：CSV 校验、读取、`raw_delta` 特征；
+2. `tcn_union/core/model.py`：因果 TCN；
+3. `tcn_union/training/train.py`：训练循环、辅助监督、可选 EMA、checkpoint；
+4. `tcn_union/augmentation/gan.py`：条件 WGAN-GP，生成 `(浓度标签) -> 10 秒三路响应`；
+5. `tcn_union/augmentation/noise.py`：从真实曲线估计测量噪声并生成训练噪声视图；
+6. `tcn_union/evaluation/gan_quality.py`：生成质量排雷（平滑度、初值/末端、最近邻、多样性、曲线图）；
+7. `tcn_union/augmentation/vae.py`：PCA 响应基 + 条件 VAE，生成物理形态合理的响应曲线；
+8. `tcn_union/training/gan_train.py`：clean/aux/noise/生成式/组合模式的五折 OOF 与最终重训；
+9. `tcn_union/evaluation/augmentation_evaluate.py`：冻结后锁定测试评估；
+10. `tcn_union/visualization/plot_rmse_scatter.py`：逐气体真实值-预测值 RMSE 散点图。
 
 GAN 的弱物理先验只有平滑惩罚、范围惩罚和“条件只取训练集真实浓度三元组”；这些不能证明生成曲线物理正确，所以必须先过生成质量检查，再进入下游 OOF。详细方案见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。
 
@@ -189,6 +189,8 @@ GAN 与 PCA-VAE 的结构框图、过程讲解和可直接照读的口头稿见 
 
 从数据和模型定义开始、逐步理解训练代码的学习资料见 [`docs/从零理解GasTCN模型与训练.md`](docs/从零理解GasTCN模型与训练.md)。
 
+代码目录与模块职责见 [`tcn_union/README.md`](tcn_union/README.md)。
+
 GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成式增强对比实验.md`](docs/生成式增强对比实验.md)。
 
 PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见 [`docs/PCA主成分数选择证据.md`](docs/PCA主成分数选择证据.md)。
@@ -205,7 +207,7 @@ PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见
 
 ```bash
 uv sync
-uv run python -m tcn_union.gan_train ... --device auto
+uv run python -m tcn_union.training.gan_train ... --device auto
 ```
 
 ### AMD ROCm 机器
@@ -215,7 +217,7 @@ uv run python -m tcn_union.gan_train ... --device auto
 bash scripts/setup_rocm.sh
 
 # 运行训练/评估时加 --no-sync，避免 uv 把 ROCm torch 换回 lock 中的版本
-uv run --no-sync python -m tcn_union.gan_train ... --device auto
+uv run --no-sync python -m tcn_union.training.gan_train ... --device auto
 ```
 
 脚本默认从**南京大学 PyTorch wheel 镜像**安装：
@@ -251,10 +253,10 @@ uv run --no-sync python -c "import torch; print(torch.__version__, torch.version
 
 ```bash
 # 生成固定清单与 inventory
-uv run python -m tcn_union.split --data-dir data --output-dir artifacts/splits
+uv run python -m tcn_union.cli.split --data-dir data --output-dir artifacts/splits
 
 # 最终 10 秒模型：noise + PCA-VAE 五折 OOF + 三 seed 重训
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/final_vae_hybrid \
   --modes noise_gan --generator vae \
@@ -262,16 +264,16 @@ uv run python -m tcn_union.gan_train \
   --gan-epochs 300 --max-epochs 500
 
 # 锁定测试集评估与基线比较
-uv run python -m tcn_union.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device auto
+uv run python -m tcn_union.evaluation.evaluate --manifest artifacts/splits/manifest.csv --model-dir artifacts/tcn --output-dir artifacts/evaluation --device auto
 
 # 单文件预测示例（10 秒模型将路径中的 5s 改为 10s）
-uv run python -m tcn_union.predict --checkpoint artifacts/tcn/5s/seed_20260923.pt --csv data/2.csv
+uv run python -m tcn_union.cli.predict --checkpoint artifacts/tcn/5s/seed_20260923.pt --csv data/2.csv
 
 # 重新绘制测试结果图
-uv run python -m tcn_union.plot_results --results-dir artifacts/evaluation --output-dir artifacts/evaluation/figures
+uv run python -m tcn_union.visualization.plot_results --results-dir artifacts/evaluation --output-dir artifacts/evaluation/figures
 
 # 最终方案逐气体 MAPE / NMAE / 归一化 RMSE
-uv run python -m tcn_union.plot_final_gas_metrics \
+uv run python -m tcn_union.visualization.plot_final_gas_metrics \
   --evaluation artifacts/final_vae_hybrid/evaluation/evaluation.json \
   --output-dir artifacts/final_vae_hybrid/evaluation/figures
 
@@ -283,7 +285,7 @@ GAN 方案的复现命令：
 
 ```bash
 # 单 seed 四模式五折 OOF（先试点）
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_ablation_pilot \
   --modes clean aux gan gan_aux \
@@ -291,21 +293,21 @@ uv run python -m tcn_union.gan_train \
   --seed 20260923 --oof-only
 
 # 三 seed 最终重训（确认方案后）
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/gan_augmentation \
   --modes gan_aux \
   --synthetic-ratio 1.0 --gan-epochs 300 --max-epochs 500
 
 # 冻结后评估 10 秒 GAN 模型
-uv run python -m tcn_union.augmentation_evaluate \
+uv run python -m tcn_union.evaluation.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
   --baseline-dir artifacts/tcn \
   --model-dir artifacts/gan_augmentation/gan_aux \
   --output-dir artifacts/gan_evaluation --windows 10 --rmse-plots
 
 # 也可以单独重画逐气体 RMSE 散点图
-uv run python -m tcn_union.plot_rmse_scatter \
+uv run python -m tcn_union.visualization.plot_rmse_scatter \
   --predictions artifacts/gan_evaluation/test_predictions.csv \
   --output-dir artifacts/gan_evaluation/figures \
   --model candidate --window 10 --seed ensemble

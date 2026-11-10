@@ -125,21 +125,21 @@
 
 ```bash
 # 开发集 OOF
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/final_noise \
   --modes noise --noise-scale 0.1 --noise-copies 1 \
   --max-epochs 500 --oof-only
 
 # 三 seed 最终模型
-uv run python -m tcn_union.gan_train \
+uv run python -m tcn_union.training.gan_train \
   --manifest artifacts/splits/manifest.csv \
   --output-dir artifacts/final_noise \
   --modes noise --noise-scale 0.1 --noise-copies 1 \
   --max-epochs 500
 
 # 锁定测试集 + RMSE 散点图
-uv run python -m tcn_union.augmentation_evaluate \
+uv run python -m tcn_union.evaluation.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
   --baseline-dir artifacts/tcn \
   --model-dir artifacts/final_noise/noise \

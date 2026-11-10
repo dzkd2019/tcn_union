@@ -14,7 +14,7 @@ from typing import TypedDict
 
 import numpy as np
 
-from .data import load_run
+from tcn_union.core.data import load_run
 
 
 class RunRecord(TypedDict):

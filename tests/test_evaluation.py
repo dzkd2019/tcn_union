@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from tcn_union.evaluate import _metric_summary
+from tcn_union.evaluation.evaluate import _metric_summary
 
 
 class MapeMetricTests(unittest.TestCase):

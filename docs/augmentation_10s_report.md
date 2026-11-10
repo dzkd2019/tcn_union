@@ -298,7 +298,7 @@ uv run python -m tcn_union.augmentation_train \
   --output-dir artifacts/augmentation_final
 
 # 3) 冻结后评估锁定测试集并绘图
-uv run python -m tcn_union.augmentation_evaluate \
+uv run python -m tcn_union.evaluation.augmentation_evaluate \
   --manifest artifacts/splits/manifest.csv \
   --baseline-dir artifacts/tcn --model-dir artifacts/augmentation_final \
   --output-dir artifacts/evaluation_final

@@ -84,9 +84,9 @@ G 想让 D 把假曲线判成真，D 想识别出假曲线；两者互相提高�
 
 代码位置：
 
-- 生成器：[tcn_union/gan.py:60](../tcn_union/gan.py#L60-L80)
-- 判别器：[tcn_union/gan.py:82](../tcn_union/gan.py#L82-L99)
-- 训练循环：[tcn_union/gan.py:215](../tcn_union/gan.py#L215-L315)
+- 生成器：[tcn_union/augmentation/gan.py:60](../tcn_union/augmentation/gan.py#L60-L80)
+- 判别器：[tcn_union/augmentation/gan.py:82](../tcn_union/augmentation/gan.py#L82-L99)
+- 训练循环：[tcn_union/augmentation/gan.py:215](../tcn_union/augmentation/gan.py#L215-L315)
 
 ---
 
@@ -118,8 +118,8 @@ G 想让 D 把假曲线判成真，D 想识别出假曲线；两者互相提高�
 
 代码位置：
 
-- 生成并转特征：[tcn_union/gan.py:317](../tcn_union/gan.py#L317-L332)
-- 拼进训练集：[tcn_union/gan_train.py:87](../tcn_union/gan_train.py#L87-L131)
+- 生成并转特征：[tcn_union/augmentation/gan.py:317](../tcn_union/augmentation/gan.py#L317-L332)
+- 拼进训练集：[tcn_union/training/gan_train.py:87](../tcn_union/training/gan_train.py#L87-L131)
 
 ---
 

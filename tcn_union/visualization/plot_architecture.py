@@ -19,7 +19,7 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 from torch import nn
 
-from .model import GasTCN
+from tcn_union.core.model import GasTCN
 
 FONT_FAMILY = "Noto Serif CJK SC"
 FONT_FILE: str | None = None

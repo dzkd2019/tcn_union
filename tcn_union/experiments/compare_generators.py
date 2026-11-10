@@ -14,13 +14,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from .device import configure_threads, describe_device, resolve_device
-from .direct_vae import DirectVAEConfig, fit_direct_vae
-from .gan import GANConfig, fit_gan
-from .generative_metrics import AXES, evaluate_generation
-from .pca_generator import PCAConfig, fit_pca
-from .train import _read_manifest
-from .vae import VAEConfig, fit_vae
+from tcn_union.augmentation.direct_vae import DirectVAEConfig, fit_direct_vae
+from tcn_union.augmentation.gan import GANConfig, fit_gan
+from tcn_union.augmentation.pca_generator import PCAConfig, fit_pca
+from tcn_union.augmentation.vae import VAEConfig, fit_vae
+from tcn_union.core.device import configure_threads, describe_device, resolve_device
+from tcn_union.evaluation.generative_metrics import AXES, evaluate_generation
+from tcn_union.training.train import _read_manifest
 
 plt.rcParams["font.family"] = "Noto Serif CJK SC"
 plt.rcParams["font.serif"] = ["Noto Serif CJK SC"]
