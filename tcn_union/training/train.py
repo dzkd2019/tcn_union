@@ -27,6 +27,9 @@ SEEDS = [20260923, 20260924, 20260925]
 MAX_EPOCHS = 500
 PATIENCE = 50
 BATCH_SIZE = 8
+TARGET_TRANSFORMS = ("none", "log")
+# log 变换的浓度下限：真实标签均为正，该截断只用于吸收增强样本中可能出现的非正值。
+LOG_EPS = 1e-6
 
 
 def set_seed(seed: int) -> None:
@@ -163,6 +166,7 @@ def _train_network(
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
+    target_transform: str = "none",
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -178,6 +182,11 @@ def _train_network(
     `sample_weight_power>0` 时按 (每气体训练中位数浓度 / 样本浓度)^power 加权，
     让低浓度样本对损失贡献更大；`validation_metric="three_sigma"` 时用验证集
     相对误差 3σ 的宏平均做早停，而不是 macro-NMAE。
+    `target_transform="log"` 时先把训练标签变为 `log(max(y,1e-6))`，再在 log
+    空间拟合 z-score、计算 SmoothL1 和早停；验证预测会先反标准化再取指数，
+    因此 `three_sigma`/NMAE 仍按原始浓度计算。log 空间的绝对误差近似原始空间
+    的相对误差，可让训练目标直接对齐低浓度点的相对误差；默认 `none` 保持
+    原始浓度空间，行为与之前完全一致。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -185,12 +194,19 @@ def _train_network(
     CV 最多训练 500 轮，按反标准化预测的验证 macro-NMAE 保存最佳权重，并在
     50 轮无改善时早停；最终全开发集重训使用折最佳轮数中位数，不使用测试集早停。
     """
+    if target_transform not in TARGET_TRANSFORMS:
+        raise ValueError("target_transform 必须是 none 或 log")
     # 固定随机种子：保证同一 seed 下的初始化、打乱顺序和 Dropout 可复现。
     set_seed(seed)
 
+    # 可选标签变换：log 空间中的绝对误差近似原始空间的相对误差，
+    # 使训练目标与 three_sigma/MAPE 关注的相对误差对齐。默认 none 不变。
+    y_train_fit = y_train
+    if target_transform == "log":
+        y_train_fit = np.log(np.maximum(y_train, LOG_EPS)).astype(y_train.dtype)
     # z-score 统计量只从当前训练折拟合，验证集复用同一组统计量，避免泄漏。
-    stats = fit_scalers(x_train, y_train)
-    x_train_z, y_train_z = _scaled(x_train, y_train, stats)
+    stats = fit_scalers(x_train, y_train_fit)
+    x_train_z, y_train_z = _scaled(x_train, y_train_fit, stats)
 
     # 低浓度样本的绝对误差小，但相对误差大；按浓度中位数反比加权，
     # 让损失更关注低浓度尾部。power=0 时退化为原来的等权训练。
@@ -301,6 +317,9 @@ def _train_network(
             if training_state is not None:
                 model.load_state_dict(training_state)
             pred = pred_z * stats["y_std"][None, :] + stats["y_mean"][None, :]
+            if target_transform == "log":
+                # log 空间模型输出需先反标准化再取指数，才能与原始浓度标签比较。
+                pred = np.exp(pred)
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
             if validation_metric == "three_sigma":
@@ -389,12 +408,14 @@ def _save_checkpoint(
     device: torch.device,
     *,
     augmentation: dict[str, Any] | None = None,
+    target_transform: str = "none",
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
 
     参数：`output_path` 是 checkpoint 输出路径；`model` 为已训练网络；
     `stats` 为训练集 z-score 参数；`mode/seconds` 定义特征协议；`train_rows`
-    提供训练文件哈希；`seed/epochs/device` 记录训练配置。
+    提供训练文件哈希；`seed/epochs/device` 记录训练配置；`target_transform`
+    记录标签空间（`none` 为原始浓度，`log` 时推理端需对还原结果取指数）。
     返回：无。文件除 state_dict 外还记录架构、通道顺序、标签/输入缩放量、
     数据哈希及软件版本，保证预测端可还原训练时的数据变换。
     """
@@ -419,6 +440,7 @@ def _save_checkpoint(
         "input_std": stats["x_std"].tolist(),
         "label_mean": stats["y_mean"].tolist(),
         "label_std": stats["y_std"].tolist(),
+        "target_transform": target_transform,
         "training_files": {row["file"]: row["sha256"] for row in train_rows},
         "seed": seed,
         "epochs": epochs,
