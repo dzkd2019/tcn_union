@@ -216,6 +216,7 @@ def _train_network(
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
     channels: int = 16,
+    per_gas_head: bool = False,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -239,7 +240,8 @@ def _train_network(
     与损失逐气体独立，验证预测逐气体反变换。log 空间的绝对误差近似原始空间
     的相对误差，可让训练目标直接对齐低浓度点的相对误差；默认 `none` 保持
     原始浓度空间，行为与之前完全一致。`channels` 是 TCN 隐藏通道宽度（默认
-    16，与旧网络结构逐位一致），可按实验需要加宽。
+    16，与旧网络结构逐位一致），可按实验需要加宽；`per_gas_head=True` 时用
+    三个独立输出头替换共享头（共享卷积主干），默认 False 行为不变。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -304,8 +306,10 @@ def _train_network(
     )
 
     # 模型输入通道数由特征决定：raw_delta 为 6，delta 为 3，raw_delta_rel 为 9；
-    # 隐藏宽度由 channels 指定，默认 16 与旧结构一致。
-    model = GasTCN(x_train.shape[1], channels=channels).to(device)
+    # 隐藏宽度由 channels 指定，默认 16 与旧结构一致；输出头默认共享。
+    model = GasTCN(
+        x_train.shape[1], channels=channels, per_gas_head=per_gas_head
+    ).to(device)
     if ema_decay is not None and not 0.0 < ema_decay < 1.0:
         raise ValueError("ema_decay must be in (0, 1)")
     ema_state = None
@@ -496,6 +500,7 @@ def _save_checkpoint(
     augmentation: dict[str, Any] | None = None,
     target_transform: str | list[str] = "none",
     channels: int = 16,
+    per_gas_head: bool = False,
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
 
@@ -504,7 +509,9 @@ def _save_checkpoint(
     提供训练文件哈希；`seed/epochs/device` 记录训练配置；`target_transform`
     记录标签空间（写出时三气体一致则存单值字符串，否则存长度 3 的列表，
     `log` 对应气体在推理端需对还原结果取指数）；`channels` 记录实际 TCN
-    隐藏宽度（默认 16，与旧 checkpoint 一致），推理端据此重建网络。
+    隐藏宽度（默认 16，与旧 checkpoint 一致），推理端据此重建网络；
+    `per_gas_head` 决定 architecture 的 `head` 取 `"per_gas"` 还是 `"shared"`
+    （默认 shared，旧 checkpoint 缺该键时也按 shared 处理）。
     返回：无。文件除 state_dict 外还记录架构、通道顺序、标签/输入缩放量、
     数据哈希及软件版本，保证预测端可还原训练时的数据变换；`mode` 含相对
     增量时架构里额外写入 `relative_delta` 通道说明。
@@ -524,6 +531,7 @@ def _save_checkpoint(
         "kernel_size": 5,
         "dropout": 0.1,
         "receptive_field_samples": 57,
+        "head": "per_gas" if per_gas_head else "shared",
     }
     if "rel" in mode:
         architecture["relative_delta"] = (

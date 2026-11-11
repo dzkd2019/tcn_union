@@ -57,25 +57,53 @@ class GasTCN(nn.Module):
 
     默认通道宽度为 16，卷积核长 5，膨胀率依次为 1、2、4；每块含两层卷积。
     总感受野为 57 个采样点，覆盖最长 10 秒、51 点输入。输出头只读取序列
-    最后一个位置，因而预测只依赖该位置及其过去。
+    最后一个位置，因而预测只依赖该位置及其过去；输出头可配置为三气体共享
+    的 `head`（默认）或三路独立的逐气体 `heads`。
     """
 
-    def __init__(self, in_channels: int, channels: int = 16) -> None:
+    def __init__(
+        self, in_channels: int, channels: int = 16, per_gas_head: bool = False
+    ) -> None:
         """建立模型结构。
 
-        参数：`in_channels` 为特征通道数；`channels` 为三个残差块的通道
-        宽度（输出头输入维度随之改变），默认 16（与原结构逐位一致）。
-        例如 `GasTCN(9, channels=32)` 表示 9 通道输入、32 宽 TCN。
+        参数：`in_channels` 为特征通道数；`channels` 为三个残差块的通道宽度
+        （输出头输入维度随之改变），默认 16（与原结构逐位一致）；
+        `per_gas_head=True` 时用三个独立的 16 宽小 MLP 头分别输出 H2/NH3/NO2
+        （共享卷积主干），默认 False 保留原共享头。两种模式下模块互斥：
+        False 只有 `head`，True 只有 `heads`。
         """
         super().__init__()
         self.in_channels = in_channels
         self.channels = channels
+        self.per_gas_head = per_gas_head
         self.blocks = nn.Sequential(
             CausalResidualBlock(in_channels, dilation=1, channels=channels),
             CausalResidualBlock(channels, dilation=2, channels=channels),
             CausalResidualBlock(channels, dilation=4, channels=channels),
         )
-        self.head = nn.Sequential(nn.Linear(channels, 16), nn.ReLU(), nn.Linear(16, 3))
+        if per_gas_head:
+            self.heads = nn.ModuleList(
+                [
+                    nn.Sequential(
+                        nn.Linear(channels, 16), nn.ReLU(), nn.Linear(16, 1)
+                    )
+                    for _ in range(3)
+                ]
+            )
+        else:
+            self.head = nn.Sequential(
+                nn.Linear(channels, 16), nn.ReLU(), nn.Linear(16, 3)
+            )
+
+    def _decode(self, hidden: torch.Tensor) -> torch.Tensor:
+        """把 `[batch,channels]` 隐藏表示解码成 `[batch,3]` 三气体输出。
+
+        逐气体头分别输出一路气体后按 H2/NH3/NO2 顺序拼接；共享头一次输出
+        三路。两个分支都只依赖传入位置的隐藏表示。
+        """
+        if self.per_gas_head:
+            return torch.cat([head(hidden) for head in self.heads], dim=1)
+        return self.head(hidden)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """将一个或多个早期响应前缀回归成三气体浓度。
@@ -87,7 +115,7 @@ class GasTCN(nn.Module):
         if x.ndim != 3 or x.shape[1] != self.in_channels:
             raise ValueError(f"expected [batch,{self.in_channels},time] input")
         hidden = self.blocks(x)
-        return self.head(hidden[:, :, -1])
+        return self._decode(hidden[:, :, -1])
 
     def forward_positions(
         self, x: torch.Tensor, positions: tuple[int, ...]
@@ -107,5 +135,5 @@ class GasTCN(nn.Module):
             index = int(position)
             if index < 0 or index >= x.shape[2]:
                 raise ValueError(f"position {index} outside sequence length {x.shape[2]}")
-            outputs.append(self.head(hidden[:, :, index]))
+            outputs.append(self._decode(hidden[:, :, index]))
         return outputs

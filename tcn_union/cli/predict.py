@@ -24,9 +24,11 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
     返回：JSON 可序列化的原始浓度预测字典，含窗口秒数和原始单位标记。
     先按 checkpoint 的 mode 构造因果特征、复用训练统计量标准化，再反标准化
     网络输出；TCN 宽度由 `architecture.channels` 决定（缺键时按 16 处理，
-    兼容旧 checkpoint）。checkpoint 的 `target_transform` 为单值或逐气体配置
-    时，由 `_restore_target` 逐气体取指数还原到原始浓度（旧 checkpoint 缺该
-    键时按 `none` 处理）。不截断负预测或超训练范围结果，以免掩盖模型误差。
+    兼容旧 checkpoint），输出头由 `architecture.head` 决定（`"per_gas"` 时
+    重建逐气体头，缺键按 `"shared"` 处理）。checkpoint 的 `target_transform`
+    为单值或逐气体配置时，由 `_restore_target` 逐气体取指数还原到原始浓度
+    （旧 checkpoint 缺该键时按 `none` 处理）。不截断负预测或超训练范围结果，
+    以免掩盖模型误差。
     """
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     seconds = float(checkpoint["seconds"])
@@ -42,6 +44,7 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
     model = GasTCN(
         int(architecture["in_channels"]),
         channels=int(architecture.get("channels", 16)),
+        per_gas_head=architecture.get("head", "shared") == "per_gas",
     )
     model.load_state_dict(checkpoint["state_dict"])
     model.to(device).eval()
