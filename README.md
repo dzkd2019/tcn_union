@@ -195,14 +195,15 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成�
 
 PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见 [`docs/PCA主成分数选择证据.md`](docs/PCA主成分数选择证据.md)。
 
-## 3σ 方差优化（`experiment/3sigma-target` 分支）
+## 3σ 方差优化（`experiment/3sigma-target` → `experiment/3sigma-edge-aug` 分支）
 
-针对“相对误差 3σ 偏大”的问题，在 `experiment/3sigma-target` 分支上修正了评估协议（OOF 改为多 seed 预测层平均；锁定测试集在候选冻结后评估，本分支共评估 v1/v2 两次并在文档中披露），并尝试 log/逐气体目标、多配置多 seed 集成与 TCN+Ridge 混合。当前结果：
+针对“相对误差 3σ 偏大”的问题，在两个本地分支上迭代：先修正评估协议（OOF 改为多 seed 预测层平均；测试集在候选冻结后评估并在文档披露每一次），再依次尝试 log/逐气体目标、多配置多 seed 集成、TCN+Ridge 混合、**边缘案例 VAE 条件扩充**、**宽 TCN**、**`raw_delta_rel` 特征模式**与**逐气体输出头**。当前 v5 结果：
 
-- OOF（5 配置 × 6 seed）宏平均 3σ：旧协议基线 14.73% → TCN 五配置集成 10.56% → **TCN+Ridge 混合 v4（w=0.4、Ridge alpha=0.01、裁剪）8.57%**，逐气体 8.84 / 7.24 / 9.63，均已 <10%；
-- 12 点锁定测试集（连续回归，v1–v4 四次评估）宏平均 3σ：旧方案 11.18% → v1 9.74% → v2 8.66% → v3 8.75% → **v4 8.25%**；逐气体 H2 11.00 / NH3 3.71 / NO2 10.04，逐气体仍未全部低于 10%（NO2 仅差 0.04 pp）；四次迭代后已判定为**迭代停滞**：该测试集不能再用于调参，需新的独立锁定集/补充数据；
-- **分析发现（未采用）**：把 v2 连续预测取最近标定档位后，OOF/测试错档 0/150、0/36（逐气体 3σ=0%）；但验收必须为连续浓度回归，该规则不采用，仅作为“3σ 尾部来自档位附近回归抖动”的诊断证据；
-- 测试集在本分支被读取四次（v1–v4），全部结果、读取说明、停滞分析、误差结构诊断与完整实验记录见 [`docs/3sigma_error_diagnosis.md`](docs/3sigma_error_diagnosis.md) 与 [`docs/误差方差优化_v2.md`](docs/误差方差优化_v2.md)，负结果与复现命令同样记录在其中。
+- OOF（9 配置集成）宏平均 3σ：旧协议基线 14.73% → TCN 集 9.71% → **TCN+Ridge 混合 v5 8.05%**，逐气体 8.36 / 6.22 / 9.57，均已 <10%；
+- 12 点锁定测试集（连续回归，v1–v5 五次评估）宏平均 3σ：旧方案 11.18% → v4 8.25% → **v5 8.17%**；逐气体 H2 10.60 / NH3 3.80 / NO2 10.10，逐气体仍未全部 <10%（NO2 仅差 0.10 pp、H2 差 0.60 pp）；边缘增强/宽 TCN/特征模式/逐气体头主要改善 OOF，未能让 12 点测试集逐气体过线；
+- **62 组 OOF+测试合并口径**（教师 `error_analysis` 原始图口径）：v5 逐气体 3σ = **8.88 / 5.81 / 9.69**，全部 <10%（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_v5_all62_error_sigma_by_gas.png`](artifacts/3sigma/figs/fig_v5_all62_error_sigma_by_gas.png) 与 [`fig_all62_error_sigma_baseline_vs_v5.png`](artifacts/3sigma/figs/fig_all62_error_sigma_baseline_vs_v5.png)（PNG+SVG）；
+- **分析发现（未采用）**：连续预测取最近标定档位后 OOF/测试错档 0/150、0/36（3σ=0%）；但验收必须为连续浓度回归，该规则不采用，仅作为“3σ 尾部来自档位附近回归抖动”的诊断证据；
+- 测试集在本任务共读取五次（v1–v5），全部结果、读取说明、迭代停滞分析、误差结构诊断与完整实验记录见 [`docs/sigma-target/3sigma_error_diagnosis.md`](docs/sigma-target/3sigma_error_diagnosis.md) 与 [`docs/sigma-target/误差方差优化_v2.md`](docs/sigma-target/误差方差优化_v2.md)。
 
 ## GPU / ROCm 支持
 

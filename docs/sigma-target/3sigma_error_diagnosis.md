@@ -23,7 +23,7 @@
    - **常规校准（乘性缩放、加性偏置、log 空间线性、仿射）经交叉拟合后不但不能降 3σ，反而显著变差**（宏 +1.3% ~ +6.0%）。原因见 §5.2：① 用最小二乘拟合 `true = a·pred + b` 得到的 a>1（噪声方向相反），会放大相对误差；② **3σ 有尺度退化**：`3σ(a·pred) = a·3σ(pred)`，收缩预测可以线性压低 3σ，但偏差与 MAPE 同步恶化。
 5. **训练侧优先级**（收益/成本排序，详见 §6）：① 多 seed OOF + 部署集成（低成本、宏 3σ 预计 −15%~−20%）；② 修 H2 高浓度端系统偏差（log/相对误差目标或更温和的低浓度加权，预期 H2 3σ −2~3pp）；③ 修指标与评估协议（最低成本、避免继续被单 seed 3σ 误导）；④ NO2 专项；⑤ 补充极端浓度真实实验。
 
-![图 1 逐实验相对误差与 3σ 尾部](../artifacts/3sigma_diagnosis/figs/fig_tail_outliers.png)
+![图 1 逐实验相对误差与 3σ 尾部](../../artifacts/3sigma_diagnosis/figs/fig_tail_outliers.png)
 
 ---
 
@@ -247,9 +247,9 @@ AUC > 0.5 表示尾部该因子值更大；p 为 Mann–Whitney 检验：
 - **实验编号（采集顺序）**：H2/NO2 几乎无关；NH3 的 −0.39 完全由"NH3 浓度随采集顺序升高"的设计导致，控制浓度后消失（偏相关 −0.04）。**没有独立的"采集漂移"证据。**
 - **SNR 四分位**：NH3 的 |rel| 从 Q1 到 Q4 为 1.05→1.65→2.72→3.34%，但这是浓度共线（低浓度实验的 0–1 s 噪声反而更小），不是"低 SNR 导致大误差"；H2/NO2 的分组均值无单调关系。
 
-![图 2 |rel| 与候选因子的关系](../artifacts/3sigma_diagnosis/figs/fig_factor_relations.png)
+![图 2 |rel| 与候选因子的关系](../../artifacts/3sigma_diagnosis/figs/fig_factor_relations.png)
 
-![图 3 预测 vs 真实：H2 高浓度端系统性偏低](../artifacts/3sigma_diagnosis/figs/fig_calibration.png)
+![图 3 预测 vs 真实：H2 高浓度端系统性偏低](../../artifacts/3sigma_diagnosis/figs/fig_calibration.png)
 
 ### 4.6 哪个因素最能解释尾部？
 
@@ -356,7 +356,7 @@ rel(a·pred) = a·rel(pred) + 100(a−1)
 
 **测试集（仅描述）**：单 seed 宏 3σ 12.30/17.29/10.61%，均值集成 **11.18%**，中位数集成 10.80%。均值集成相对三个单 seed 的平均 13.40% 降低 **16.6%**；中位数集成与均值接近（单气体互有胜负，12 点下不可区分）。
 
-![图 5 seed 方差与集成收益](../artifacts/3sigma_diagnosis/figs/fig_seed_variance.png)
+![图 5 seed 方差与集成收益](../../artifacts/3sigma_diagnosis/figs/fig_seed_variance.png)
 
 ### 5.6 显著性 / 可泛化判断汇总
 
@@ -365,7 +365,7 @@ rel(a·pred) = a·rel(pred) + 100(a−1)
 - 裁剪的宏改善 CI 不含 0（[−1.63, −0.29]），但幅度小、依赖"训练范围覆盖真实范围"的前提；跨折一致性只有 2–3/5 折。
 - seed 集成收益在 OOF 代理与测试描述上方向一致、幅度 15–21%，是本报告中**最稳健**的后处理类结论。
 
-![图 4 OOF 交叉拟合后处理对比](../artifacts/3sigma_diagnosis/figs/fig_postprocess.png)
+![图 4 OOF 交叉拟合后处理对比](../../artifacts/3sigma_diagnosis/figs/fig_postprocess.png)
 
 ---
 
