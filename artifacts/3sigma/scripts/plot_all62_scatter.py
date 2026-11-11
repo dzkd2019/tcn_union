@@ -37,6 +37,8 @@ BASELINE_OOF = ROOT / "artifacts/final_vae_hybrid/noise_gan/oof.csv"
 BASELINE_TEST = ROOT / "artifacts/final_vae_hybrid/evaluation/test_predictions.csv"
 V4_OOF = OUTPUT_DIR / "hybrid_oof.csv"
 V4_TEST = OUTPUT_DIR / "hybrid_eval_v4/test_predictions.csv"
+V5_OOF = OUTPUT_DIR / "hybrid_oof_v5.csv"
+V5_TEST = OUTPUT_DIR / "hybrid_eval_v5/test_predictions.csv"
 
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = [
@@ -153,10 +155,18 @@ def _draw_panel(
     return {"mean": mean, "sigma": sigma, "test_sigma": test_sigma}
 
 
-def _comparison_figure(baseline: pd.DataFrame, v4: pd.DataFrame) -> None:
-    """旧方案 vs v4 的 2×4 散点对比图。"""
+def _comparison_figure(
+    baseline: pd.DataFrame,
+    candidate: pd.DataFrame,
+    candidate_label: str = "v4 最终候选",
+    stem: str = "fig_all62_error_sigma_baseline_vs_v4",
+) -> None:
+    """旧方案 vs 候选版本的 2×4 散点对比图。"""
     figure, panels = plt.subplots(2, 4, figsize=(13.4, 5.9), constrained_layout=True)
-    methods = (("旧方案（PCA-VAE 10s，3 seed 集成）", baseline, False), ("v4 最终候选", v4, True))
+    methods = (
+        ("旧方案（PCA-VAE 10s，3 seed 集成）", baseline, False),
+        (candidate_label, candidate, True),
+    )
     pooled_colors = [COLORS[gas] for gas in GASES for _ in range(62)]
     limits: list[float] = [0.0, 0.0, 0.0, 0.0]
     for row, (method, frame, filled) in enumerate(methods):
@@ -181,7 +191,7 @@ def _comparison_figure(baseline: pd.DataFrame, v4: pd.DataFrame) -> None:
                 pooled_colors=pooled_colors if combined else None,
             )
             panel.set_title(
-                f"{label}" if row == 0 else f"{label} · v4",
+                f"{label}" if row == 0 else f"{label} · 候选",
                 fontsize=9.5,
                 loc="left",
             )
@@ -199,11 +209,11 @@ def _comparison_figure(baseline: pd.DataFrame, v4: pd.DataFrame) -> None:
         for row in range(2):
             panels[row, column].set_ylim(-limit, limit)
     figure.suptitle(
-        "旧方案 vs v4 最终候选：全部 62 组相对误差分布（10 秒；底色 = 12 个锁定测试点）",
+        f"旧方案 vs {candidate_label}：全部 62 组相对误差分布（10 秒；底色 = 12 个锁定测试点）",
         fontsize=11.5,
     )
     for suffix in ("png", "svg"):
-        path = FIGS / f"fig_all62_error_sigma_baseline_vs_v4.{suffix}"
+        path = FIGS / f"{stem}.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
     plt.close(figure)
@@ -213,6 +223,7 @@ def main() -> None:
     FIGS.mkdir(parents=True, exist_ok=True)
     baseline = _build_all62("baseline", BASELINE_OOF, BASELINE_TEST)
     v4 = _build_all62("v4", V4_OOF, V4_TEST)
+    v5 = _build_all62("v5", V5_OOF, V5_TEST)
 
     # 图 1：参考 candidate_all62_error_sigma_by_gas.png 的 v4 版本。
     plot_error_sigma(
@@ -225,11 +236,29 @@ def main() -> None:
         stem="fig_v4_all62_error_sigma_by_gas",
     )
 
-    # 图 2：旧方案与 v4 的对比。
-    _comparison_figure(baseline, v4)
+    # 图 2：v5 参考样式 + 旧方案与 v5 的对比。
+    plot_error_sigma(
+        OUTPUT_DIR / "all62_v5_predictions.csv",
+        FIGS,
+        "all62",
+        10,
+        "OOF+测试",
+        title="全部 62 组相对误差分布（v5 最终候选：50 个开发集 OOF + 12 个锁定测试，10 秒）",
+        stem="fig_v5_all62_error_sigma_by_gas",
+    )
+    _comparison_figure(
+        baseline,
+        v5,
+        candidate_label="v5 最终候选",
+        stem="fig_all62_error_sigma_baseline_vs_v5",
+    )
 
     stats_rows: list[dict[str, object]] = []
-    for label, frame in (("旧方案", baseline), ("v4 最终候选", v4)):
+    for label, frame in (
+        ("旧方案", baseline),
+        ("v4 最终候选", v4),
+        ("v5 最终候选", v5),
+    ):
         print(f"\n=== {label} ===")
         for gas in GASES:
             error = _relative(frame, gas)
@@ -299,8 +328,8 @@ def main() -> None:
         )
     pd.DataFrame(stats_rows).to_csv(OUTPUT_DIR / "all62_error_stats.csv", index=False)
     print(f"\nWrote {OUTPUT_DIR / 'all62_error_stats.csv'}")
-    print(f"\nWrote {FIGS / 'fig_v4_all62_error_sigma_by_gas.png'}（PNG+SVG）")
-    print(f"Wrote {FIGS / 'fig_all62_error_sigma_baseline_vs_v4.png'}（PNG+SVG）")
+    print(f"\nWrote {FIGS / 'fig_v5_all62_error_sigma_by_gas.png'}（PNG+SVG）")
+    print(f"Wrote {FIGS / 'fig_all62_error_sigma_baseline_vs_v5.png'}（PNG+SVG）")
 
 
 if __name__ == "__main__":

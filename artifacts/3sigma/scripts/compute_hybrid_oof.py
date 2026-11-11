@@ -66,6 +66,20 @@ def _config_paths(name: str, seeds: tuple[int, ...]) -> list[Path]:
 
 TCN_CONFIGS_V2 = ("log_p0", "log_n02", "pergas_p0", "none_pg422")
 TCN_CONFIGS_V3 = TCN_CONFIGS_V2 + ("pergas_gw112",)
+V5_EXTRA_CONFIGS = ("pergas_edge4", "pergas_edge8", "pghead_log", "pghead_pergas_edge4")
+
+
+def _v5_sources() -> dict[str, list[Path]]:
+    """v5 候选的 TCN 配置来源：基础 5 配置用 6 seed，新配置用 3 seed。"""
+    sources: dict[str, list[Path]] = {
+        name: _config_paths(name, SEEDS_V2) for name in TCN_CONFIGS_V3
+    }
+    for name in V5_EXTRA_CONFIGS:
+        sources[name] = [
+            ROOT / f"artifacts/3sigma/{name}/seed_{seed}/noise_gan/oof.csv"
+            for seed in SEEDS_V1
+        ]
+    return sources
 
 
 def _load_frame(path: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -169,13 +183,22 @@ def main() -> None:
     hybrid_v4 = (1.0 - RIDGE_WEIGHT_V2) * tcn_v3["mean"] + RIDGE_WEIGHT_V2 * ridge_oof_v4
     hybrid_v4 = _clip_to_development_range(hybrid_v4, truth)
 
+    # v5：基础 5 配置 + 边缘增强 / 逐气体头配置（新配置 3 seed），Ridge alpha 0.01。
+    v5_sources = _v5_sources()
+    v5_predictions = {
+        name: _config_prediction(paths, files) for name, paths in v5_sources.items()
+    }
+    tcn_v5 = np.mean(list(v5_predictions.values()), axis=0)
+    hybrid_v5 = (1.0 - RIDGE_WEIGHT_V2) * tcn_v5 + RIDGE_WEIGHT_V2 * ridge_oof_v4
+    hybrid_v5 = _clip_to_development_range(hybrid_v5, truth)
+
     baseline = tcn_v3["configs"]["none_pg422"]
     rng = np.random.default_rng(0)
     delta_baseline: list[float] = []
     delta_tcn: list[float] = []
     for _ in range(4000):
         pick = rng.integers(0, len(files), len(files))
-        hybrid_score = _macro_three_sigma(truth[pick], hybrid_v4[pick])
+        hybrid_score = _macro_three_sigma(truth[pick], hybrid_v5[pick])
         delta_baseline.append(hybrid_score - _macro_three_sigma(truth[pick], baseline[pick]))
         delta_tcn.append(
             hybrid_score - _macro_three_sigma(truth[pick], tcn_v3["mean"][pick])
@@ -239,11 +262,42 @@ def main() -> None:
                 "hybrid_minus_tcn_mean": _interval(delta_tcn),
             },
         },
+        "v5": {
+            "seeds": {
+                "base": list(SEEDS_V2),
+                "extra_configs": list(SEEDS_V1),
+            },
+            "tcn_configs": list(TCN_CONFIGS_V3) + list(V5_EXTRA_CONFIGS),
+            "ridge_weight": RIDGE_WEIGHT_V2,
+            "ridge_alpha": RIDGE_ALPHA_V4,
+            "clip_to_development_range": True,
+            "tcn_mean": _three_sigma(truth, tcn_v5),
+            "ridge": _three_sigma(truth, ridge_oof_v4),
+            "hybrid": _three_sigma(truth, hybrid_v5),
+            "baseline_none_pg422": _three_sigma(truth, baseline),
+            "per_config": {
+                name: _three_sigma(truth, prediction)
+                for name, prediction in v5_predictions.items()
+            },
+            "bootstrap_delta_macro3sigma": {
+                "hybrid_minus_baseline": _interval(delta_baseline),
+                "hybrid_minus_tcn_mean": _interval(delta_tcn),
+            },
+        },
     }
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUT_DIR / "hybrid_oof_summary.json").write_text(
         json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    with (OUTPUT_DIR / "hybrid_oof_v5.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            ["file", "fold", *[f"{gas}_true" for gas in GASES], *[f"{gas}_pred" for gas in GASES]]
+        )
+        for index, name in enumerate(files):
+            writer.writerow(
+                [name, int(folds[index]), *truth[index].tolist(), *hybrid_v5[index].tolist()]
+            )
     with (OUTPUT_DIR / "hybrid_oof.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
@@ -259,6 +313,7 @@ def main() -> None:
         ("v2", result["v2"]),
         ("v3", result["v3"]),
         ("v4", result["v4"]),
+        ("v5", result["v5"]),
     ):
         for name in ("tcn_mean", "ridge", "hybrid"):
             if name not in summary:
@@ -270,7 +325,7 @@ def main() -> None:
                 f"{version} {name:<9} {per_gas}  macro={summary[name]['three_sigma_macro']:.2f}  "
                 f"MAPE={summary[name]['mape_macro']:.2f}"
             )
-    print("v4 bootstrap:", json.dumps(result["v4"]["bootstrap_delta_macro3sigma"], ensure_ascii=False))
+    print("v5 bootstrap:", json.dumps(result["v5"]["bootstrap_delta_macro3sigma"], ensure_ascii=False))
     print(f"Wrote {OUTPUT_DIR / 'hybrid_oof_summary.json'}")
 
 

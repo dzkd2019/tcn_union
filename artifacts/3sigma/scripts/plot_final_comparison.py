@@ -31,7 +31,7 @@ plt.rcParams.update(
 
 ROOT = Path(__file__).resolve().parents[3]
 GASES = ("H2", "NH3", "NO2")
-METHODS = ("旧协议基线", "TCN 五配置集成", "TCN+Ridge 混合 v4")
+METHODS = ("旧协议基线", "TCN 九配置集成", "TCN+Ridge 混合 v5")
 COLORS = ("#9AA5AD", "#1F6F78", "#C0504A")
 
 
@@ -57,8 +57,8 @@ def _oof_values() -> dict[str, dict[str, float]]:
         rows = {row["config"]: row for row in csv.DictReader(handle)}
     mapping = {
         "旧协议基线": "none+低浓度加权（3 seed）",
-        "TCN 五配置集成": "TCN 五配置集成（6 seed×5）",
-        "TCN+Ridge 混合 v4": "TCN 五配置 + Ridge（6 seed, w=0.4, α=0.01, clip）",
+        "TCN 九配置集成": "TCN 九配置集成（5×6seed + 4×3seed）",
+        "TCN+Ridge 混合 v5": "TCN 九配置 + Ridge（w=0.4, α=0.01, clip）",
     }
     result = {}
     for method, config in mapping.items():
@@ -77,14 +77,14 @@ def _test_values() -> dict[str, dict[str, float]]:
         and int(row["window_seconds"]) == 10
     ]
     report = json.loads(
-        (ROOT / "artifacts/3sigma/hybrid_eval_v4/evaluation.json").read_text(encoding="utf-8")
+        (ROOT / "artifacts/3sigma/hybrid_eval_v5/evaluation.json").read_text(encoding="utf-8")
     )
     hybrid_rows = [
         item
         for item in report["three_sigma"]
         if item["model"] == "candidate" and item["seed"] == "ensemble"
     ][0]
-    test_rows = _read_csv(ROOT / "artifacts/3sigma/hybrid_eval_v4/test_predictions.csv")
+    test_rows = _read_csv(ROOT / "artifacts/3sigma/hybrid_eval_v5/test_predictions.csv")
     tcn_seed_rows = [
         row
         for row in test_rows
@@ -101,8 +101,8 @@ def _test_values() -> dict[str, dict[str, float]]:
         tcn_mean_rows.append(row)
     return {
         "旧协议基线": _sigma(baseline),
-        "TCN 五配置集成": _sigma(tcn_mean_rows),
-        "TCN+Ridge 混合 v4": {**{gas: float(hybrid_rows[gas]) for gas in GASES}, "macro": float(hybrid_rows["macro"])},
+        "TCN 九配置集成": _sigma(tcn_mean_rows),
+        "TCN+Ridge 混合 v5": {**{gas: float(hybrid_rows[gas]) for gas in GASES}, "macro": float(hybrid_rows["macro"])},
     }
 
 
@@ -137,7 +137,7 @@ def _plot(oof: dict[str, dict[str, float]], test: dict[str, dict[str, float]], o
         panel.grid(axis="y", alpha=0.2, linewidth=0.5)
         panel.tick_params(labelsize=7.5)
         panel.legend(fontsize=6.8, frameon=False, loc="upper right")
-    figure.suptitle("3σ 优化结果 v4：OOF 与锁定测试集（虚线 10% 上限，点线 5% 目标）", fontsize=10.5)
+    figure.suptitle("3σ 优化结果 v5：OOF 与锁定测试集（虚线 10% 上限，点线 5% 目标）", fontsize=10.5)
     for suffix in ("png", "svg"):
         path = output / f"fig_3sigma_final_comparison.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
