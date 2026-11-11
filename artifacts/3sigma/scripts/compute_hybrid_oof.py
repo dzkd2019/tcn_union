@@ -77,7 +77,7 @@ def _v5_sources() -> dict[str, list[Path]]:
     for name in V5_EXTRA_CONFIGS:
         sources[name] = [
             ROOT / f"artifacts/3sigma/{name}/seed_{seed}/noise_gan/oof.csv"
-            for seed in SEEDS_V1
+            for seed in SEEDS_V2
         ]
     return sources
 
@@ -264,8 +264,7 @@ def main() -> None:
         },
         "v5": {
             "seeds": {
-                "base": list(SEEDS_V2),
-                "extra_configs": list(SEEDS_V1),
+                "all_configs": list(SEEDS_V2),
             },
             "tcn_configs": list(TCN_CONFIGS_V3) + list(V5_EXTRA_CONFIGS),
             "ridge_weight": RIDGE_WEIGHT_V2,

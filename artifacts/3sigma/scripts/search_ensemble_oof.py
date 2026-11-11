@@ -72,8 +72,11 @@ CANDIDATES = (
 )
 
 
+EXTRA_SIX_SEED = {"pergas_edge4", "pergas_edge8", "pghead_log", "pghead_pergas_edge4"}
+
+
 def _load_config(config: str) -> np.ndarray | None:
-    seeds = S6 if config in BASE else S3
+    seeds = S6 if (config in BASE or config in EXTRA_SIX_SEED) else S3
     paths = _paths(config, seeds, ROOT)
     if not all(path.is_file() for path in paths):
         return None

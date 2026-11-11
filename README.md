@@ -199,9 +199,9 @@ PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见
 
 针对“相对误差 3σ 偏大”的问题，在两个本地分支上迭代：先修正评估协议（OOF 改为多 seed 预测层平均；测试集在候选冻结后评估并在文档披露每一次），再依次尝试 log/逐气体目标、多配置多 seed 集成、TCN+Ridge 混合、**边缘案例 VAE 条件扩充**、**宽 TCN**、**`raw_delta_rel` 特征模式**与**逐气体输出头**。当前 v5 结果：
 
-- OOF（9 配置集成）宏平均 3σ：旧协议基线 14.73% → TCN 集 9.71% → **TCN+Ridge 混合 v5 8.05%**，逐气体 8.36 / 6.22 / 9.57，均已 <10%；
+- OOF（9 配置集成，6 seed 复核）宏平均 3σ：旧协议基线 14.73% → TCN 集 10.05% → **TCN+Ridge 混合 v5 8.28%**，逐气体 8.42 / 6.74 / 9.69，均已 <10%；
 - 12 点锁定测试集（连续回归，v1–v5 五次评估）宏平均 3σ：旧方案 11.18% → v4 8.25% → **v5 8.17%**；逐气体 H2 10.60 / NH3 3.80 / NO2 10.10，逐气体仍未全部 <10%（NO2 仅差 0.10 pp、H2 差 0.60 pp）；边缘增强/宽 TCN/特征模式/逐气体头主要改善 OOF，未能让 12 点测试集逐气体过线；
-- **62 组 OOF+测试合并口径**（教师 `error_analysis` 原始图口径）：v5 逐气体 3σ = **8.88 / 5.81 / 9.69**，全部 <10%（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_v5_all62_error_sigma_by_gas.png`](artifacts/3sigma/figs/fig_v5_all62_error_sigma_by_gas.png) 与 [`fig_all62_error_sigma_baseline_vs_v5.png`](artifacts/3sigma/figs/fig_all62_error_sigma_baseline_vs_v5.png)（PNG+SVG）；
+- **62 组 OOF+测试合并口径**（教师 `error_analysis` 原始图口径）：v5 逐气体 3σ = **8.95 / 6.26 / 9.80**，全部 <10%（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_v5_all62_error_sigma_by_gas.png`](artifacts/3sigma/figs/fig_v5_all62_error_sigma_by_gas.png) 与 [`fig_all62_error_sigma_baseline_vs_v5.png`](artifacts/3sigma/figs/fig_all62_error_sigma_baseline_vs_v5.png)（PNG+SVG）；
 - **分析发现（未采用）**：连续预测取最近标定档位后 OOF/测试错档 0/150、0/36（3σ=0%）；但验收必须为连续浓度回归，该规则不采用，仅作为“3σ 尾部来自档位附近回归抖动”的诊断证据；
 - 测试集在本任务共读取五次（v1–v5），全部结果、读取说明、迭代停滞分析、误差结构诊断与完整实验记录见 [`docs/sigma-target/3sigma_error_diagnosis.md`](docs/sigma-target/3sigma_error_diagnosis.md) 与 [`docs/sigma-target/误差方差优化_v2.md`](docs/sigma-target/误差方差优化_v2.md)。
 
