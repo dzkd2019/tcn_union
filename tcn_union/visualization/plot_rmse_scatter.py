@@ -117,6 +117,7 @@ def plot_error_sigma(
     seed: str,
     prefix: str = "",
     title: str | None = None,
+    stem: str | None = None,
 ) -> None:
     """参考 example/pic_1.png 的相对误差散点，并叠加 ±1/2/3σ 线。"""
     selected = _select(pd.read_csv(predictions_path), model, window, seed)
@@ -178,9 +179,11 @@ def plot_error_sigma(
         title or f"相对误差分布（{window} 秒，{model}，seed={seed}）",
         fontsize=13,
     )
-    stem = f"{prefix}_error_sigma_by_gas" if prefix else "error_sigma_by_gas"
-    for suffix in ("png", "pdf"):
-        path = output_dir / f"{stem}.{suffix}"
+    figure_stem = stem or (
+        f"{prefix}_error_sigma_by_gas" if prefix else "error_sigma_by_gas"
+    )
+    for suffix in ("png", "svg"):
+        path = output_dir / f"{figure_stem}.{suffix}"
         figure.savefig(path, dpi=180, bbox_inches="tight")
         print(f"Wrote {path}")
     plt.close(figure)
