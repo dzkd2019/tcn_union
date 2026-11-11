@@ -244,6 +244,7 @@ def cross_validate(
     target_transform: str | list[str] = "none",
     feature_mode: str = MODE,
     channels: int = 16,
+    per_gas_head: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。
 
@@ -305,6 +306,7 @@ def cross_validate(
             validation_metric=validation_metric,
             target_transform=target_transform,
             channels=channels,
+            per_gas_head=per_gas_head,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("五折训练没有产生验证预测")
@@ -384,6 +386,7 @@ def train_final(
     target_transform: str | list[str] = "none",
     feature_mode: str = MODE,
     channels: int = 16,
+    per_gas_head: bool = False,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
@@ -429,6 +432,7 @@ def train_final(
         gas_loss_weights=gas_loss_weights,
         target_transform=target_transform,
         channels=channels,
+        per_gas_head=per_gas_head,
     )
     metadata = {
         "mode": mode,
@@ -464,6 +468,7 @@ def train_final(
         augmentation=metadata,
         target_transform=target_transform,
         channels=channels,
+        per_gas_head=per_gas_head,
     )
 
 
@@ -492,6 +497,11 @@ def main() -> None:
         type=int,
         default=16,
         help="GasTCN 通道宽度（默认 16）",
+    )
+    parser.add_argument(
+        "--per-gas-head",
+        action="store_true",
+        help="使用逐气体输出头（NO2 专项实验）",
     )
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
     parser.add_argument("--noise-scale", type=float, default=1.0)
@@ -620,6 +630,7 @@ def main() -> None:
         "mode": args.feature_mode,
         "feature_mode": args.feature_mode,
         "channels": args.channels,
+        "per_gas_head": args.per_gas_head,
         "synthetic_ratio": args.synthetic_ratio,
         "noise_scale": args.noise_scale,
         "noise_copies": args.noise_copies,
@@ -662,6 +673,7 @@ def main() -> None:
             target_transform=args.target_transform,
             feature_mode=args.feature_mode,
             channels=args.channels,
+            per_gas_head=args.per_gas_head,
         )
         mode_dir = args.output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
@@ -703,6 +715,7 @@ def main() -> None:
                     target_transform=args.target_transform,
                     feature_mode=args.feature_mode,
                     channels=args.channels,
+                    per_gas_head=args.per_gas_head,
                 )
                 print(f"  saved {path}", flush=True)
 
