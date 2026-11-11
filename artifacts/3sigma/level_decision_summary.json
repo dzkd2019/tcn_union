@@ -25,24 +25,24 @@
   "tolerance_sweep": [
     {
       "tolerance": null,
-      "OOF hybrid v3": {
-        "raw_macro": 8.715192413038231,
+      "OOF hybrid v4": {
+        "raw_macro": 8.570351150669039,
         "snapped_macro": 0.0,
-        "raw_H2": 9.105296546144054,
-        "raw_NH3": 7.36836859390465,
-        "raw_NO2": 9.671912099065993,
+        "raw_H2": 8.844563378059535,
+        "raw_NH3": 7.235892697720104,
+        "raw_NO2": 9.630597376227477,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
         "snapped_NO2": 0.0,
         "mis_snapped": 0,
         "n_values": 150
       },
-      "test hybrid v3": {
-        "raw_macro": 8.75334205822734,
+      "test hybrid v4": {
+        "raw_macro": 8.250659833429197,
         "snapped_macro": 0.0,
-        "raw_H2": 11.52834461526118,
-        "raw_NH3": 3.831666055118919,
-        "raw_NO2": 10.900015504301921,
+        "raw_H2": 10.999783455822943,
+        "raw_NH3": 3.7102511851015536,
+        "raw_NO2": 10.041944859363092,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
         "snapped_NO2": 0.0,
@@ -52,78 +52,78 @@
     },
     {
       "tolerance": 0.05,
-      "OOF hybrid v3": {
-        "raw_macro": 8.715192413038231,
-        "snapped_macro": 6.760013522173928,
-        "raw_H2": 9.105296546144054,
-        "raw_NH3": 7.36836859390465,
-        "raw_NO2": 9.671912099065993,
-        "snapped_H2": 6.920877463045056,
-        "snapped_NH3": 6.040536899006092,
-        "snapped_NO2": 7.318626204470636,
+      "OOF hybrid v4": {
+        "raw_macro": 8.570351150669039,
+        "snapped_macro": 6.53358735878837,
+        "raw_H2": 8.844563378059535,
+        "raw_NH3": 7.235892697720104,
+        "raw_NO2": 9.630597376227477,
+        "snapped_H2": 6.533583631250265,
+        "snapped_NH3": 6.030897423063059,
+        "snapped_NO2": 7.0362810220517895,
         "mis_snapped": 0,
         "n_values": 150
       },
-      "test hybrid v3": {
-        "raw_macro": 8.75334205822734,
-        "snapped_macro": 6.602883913635683,
-        "raw_H2": 11.52834461526118,
-        "raw_NH3": 3.831666055118919,
-        "raw_NO2": 10.900015504301921,
-        "snapped_H2": 9.702624912644318,
+      "test hybrid v4": {
+        "raw_macro": 8.250659833429197,
+        "snapped_macro": 6.281923197560062,
+        "raw_H2": 10.999783455822943,
+        "raw_NH3": 3.7102511851015536,
+        "raw_NO2": 10.041944859363092,
+        "snapped_H2": 9.663989803048139,
         "snapped_NH3": 0.0,
-        "snapped_NO2": 10.106026828262731,
+        "snapped_NO2": 9.181779789632044,
         "mis_snapped": 0,
         "n_values": 36
       }
     },
     {
       "tolerance": 0.1,
-      "OOF hybrid v3": {
-        "raw_macro": 8.715192413038231,
-        "snapped_macro": 5.15744115097113,
-        "raw_H2": 9.105296546144054,
-        "raw_NH3": 7.36836859390465,
-        "raw_NO2": 9.671912099065993,
-        "snapped_H2": 4.945522717470774,
-        "snapped_NH3": 5.441993264712305,
-        "snapped_NO2": 5.084807470730313,
+      "OOF hybrid v4": {
+        "raw_macro": 8.570351150669039,
+        "snapped_macro": 5.078910506113547,
+        "raw_H2": 8.844563378059535,
+        "raw_NH3": 7.235892697720104,
+        "raw_NO2": 9.630597376227477,
+        "snapped_H2": 4.847616725484305,
+        "snapped_NH3": 5.455271605230337,
+        "snapped_NO2": 4.933843187626001,
         "mis_snapped": 0,
         "n_values": 150
       },
-      "test hybrid v3": {
-        "raw_macro": 8.75334205822734,
-        "snapped_macro": 3.3686756094209103,
-        "raw_H2": 11.52834461526118,
-        "raw_NH3": 3.831666055118919,
-        "raw_NO2": 10.900015504301921,
+      "test hybrid v4": {
+        "raw_macro": 8.250659833429197,
+        "snapped_macro": 3.060593263210681,
+        "raw_H2": 10.999783455822943,
+        "raw_NH3": 3.7102511851015536,
+        "raw_NO2": 10.041944859363092,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
-        "snapped_NO2": 10.106026828262731,
+        "snapped_NO2": 9.181779789632044,
         "mis_snapped": 0,
         "n_values": 36
       }
     },
     {
       "tolerance": 0.15,
-      "OOF hybrid v3": {
-        "raw_macro": 8.715192413038231,
+      "OOF hybrid v4": {
+        "raw_macro": 8.570351150669039,
         "snapped_macro": 0.0,
-        "raw_H2": 9.105296546144054,
-        "raw_NH3": 7.36836859390465,
-        "raw_NO2": 9.671912099065993,
+        "raw_H2": 8.844563378059535,
+        "raw_NH3": 7.235892697720104,
+        "raw_NO2": 9.630597376227477,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
         "snapped_NO2": 0.0,
         "mis_snapped": 0,
         "n_values": 150
       },
-      "test hybrid v3": {
-        "raw_macro": 8.75334205822734,
+      "test hybrid v4": {
+        "raw_macro": 8.250659833429197,
         "snapped_macro": 0.0,
-        "raw_H2": 11.52834461526118,
-        "raw_NH3": 3.831666055118919,
-        "raw_NO2": 10.900015504301921,
+        "raw_H2": 10.999783455822943,
+        "raw_NH3": 3.7102511851015536,
+        "raw_NO2": 10.041944859363092,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
         "snapped_NO2": 0.0,
@@ -133,24 +133,24 @@
     },
     {
       "tolerance": 0.2,
-      "OOF hybrid v3": {
-        "raw_macro": 8.715192413038231,
+      "OOF hybrid v4": {
+        "raw_macro": 8.570351150669039,
         "snapped_macro": 0.0,
-        "raw_H2": 9.105296546144054,
-        "raw_NH3": 7.36836859390465,
-        "raw_NO2": 9.671912099065993,
+        "raw_H2": 8.844563378059535,
+        "raw_NH3": 7.235892697720104,
+        "raw_NO2": 9.630597376227477,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
         "snapped_NO2": 0.0,
         "mis_snapped": 0,
         "n_values": 150
       },
-      "test hybrid v3": {
-        "raw_macro": 8.75334205822734,
+      "test hybrid v4": {
+        "raw_macro": 8.250659833429197,
         "snapped_macro": 0.0,
-        "raw_H2": 11.52834461526118,
-        "raw_NH3": 3.831666055118919,
-        "raw_NO2": 10.900015504301921,
+        "raw_H2": 10.999783455822943,
+        "raw_NH3": 3.7102511851015536,
+        "raw_NO2": 10.041944859363092,
         "snapped_H2": 0.0,
         "snapped_NH3": 0.0,
         "snapped_NO2": 0.0,
@@ -160,24 +160,24 @@
     }
   ],
   "details": {
-    "OOF hybrid v3": {
-      "raw_macro": 8.715192413038231,
+    "OOF hybrid v4": {
+      "raw_macro": 8.570351150669039,
       "snapped_macro": 0.0,
-      "raw_H2": 9.105296546144054,
-      "raw_NH3": 7.36836859390465,
-      "raw_NO2": 9.671912099065993,
+      "raw_H2": 8.844563378059535,
+      "raw_NH3": 7.235892697720104,
+      "raw_NO2": 9.630597376227477,
       "snapped_H2": 0.0,
       "snapped_NH3": 0.0,
       "snapped_NO2": 0.0,
       "mis_snapped": 0,
       "n_values": 150
     },
-    "test hybrid v3": {
-      "raw_macro": 8.75334205822734,
+    "test hybrid v4": {
+      "raw_macro": 8.250659833429197,
       "snapped_macro": 0.0,
-      "raw_H2": 11.52834461526118,
-      "raw_NH3": 3.831666055118919,
-      "raw_NO2": 10.900015504301921,
+      "raw_H2": 10.999783455822943,
+      "raw_NH3": 3.7102511851015536,
+      "raw_NO2": 10.041944859363092,
       "snapped_H2": 0.0,
       "snapped_NH3": 0.0,
       "snapped_NO2": 0.0,

@@ -119,14 +119,19 @@ def _ridge_features_for_rows(rows: list[dict[str, Any]]) -> np.ndarray:
     return np.stack(features)
 
 
-def _fit_ridge(x_train: np.ndarray, y_train: np.ndarray) -> dict[str, Any]:
-    """在 log 浓度空间拟合逐气体 Ridge（StandardScaler + alpha=0.03）。
+def _fit_ridge(
+    x_train: np.ndarray, y_train: np.ndarray, alpha: float = RIDGE_ALPHA
+) -> dict[str, Any]:
+    """在 log 浓度空间拟合逐气体 Ridge（StandardScaler + 可配置 alpha）。
 
-    参数：`x_train` 为开发集 `[runs,57]` 特征；`y_train` 为 `[runs,3]` 原始浓度。
+    参数：`x_train` 为开发集 `[runs,57]` 特征；`y_train` 为 `[runs,3]` 原始浓度；
+    `alpha` 为岭回归正则强度（默认 0.03，可由评估脚本按 OOF 选择覆盖）。
     返回：供 `_predict_ridge` 使用的拟合结果；标签先取 log，使平方损失近似
     优化相对误差，预测端再取指数还原。
     """
-    return _ridge_fit(x_train, np.log(y_train), RIDGE_ALPHA)
+    if alpha <= 0.0:
+        raise ValueError("ridge alpha 必须为正")
+    return _ridge_fit(x_train, np.log(y_train), float(alpha))
 
 
 def _predict_ridge(model: dict[str, Any], x: np.ndarray) -> np.ndarray:
@@ -316,6 +321,7 @@ def evaluate_hybrid(
     seeds: list[int],
     ridge_weight: float = 0.5,
     clip_to_development_range: bool = False,
+    ridge_alpha: float = RIDGE_ALPHA,
 ) -> dict[str, Any]:
     """对锁定测试集做一次 TCN 集 + Ridge 混合评估并写出三项产物。
 
@@ -324,7 +330,8 @@ def evaluate_hybrid(
     目录；`device` 指定推理设备；`windows` 目前只支持 10 秒（Ridge 特征固定
     为 10 秒前缀）；`seeds` 是要集成的 TCN 种子；`ridge_weight` 是 Ridge
     预测的融合权重；`clip_to_development_range` 为真时把融合预测裁剪到开发集
-    逐气体标签范围（物理约束，不使用测试标签）。
+    逐气体标签范围（物理约束，不使用测试标签）；`ridge_alpha` 是 Ridge 正则
+    强度（默认 0.03，可随后续 OOF 选择覆盖）。
     返回：含协议、目录、seed、融合权重、指标与 3σ 的报告字典；同时写出
     ``test_predictions.csv``、``test_metrics.csv`` 和 ``evaluation.json``。
     """
@@ -342,7 +349,9 @@ def evaluate_hybrid(
     if np.any(dev_ranges == 0):
         raise ValueError("development label range is zero; normalized error is undefined")
     # Ridge 只用开发集训练；TCN 的目录与 seed 由调用方显式给出。
-    ridge_model = _fit_ridge(_ridge_features_for_rows(dev_rows), y_dev)
+    ridge_model = _fit_ridge(
+        _ridge_features_for_rows(dev_rows), y_dev, alpha=ridge_alpha
+    )
     ridge_test = _predict_ridge(ridge_model, _ridge_features_for_rows(test_rows))
 
     prediction_rows: list[dict[str, Any]] = []
@@ -436,7 +445,7 @@ def evaluate_hybrid(
         "ridge_weight": float(ridge_weight),
         "clip_to_development_range": bool(clip_to_development_range),
         "ridge": {
-            "alpha": RIDGE_ALPHA,
+            "alpha": float(ridge_alpha),
             "target_space": "log",
             "train_runs": len(dev_rows),
             "feature_version": RIDGE_FEATURE_VERSION,
@@ -490,11 +499,19 @@ def main() -> None:
         action="store_true",
         help="把融合预测裁剪到开发集逐气体标签范围（物理约束）",
     )
+    parser.add_argument(
+        "--ridge-alpha",
+        type=float,
+        default=RIDGE_ALPHA,
+        help="Ridge 正则强度（默认 0.03；可按 OOF 选择覆盖）",
+    )
     args = parser.parse_args()
     if not 0.0 <= args.ridge_weight <= 1.0:
         parser.error("--ridge-weight 必须在 [0, 1]")
     if any(window != int(RIDGE_SECONDS) for window in args.windows):
         parser.error("Ridge 特征固定为 10 秒前缀，--windows 目前只支持 10")
+    if args.ridge_alpha <= 0.0:
+        parser.error("--ridge-alpha 必须为正")
     device = resolve_device(args.device)
     configure_threads(device)
     print(f"[device] {describe_device(device)}")
@@ -507,6 +524,7 @@ def main() -> None:
         args.seeds,
         args.ridge_weight,
         clip_to_development_range=args.clip_to_development_range,
+        ridge_alpha=args.ridge_alpha,
     )
     print(
         f"Wrote {args.output_dir / 'evaluation.json'} for {report['test_n']} locked test runs"
