@@ -19,3 +19,8 @@ artifacts/diagnostics/
 artifacts/augmentation_aux*/
 artifacts/augmentation_cutout_aux/
 artifacts/evaluation_aux/
+
+.agents/
+.deja/
+.orchestra-skills.json
+skills-lock.json
