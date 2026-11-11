@@ -110,17 +110,39 @@ class TrainedVAE:
         self.output_min = output_min
         self.output_max = output_max
 
-    def sample(self, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
-        """采样合成响应和对应浓度标签。"""
+    def sample(
+        self,
+        count: int,
+        seed: int,
+        condition_labels: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """采样合成响应和对应浓度标签。
+
+        参数：`count` 为采样数；`seed` 控制潜变量与条件抽样；`condition_labels`
+        可选，形状 `[count,3]` 的原始浓度，用于按指定标签（例如边缘浓度组合）
+        生成响应；给定时不再从训练标签中随机抽条件。返回 `(responses, labels)`，
+        responses 形状 `[count,3,51]`（10 秒前缀），labels 形状 `[count,3]`。
+        """
         if count < 1:
             raise ValueError("VAE 采样数量必须为正")
         rng = torch.Generator().manual_seed(seed)
         self.decoder.eval()
         device = next(self.decoder.parameters()).device
-        with torch.no_grad():
-            latent = torch.randn(count, self.config.latent_dim, generator=rng).to(device)
+        if condition_labels is not None:
+            labels_array = np.asarray(condition_labels, dtype=np.float64)
+            if labels_array.shape != (count, 3):
+                raise ValueError("condition_labels 形状必须是 [count,3]")
+            if not np.isfinite(labels_array).all() or np.any(labels_array <= 0.0):
+                raise ValueError("condition_labels 必须为正的有限浓度")
+            condition_z = (
+                labels_array - self.label_mean[None, :]
+            ) / self.label_std[None, :]
+            condition = torch.from_numpy(condition_z.astype(np.float32)).to(device)
+        else:
             indices = torch.randint(0, len(self.labels_z), (count,), generator=rng)
             condition = torch.from_numpy(self.labels_z[indices.numpy()]).to(device)
+        with torch.no_grad():
+            latent = torch.randn(count, self.config.latent_dim, generator=rng).to(device)
             residual = self.decoder(latent, condition).cpu().numpy().reshape(count, 3, -1)
         labels = condition.cpu().numpy() * self.label_std[None, :] + self.label_mean[None, :]
         design = np.concatenate((np.ones((count, 1)), condition.cpu().numpy()), axis=1)

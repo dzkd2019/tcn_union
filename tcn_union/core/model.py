@@ -11,22 +11,23 @@ from torch.nn import functional as F
 
 
 class CausalResidualBlock(nn.Module):
-    """单个两层因果卷积残差块，通道宽度固定为 16。"""
-    def __init__(self, in_channels: int, dilation: int) -> None:
+    """单个两层因果卷积残差块，通道宽度为 `channels`（默认 16）。"""
+    def __init__(self, in_channels: int, dilation: int, channels: int = 16) -> None:
         """初始化该块。
 
         参数：`in_channels` 是输入通道数；`dilation` 是两层卷积共同使用的
-        膨胀率。每层核长为 5，左补零保持序列长度与因果性；残差支路在输入
-        通道不为 16 时通过 1×1 卷积对齐维度。
+        膨胀率；`channels` 是块内隐藏通道宽度，默认 16，与旧结构一致。
+        每层核长为 5，左补零保持序列长度与因果性；残差支路在输入通道与
+        `channels` 不同时通过 1×1 卷积对齐维度。
         """
         super().__init__()
         self.kernel_size = 5
         self.dilation = dilation
-        self.conv1 = nn.Conv1d(in_channels, 16, self.kernel_size, dilation=dilation)
-        self.conv2 = nn.Conv1d(16, 16, self.kernel_size, dilation=dilation)
+        self.conv1 = nn.Conv1d(in_channels, channels, self.kernel_size, dilation=dilation)
+        self.conv2 = nn.Conv1d(channels, channels, self.kernel_size, dilation=dilation)
         self.dropout1 = nn.Dropout(0.1)
         self.dropout2 = nn.Dropout(0.1)
-        self.projection = nn.Conv1d(in_channels, 16, kernel_size=1) if in_channels != 16 else nn.Identity()
+        self.projection = nn.Conv1d(in_channels, channels, kernel_size=1) if in_channels != channels else nn.Identity()
 
     def _causal_conv(self, x: torch.Tensor, layer: nn.Conv1d) -> torch.Tensor:
         """对输入执行左侧补零的单向卷积。
@@ -42,8 +43,8 @@ class CausalResidualBlock(nn.Module):
         """计算残差分支与两层卷积分支并相加。
 
         参数：`x` 为 `[batch,in_channels,time]` 的时序张量。
-        返回：`[batch,16,time]` 特征。ReLU 和 Dropout 提供非线性及正则化，
-        残差连接有助于优化较深的因果卷积堆叠。
+        返回：`[batch,channels,time]` 特征。ReLU 和 Dropout 提供非线性及
+        正则化，残差连接有助于优化较深的因果卷积堆叠。
         """
         residual = self.projection(x)
         hidden = self.dropout1(F.relu(self._causal_conv(x, self.conv1)))
@@ -54,25 +55,27 @@ class CausalResidualBlock(nn.Module):
 class GasTCN(nn.Module):
     """三块因果 TCN，将固定传感器前缀映射到三气体浓度。
 
-    通道数为 16，卷积核长 5，膨胀率依次为 1、2、4；每块含两层卷积。
+    默认通道宽度为 16，卷积核长 5，膨胀率依次为 1、2、4；每块含两层卷积。
     总感受野为 57 个采样点，覆盖最长 10 秒、51 点输入。输出头只读取序列
     最后一个位置，因而预测只依赖该位置及其过去。
     """
 
-    def __init__(self, in_channels: int) -> None:
+    def __init__(self, in_channels: int, channels: int = 16) -> None:
         """建立模型结构。
 
-        参数：`in_channels` 为特征通道数；去基线 delta 输入为 3 通道，
-        raw_delta（原始响应与归一化增量拼接）输入为 6 通道。
+        参数：`in_channels` 为特征通道数；`channels` 为三个残差块的通道
+        宽度（输出头输入维度随之改变），默认 16（与原结构逐位一致）。
+        例如 `GasTCN(9, channels=32)` 表示 9 通道输入、32 宽 TCN。
         """
         super().__init__()
         self.in_channels = in_channels
+        self.channels = channels
         self.blocks = nn.Sequential(
-            CausalResidualBlock(in_channels, dilation=1),
-            CausalResidualBlock(16, dilation=2),
-            CausalResidualBlock(16, dilation=4),
+            CausalResidualBlock(in_channels, dilation=1, channels=channels),
+            CausalResidualBlock(channels, dilation=2, channels=channels),
+            CausalResidualBlock(channels, dilation=4, channels=channels),
         )
-        self.head = nn.Sequential(nn.Linear(16, 16), nn.ReLU(), nn.Linear(16, 3))
+        self.head = nn.Sequential(nn.Linear(channels, 16), nn.ReLU(), nn.Linear(16, 3))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """将一个或多个早期响应前缀回归成三气体浓度。

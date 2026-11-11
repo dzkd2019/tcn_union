@@ -215,6 +215,7 @@ def _train_network(
     gas_loss_weights: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
+    channels: int = 16,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -237,7 +238,8 @@ def _train_network(
     （如 `"none,log,log"`，顺序 H2/NH3/NO2）对每路气体单独选择标签空间，z-score
     与损失逐气体独立，验证预测逐气体反变换。log 空间的绝对误差近似原始空间
     的相对误差，可让训练目标直接对齐低浓度点的相对误差；默认 `none` 保持
-    原始浓度空间，行为与之前完全一致。
+    原始浓度空间，行为与之前完全一致。`channels` 是 TCN 隐藏通道宽度（默认
+    16，与旧网络结构逐位一致），可按实验需要加宽。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -301,8 +303,9 @@ def _train_network(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
     )
 
-    # 模型输入通道数由特征决定：raw_delta 为 6，delta 为 3。
-    model = GasTCN(x_train.shape[1]).to(device)
+    # 模型输入通道数由特征决定：raw_delta 为 6，delta 为 3，raw_delta_rel 为 9；
+    # 隐藏宽度由 channels 指定，默认 16 与旧结构一致。
+    model = GasTCN(x_train.shape[1], channels=channels).to(device)
     if ema_decay is not None and not 0.0 < ema_decay < 1.0:
         raise ValueError("ema_decay must be in (0, 1)")
     ema_state = None
@@ -444,12 +447,18 @@ def _train_network(
 def _channel_order(mode: str) -> list[str]:
     """返回所选特征模式的通道名称与拼接顺序。
 
-    参数：`mode` 为 `raw_delta` 或 `delta`。
-    返回：`raw_delta` 时先列出 H2/NH3/NO2 原始响应、再列出三路增量；
-    `delta` 时只列出三路增量。明确顺序供 checkpoint 记录和推理复用。
+    参数：`mode` 为 `raw_delta`、`delta` 或 `raw_delta_rel`。
+    返回：`raw_delta` 时先列出 H2/NH3/NO2 原始响应、再列出三路相对增量；
+    `delta` 时只列出三路相对增量；`raw_delta_rel` 时依次为原始响应、绝对
+    增量（`response(t)-response(0)`）和相对增量（除以初始响应幅度）。明确
+    顺序供 checkpoint 记录和推理复用。
     """
     raw = ["H2_raw", "NH3_raw", "NO2_raw"]
     delta = ["H2_delta", "NH3_delta", "NO2_delta"]
+    if mode == "raw_delta_rel":
+        absolute_delta = ["H2_delta_abs", "NH3_delta_abs", "NO2_delta_abs"]
+        relative_delta = ["H2_rel_delta", "NH3_rel_delta", "NO2_rel_delta"]
+        return raw + absolute_delta + relative_delta
     return raw + delta if mode == "raw_delta" else delta
 
 
@@ -459,7 +468,7 @@ def _features(
     """为开发集中的每个实验构造指定窗口和模式的特征。
 
     参数：`rows` 为已加载 manifest 记录；`seconds` 是 5/10 秒前缀；
-    `mode` 决定使用 delta 或 raw_delta 通道。
+    `mode` 决定使用 delta、raw_delta 或 raw_delta_rel 通道。
     返回：`文件相对路径 -> [channels,samples] 特征` 映射。测试行被排除，且
     特征只依赖响应前缀，使后续折分组保持实验级并确保因果输入。
     """
@@ -486,6 +495,7 @@ def _save_checkpoint(
     *,
     augmentation: dict[str, Any] | None = None,
     target_transform: str | list[str] = "none",
+    channels: int = 16,
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
 
@@ -493,9 +503,11 @@ def _save_checkpoint(
     `stats` 为训练集 z-score 参数；`mode/seconds` 定义特征协议；`train_rows`
     提供训练文件哈希；`seed/epochs/device` 记录训练配置；`target_transform`
     记录标签空间（写出时三气体一致则存单值字符串，否则存长度 3 的列表，
-    `log` 对应气体在推理端需对还原结果取指数）。
+    `log` 对应气体在推理端需对还原结果取指数）；`channels` 记录实际 TCN
+    隐藏宽度（默认 16，与旧 checkpoint 一致），推理端据此重建网络。
     返回：无。文件除 state_dict 外还记录架构、通道顺序、标签/输入缩放量、
-    数据哈希及软件版本，保证预测端可还原训练时的数据变换。
+    数据哈希及软件版本，保证预测端可还原训练时的数据变换；`mode` 含相对
+    增量时架构里额外写入 `relative_delta` 通道说明。
     """
     # 三气体一致时仍写单值字符串（兼容旧 checkpoint）；逐气体时写长度 3 列表。
     target_flags = _target_flags(target_transform)
@@ -504,20 +516,25 @@ def _save_checkpoint(
         if all(flag == target_flags[0] for flag in target_flags)
         else list(target_flags)
     )
+    architecture = {
+        "name": "GasTCN",
+        "in_channels": len(_channel_order(mode)),
+        "channels": channels,
+        "dilations": [1, 2, 4],
+        "kernel_size": 5,
+        "dropout": 0.1,
+        "receptive_field_samples": 57,
+    }
+    if "rel" in mode:
+        architecture["relative_delta"] = (
+            "3 channels: (response(t)-response(0))/max(|response(0)|,1e-8)"
+        )
     payload = {
         "state_dict": {
             key: value.detach().cpu()
             for key, value in model.state_dict().items()
         },
-        "architecture": {
-            "name": "GasTCN",
-            "in_channels": len(_channel_order(mode)),
-            "channels": 16,
-            "dilations": [1, 2, 4],
-            "kernel_size": 5,
-            "dropout": 0.1,
-            "receptive_field_samples": 57,
-        },
+        "architecture": architecture,
         "mode": mode,
         "seconds": seconds,
         "channel_order": _channel_order(mode),
