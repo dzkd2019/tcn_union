@@ -195,16 +195,16 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成�
 
 PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见 [`docs/PCA主成分数选择证据.md`](docs/PCA主成分数选择证据.md)。
 
-## 3σ 方差优化（`experiment/3sigma-edge-aug` 分支）
+## 3σ 方差优化（已合并到 `dev`）
 
-针对“相对误差 3σ 偏大”的问题，本分支把 v1–v5 的多配置/多结构实验收敛为一个精简方案：**单 TCN 配置（逐气体目标 + 逐气体输出头 + 边缘浓度条件 VAE 扩充）× 3 seed → Ridge 混合 → 裁剪**，只训练 3 个 TCN checkpoint（此前 v5 为 9 配置 × 6 seed = 54 个）。当前结果：
+针对“相对误差 3σ 偏大”的问题，最终采用**无 Ridge 方案**：单 TCN 模型族（逐气体目标 + 逐气体输出头 + 边缘浓度条件 VAE 扩充）+ **低浓度损失加权**（`(median/y)^p`，裁剪到 0.25–4，逐气体可配），两套加权强度 × 3 seed 的预测平均 + 裁剪。共 6 个 TCN checkpoint，不使用 Ridge 或任何额外模型。当前结果：
 
-- **OOF（50 个开发实验）** 宏平均 3σ：旧方案 14.73% → **7.06%**，逐气体 **7.63 / 4.28 / 9.28**（全部 <10%）；
-- **12 点锁定测试集（连续回归，第 6 次评估，已在文档披露）**：宏平均 3σ **7.18%**，逐气体 **9.86 / 2.72 / 8.96**（全部 <10%，首次达到验收目标；5% 目标仅 NH3 达到）；
-- **62 点合并口径**（50 OOF + 12 测试，教师 `error_analysis` 原始图口径）：逐气体 3σ = **8.08 / 4.01 / 9.22**（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_lean_all62_error_sigma_by_gas.png`](artifacts/3sigma/lean/figs/fig_lean_all62_error_sigma_by_gas.png) 与 [`fig_lean_vs_baseline_all62.png`](artifacts/3sigma/lean/figs/fig_lean_vs_baseline_all62.png)（PNG+SVG）；
-- 精简同时删除了无正收益的 9 配置集成、宽 TCN、`raw_delta_rel`、NO2 损失权重、样本加权、档位分析等代码与历史实验产物（测试 87→66）；
-- **无 Ridge 变体**（分支 `experiment/3sigma-noridge`）：去掉 Ridge，改用**低浓度损失加权**（`(median/y)^p`，裁剪 0.25–4，逐气体可配）+ 两套加权强度 × 3 seed 的 TCN 预测平均 + 裁剪。OOF 逐气体 **9.31 / 4.95 / 8.16**（宏 7.47%），锁定测试第 7 次读取逐气体 **6.46 / 5.71 / 9.16**（宏 7.11%），62 点合并 **8.86 / 5.05 / 8.59**；不再需要额外线性模型。详见 [`docs/sigma-target/3sigma_无Ridge方案.md`](docs/sigma-target/3sigma_无Ridge方案.md)。
-- 原理、实现、组件消融与复现见 [`docs/sigma-target/3sigma_精简方案_原理与实现.md`](docs/sigma-target/3sigma_精简方案_原理与实现.md)；v1–v5 历史记录与完整测试集读取披露见 [`docs/sigma-target/误差方差优化_v2.md`](docs/sigma-target/误差方差优化_v2.md)。
+- **OOF（50 个开发实验）**：逐气体 3σ **9.31 / 4.95 / 8.16**，宏平均 **7.47%**（旧方案 14.73%）；
+- **12 点锁定测试集（连续回归，第 7 次评估，已在文档披露）**：逐气体 **6.46 / 5.71 / 9.16**，宏平均 **7.11%**，全部 <10%（5% 目标未达到，NH3 5.71%）；
+- **62 点合并口径**（50 OOF + 12 测试，教师 `error_analysis` 原始图口径）：逐气体 3σ = **8.86 / 5.05 / 8.59**（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_noridge_all62_error_sigma_by_gas.png`](artifacts/3sigma_noridge/figs/fig_noridge_all62_error_sigma_by_gas.png) 与 [`fig_noridge_vs_baseline_all62.png`](artifacts/3sigma_noridge/figs/fig_noridge_vs_baseline_all62.png)（PNG+SVG）；
+- 训练入口 `--low-conc-power`（单值或 `H2,NH3,NO2` 三值），评估入口 `python -m tcn_union.evaluation.ensemble_evaluate --clip-to-development-range`（模块已不含 Ridge 代码）；
+- 旧 Ridge 评估代码、v1–v5 迭代产物/脚本/文档已清理（历史保留在 git）；全量测试 **67 个通过**；
+- 原理、实现、OOF 筛选、7 次测试读取披露与复现命令见 [`docs/sigma-target/3sigma_方案.md`](docs/sigma-target/3sigma_方案.md)。
 
 ## GPU / ROCm 支持
 

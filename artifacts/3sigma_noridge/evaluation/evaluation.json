@@ -1,5 +1,5 @@
 {
-  "protocol": "locked 12-run test; hybrid candidate = TCN ensemble mean mixed with dev-fitted manual57-feature Ridge (log target); fused predictions clipped to development label range; test read once per candidate version",
+  "protocol": "locked 12-run test; candidate = TCN ensemble mean over model dirs and seeds; predictions clipped to development label range; no Ridge; test read once per candidate version",
   "test_n": 12,
   "locked_test_runs": [
     "data/2.csv",
@@ -28,29 +28,7 @@
     "artifacts/3sigma_noridge/final/p10/noise_gan",
     "artifacts/3sigma_noridge/final/q/noise_gan"
   ],
-  "ridge_weight": 0.0,
   "clip_to_development_range": true,
-  "ridge": {
-    "alpha": 0.01,
-    "target_space": "log",
-    "train_runs": 50,
-    "feature_version": "manual57-v1",
-    "features_per_gas": 19,
-    "n_features": 57,
-    "abs_seconds": [
-      0.0,
-      1.0,
-      2.0,
-      5.0,
-      10.0
-    ],
-    "delta_seconds": [
-      2.0,
-      5.0,
-      10.0
-    ],
-    "slope_lag_seconds": 1.0
-  },
   "development_ranges": {
     "H2": 24000.0,
     "NH3": 40.0,
@@ -212,45 +190,6 @@
       "macro_NMAE": 0.01234691167477539,
       "macro_MAPE_percent": 1.6659895987198865,
       "macro_MAPE_null_reason": null
-    },
-    {
-      "model": "ridge",
-      "window_seconds": 10,
-      "seed": "ensemble",
-      "n": 12,
-      "H2": {
-        "MAE": 963.5101768164641,
-        "RMSE": 1233.3024900120226,
-        "R2": 0.9738753525060521,
-        "R2_null_reason": null,
-        "NMAE": 0.04014625736735267,
-        "NRMSE": 0.05138760375050094,
-        "MAPE_percent": 6.064278824469913,
-        "MAPE_null_reason": null
-      },
-      "NH3": {
-        "MAE": 0.55135573063084,
-        "RMSE": 0.6528420271916857,
-        "R2": 0.9971050381794644,
-        "R2_null_reason": null,
-        "NMAE": 0.013783893265771,
-        "NRMSE": 0.016321050679792143,
-        "MAPE_percent": 1.8797332531655158,
-        "MAPE_null_reason": null
-      },
-      "NO2": {
-        "MAE": 0.2233524290731165,
-        "RMSE": 0.32228466817997553,
-        "R2": 0.986833708928241,
-        "R2_null_reason": null,
-        "NMAE": 0.027919053634139563,
-        "NRMSE": 0.04028558352249694,
-        "MAPE_percent": 3.5443845891770245,
-        "MAPE_null_reason": null
-      },
-      "macro_NMAE": 0.027283068089087745,
-      "macro_MAPE_percent": 3.8294655556041506,
-      "macro_MAPE_null_reason": null
     }
   ],
   "three_sigma": [
@@ -289,15 +228,6 @@
       "NH3": 5.711496966181615,
       "NO2": 9.15913299780561,
       "macro": 7.110999140022083
-    },
-    {
-      "model": "ridge",
-      "window_seconds": 10,
-      "seed": "ensemble",
-      "H2": 19.16107240322661,
-      "NH3": 7.001603456574019,
-      "NO2": 14.84307165385485,
-      "macro": 13.668582504551827
     }
   ],
   "outputs": {

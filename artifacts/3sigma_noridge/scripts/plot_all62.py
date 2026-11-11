@@ -1,12 +1,12 @@
-"""精简方案（lean）的 62 点误差散点图：50 个 OOF + 12 个锁定测试。
+"""无 Ridge 方案的 62 点误差散点图：50 个 OOF + 12 个锁定测试。
 
-lean 流水线 = 单配置（逐气体目标 `log,none,log` + 逐气体头 + 边缘扩充 4×，
-噪声 0.1× + VAE 合成 3×）× 3 seed → Ridge 混合（57 维特征，w=0.4，
-alpha=0.01）→ 裁剪到开发集浓度范围。
+无 Ridge 流水线 = 单配置（逐气体目标 `log,none,log` + 逐气体头 + 边缘扩充 4×，
+噪声 0.1× + VAE 合成 3× + 低浓度损失加权）× 3 seed → 逐 seed 预测平均 →
+裁剪到开发集浓度范围（不使用 Ridge）。
 
 输出（PNG+SVG）：
-- `artifacts/3sigma/lean/figs/fig_lean_all62_error_sigma_by_gas.{png,svg}`
-- `artifacts/3sigma/lean/figs/fig_lean_vs_baseline_all62.{png,svg}`
+- `artifacts/3sigma_noridge/figs/fig_noridge_all62_error_sigma_by_gas.{png,svg}`
+- `artifacts/3sigma_noridge/figs/fig_noridge_vs_baseline_all62.{png,svg}`
 以及 `all62_predictions.csv`、`all62_error_stats.csv`。
 """
 from __future__ import annotations
@@ -25,41 +25,34 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from tcn_union.evaluation.evaluate import _manifest
-from tcn_union.evaluation.hybrid_evaluate import (
-    _clip_to_development_range,
-    _fit_ridge,
-    _predict_ridge,
-    _ridge_features_for_rows,
-)
+from tcn_union.evaluation.ensemble_evaluate import _clip_to_development_range
 
 GASES = ("H2", "NH3", "NO2")
 COLORS = {"H2": "#1F77B4", "NH3": "#F2A900", "NO2": "#D2691E"}
 MARKERS = {"H2": "o", "NH3": "^", "NO2": "s"}
 SEEDS = (20260923, 20260924, 20260925)
-RIDGE_WEIGHT = 0.4
-RIDGE_ALPHA = 0.01
 
-LEAN = ROOT / "artifacts/3sigma/lean"
-LEAN_OOF = LEAN / "oof"
-LEAN_TEST = LEAN / "evaluation/test_predictions.csv"
+NORIDGE = ROOT / "artifacts/3sigma_noridge"
+NORIDGE_OOF = NORIDGE / "oof"
+NORIDGE_TEST = NORIDGE / "evaluation/test_predictions.csv"
 BASELINE_OOF = ROOT / "artifacts/final_vae_hybrid/noise_gan/oof.csv"
 BASELINE_TEST = ROOT / "artifacts/final_vae_hybrid/evaluation/test_predictions.csv"
-FIGS = LEAN / "figs"
+FIGS = NORIDGE / "figs"
 
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = ["Source Han Sans CN", "Microsoft YaHei", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
 
 
-def _hybrid_oof() -> pd.DataFrame:
-    """lean 3 seed 的 TCN 平均 + 交叉拟合 Ridge + 裁剪，得到 50 行 OOF。"""
+def _oof_frame() -> pd.DataFrame:
+    """无 Ridge：3 seed TCN 预测平均 + 裁剪，得到 50 行 OOF。"""
     dev_rows, _ = _manifest(ROOT / "artifacts/splits/manifest.csv")
     files = [row["file"] for row in dev_rows]
     folds = np.array([int(row["fold"]) for row in dev_rows])
     truth = np.array([row["_labels"] for row in dev_rows], dtype=float)
 
     frames = [
-        pd.read_csv(LEAN_OOF / f"seed_{seed}/noise_gan/oof.csv").set_index("file")
+        pd.read_csv(NORIDGE_OOF / f"seed_{seed}/noise_gan/oof.csv").set_index("file")
         for seed in SEEDS
     ]
     tcn = np.stack(
@@ -72,22 +65,14 @@ def _hybrid_oof() -> pd.DataFrame:
         ],
         axis=1,
     )
-    features = _ridge_features_for_rows(dev_rows)
-    ridge = np.zeros_like(truth)
-    for fold in range(5):
-        train = folds != fold
-        validation = folds == fold
-        model = _fit_ridge(features[train], truth[train], alpha=RIDGE_ALPHA)
-        ridge[validation] = _predict_ridge(model, features[validation])
-    hybrid = (1.0 - RIDGE_WEIGHT) * tcn + RIDGE_WEIGHT * ridge
-    hybrid = _clip_to_development_range(hybrid, truth)
+    prediction = _clip_to_development_range(tcn, truth)
     return pd.DataFrame(
         {
             "file": files,
             "source": "OOF",
             "fold": folds,
             **{f"{gas}_true": truth[:, index] for index, gas in enumerate(GASES)},
-            **{f"{gas}_pred": hybrid[:, index] for index, gas in enumerate(GASES)},
+            **{f"{gas}_pred": prediction[:, index] for index, gas in enumerate(GASES)},
         }
     )
 
@@ -150,7 +135,7 @@ def _draw_panel(panel, error: np.ndarray, test_start: int, marker: str, color: s
     return {"mean": mean, "sigma": sigma, "test_sigma": test_sigma}
 
 
-def _lean_figure(combined: pd.DataFrame, test_start: int) -> dict[str, dict[str, float]]:
+def _noridge_figure(combined: pd.DataFrame, test_start: int) -> dict[str, dict[str, float]]:
     figure, panels = plt.subplots(2, 2, figsize=(10.6, 8.4), constrained_layout=True)
     pooled = np.concatenate([_relative(combined, gas) for gas in GASES])
     stats: dict[str, dict[str, float]] = {}
@@ -203,11 +188,11 @@ def _lean_figure(combined: pd.DataFrame, test_start: int) -> dict[str, dict[str,
     panels[0, 0].set_ylabel("相对误差 (%)", fontsize=8.5)
     panels[1, 0].set_ylabel("相对误差 (%)", fontsize=8.5)
     figure.suptitle(
-        "精简方案（lean）：全部 62 组相对误差分布（10 秒；50 OOF + 12 锁定测试）",
+        "无 Ridge 方案（TCN × 3 seed + 裁剪）：全部 62 组相对误差分布（10 秒；50 OOF + 12 锁定测试）",
         fontsize=11,
     )
     for suffix in ("png", "svg"):
-        path = FIGS / f"fig_lean_all62_error_sigma_by_gas.{suffix}"
+        path = FIGS / f"fig_noridge_all62_error_sigma_by_gas.{suffix}"
         figure.savefig(path, dpi=260, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
     return stats
@@ -217,7 +202,7 @@ def _comparison_figure(baseline: pd.DataFrame, lean: pd.DataFrame, test_start: i
     figure, panels = plt.subplots(2, 4, figsize=(13.2, 5.8), constrained_layout=True)
     methods = (
         ("旧方案（PCA-VAE 10s，3 seed 集成）", baseline, False),
-        ("精简方案（单配置 + 3 seed + Ridge + 裁剪）", lean, True),
+        ("无 Ridge 方案（单配置 TCN × 3 seed + 裁剪）", lean, True),
     )
     limits = [0.0, 0.0, 0.0, 0.0]
     for row, (method, frame, filled) in enumerate(methods):
@@ -271,11 +256,11 @@ def _comparison_figure(baseline: pd.DataFrame, lean: pd.DataFrame, test_start: i
             panels[row, column].set_ylim(-limit, limit)
     panels[1, 0].set_xlabel("实验序号（0–49 OOF，50–61 锁定测试）", fontsize=8)
     figure.suptitle(
-        "旧方案 vs 精简方案：全部 62 组相对误差分布（底色 = 12 个锁定测试点）",
+        "旧方案 vs 无 Ridge 方案：全部 62 组相对误差分布（底色 = 12 个锁定测试点）",
         fontsize=11,
     )
     for suffix in ("png", "svg"):
-        path = FIGS / f"fig_lean_vs_baseline_all62.{suffix}"
+        path = FIGS / f"fig_noridge_vs_baseline_all62.{suffix}"
         figure.savefig(path, dpi=250, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
     plt.close(figure)
@@ -323,27 +308,27 @@ def _stats_rows(frame: pd.DataFrame, test_start: int) -> list[dict[str, object]]
 
 def main() -> None:
     FIGS.mkdir(parents=True, exist_ok=True)
-    if not LEAN_TEST.is_file():
-        raise SystemExit(f"缺少 lean 测试预测：{LEAN_TEST}，请先运行 hybrid_evaluate")
+    if not NORIDGE_TEST.is_file():
+        raise SystemExit(f"缺少无 Ridge 测试预测：{NORIDGE_TEST}，请先运行 tcn_union.evaluation.ensemble_evaluate")
 
-    lean_oof = _hybrid_oof()
-    lean = _combined(lean_oof, _rows_from_test(LEAN_TEST, "candidate"))
+    noridge_oof = _oof_frame()
+    lean = _combined(noridge_oof, _rows_from_test(NORIDGE_TEST, "candidate"))
     baseline_oof = pd.read_csv(BASELINE_OOF).assign(source="OOF")
     baseline = _combined(baseline_oof, _rows_from_test(BASELINE_TEST, "candidate"))
     test_start = int((lean["source"] == "OOF").sum())
     if test_start != 50 or len(lean) != 62:
         raise SystemExit(f"预期 50+12 行，实际 {test_start}+{len(lean) - test_start}")
 
-    stats = _lean_figure(lean, test_start)
+    stats = _noridge_figure(lean, test_start)
     _comparison_figure(baseline, lean, test_start)
 
     lean[["file", "source", *[f"{gas}_true" for gas in GASES], *[f"{gas}_pred" for gas in GASES]]].to_csv(
-        LEAN / "all62_predictions.csv", index=False
+        NORIDGE / "all62_predictions.csv", index=False
     )
     stats_rows = _stats_rows(lean, test_start)
-    pd.DataFrame(stats_rows).to_csv(LEAN / "all62_error_stats.csv", index=False)
+    pd.DataFrame(stats_rows).to_csv(NORIDGE / "all62_error_stats.csv", index=False)
 
-    print("\n=== 精简方案 62 点统计 ===")
+    print("\n=== 无 Ridge 方案 62 点统计 ===")
     print(f"{'gas':<6}{'scope':<8}{'n':>4}{'mean':>9}{'sigma':>9}{'3σ':>9}{'MAPE':>9}")
     for row in stats_rows:
         print(
@@ -355,8 +340,8 @@ def main() -> None:
             f"{gas}: 均值={item['mean']:+.2f}%  σ={item['sigma']:.2f}%  "
             f"全部3σ={3 * item['sigma']:.2f}%  测试12点3σ={item['test_sigma']:.2f}%"
         )
-    print(f"\nWrote {LEAN / 'all62_predictions.csv'}")
-    print(f"Wrote {LEAN / 'all62_error_stats.csv'}")
+    print(f"\nWrote {NORIDGE / 'all62_predictions.csv'}")
+    print(f"Wrote {NORIDGE / 'all62_error_stats.csv'}")
 
 
 if __name__ == "__main__":
