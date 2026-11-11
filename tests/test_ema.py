@@ -51,38 +51,5 @@ class EmaTrainingTest(unittest.TestCase):
             )
 
 
-class GasLossWeightTest(unittest.TestCase):
-    def _run(self, weights: tuple[float, float, float] | None):
-        rng = np.random.default_rng(2)
-        x = rng.normal(size=(6, 6, 51)).astype(np.float32)
-        y = rng.normal(size=(6, 3)).astype(np.float32)
-        return _train_network(
-            x,
-            y,
-            None,
-            None,
-            y,
-            1,
-            123,
-            torch.device("cpu"),
-            False,
-            gas_loss_weights=weights,
-        )
-
-    def test_valid_gas_weights_train_finite(self) -> None:
-        model, stats, epochs, score, prediction = self._run((1.0, 1.0, 2.0))
-        self.assertEqual(epochs, 1)
-        self.assertIsNone(score)
-        self.assertIsNone(prediction)
-        for parameter in model.parameters():
-            self.assertTrue(torch.isfinite(parameter).all())
-        self.assertTrue(np.isfinite(stats["x_mean"]).all())
-
-    def test_invalid_gas_weights_rejected(self) -> None:
-        for weights in ((1.0, 1.0), (-1.0, 1.0, 1.0), (0.0, 0.0, 0.0)):
-            with self.assertRaises(ValueError):
-                self._run(weights)
-
-
 if __name__ == "__main__":
     unittest.main()

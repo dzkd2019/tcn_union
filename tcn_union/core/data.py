@@ -150,17 +150,16 @@ def make_features(
     """构造固定时长、严格因果的 TCN 输入特征。
 
     参数：`time[N]` 和 `responses[N,3]` 描述时序；`seconds` 仅允许 5 或
-    10 秒；`mode` 为 `delta`、`raw_delta` 或 `raw_delta_rel`。
+    10 秒；`mode` 为 `delta` 或 `raw_delta`。
     返回：float32 数组 `[channels,samples]`，终点包含在前缀中，因此 5/10
     秒输入分别有 26/51 个采样点。相对增量使用
     `(response(t)-response(0))/max(|response(0)|,1e-8)`；`raw_delta` 还拼接
-    三路原始响应；`raw_delta_rel` 为 9 通道，依次为三路原始响应、三路绝对
-    增量 `response(t)-response(0)`、三路相对增量。相对增量减弱传感器幅度
-    尺度影响，保留原始通道则允许模型使用初始响应中可能有用的静态信息，
-    绝对增量提供未归一化的幅度变化；各模式分别训练以做消融比较。
+    三路原始响应，`delta` 只保留三路相对增量。相对增量减弱传感器幅度尺度
+    影响，保留原始通道则允许模型使用初始响应中可能有用的静态信息；两种
+    模式分别训练以做消融比较。
     """
-    if mode not in {"raw_delta", "delta", "raw_delta_rel"}:
-        raise ValueError("mode must be 'raw_delta', 'delta' or 'raw_delta_rel'")
+    if mode not in {"raw_delta", "delta"}:
+        raise ValueError("mode must be 'raw_delta' or 'delta'")
     if seconds not in {5.0, 10.0}:
         raise ValueError("seconds must be 5.0 or 10.0")
     time = np.asarray(time, dtype=np.float64)
@@ -192,16 +191,12 @@ def make_features(
     if prefix_time.size != expected_samples or abs(prefix_time[-1] - seconds) > TIME_TOLERANCE:
         raise ValueError(f"{seconds} s prefix does not have the expected 0.2 s sampling")
     baseline = prefix[0]
-    absolute_delta = prefix - baseline
-    relative_delta = absolute_delta / np.maximum(np.abs(baseline), 1e-8)
-    if mode == "raw_delta":
-        channels = np.concatenate((prefix.T, relative_delta.T), axis=0)
-    elif mode == "raw_delta_rel":
-        channels = np.concatenate(
-            (prefix.T, absolute_delta.T, relative_delta.T), axis=0
-        )
-    else:
-        channels = relative_delta.T
+    relative_delta = (prefix - baseline) / np.maximum(np.abs(baseline), 1e-8)
+    channels = (
+        np.concatenate((prefix.T, relative_delta.T), axis=0)
+        if mode == "raw_delta"
+        else relative_delta.T
+    )
     return np.asarray(channels, dtype=np.float32)
 
 

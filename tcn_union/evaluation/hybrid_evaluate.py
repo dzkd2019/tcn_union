@@ -201,7 +201,7 @@ def _tcn_predictions(
     返回：`(seed 到预测[runs,3] 的映射, 特征模式描述)`。集成覆盖所有目录中
     实际存在的“目录 × 请求 seed”，同一 seed 在多个目录出现时取算术平均，因此
     CSV 中每个 seed 只有一行；允许不同目录使用不同特征模式（如 raw_delta 与
-    raw_delta_rel 混合集成），按各自模式构造输入；窗口不一致时显式报错。
+    delta 混合集成），按各自模式构造输入；窗口不一致时显式报错。
     """
     per_seed: dict[int, list[np.ndarray]] = {seed: [] for seed in seeds}
     modes: set[str] = set()

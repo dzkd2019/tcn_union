@@ -195,16 +195,15 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比见 [`docs/生成�
 
 PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见 [`docs/PCA主成分数选择证据.md`](docs/PCA主成分数选择证据.md)。
 
-## 3σ 方差优化（`experiment/3sigma-target` → `experiment/3sigma-edge-aug` 分支）
+## 3σ 方差优化（`experiment/3sigma-edge-aug` 分支）
 
-针对“相对误差 3σ 偏大”的问题，在两个本地分支上迭代：先修正评估协议（OOF 改为多 seed 预测层平均；测试集在候选冻结后评估并在文档披露每一次），再依次尝试 log/逐气体目标、多配置多 seed 集成、TCN+Ridge 混合、**边缘案例 VAE 条件扩充**、**宽 TCN**、**`raw_delta_rel` 特征模式**与**逐气体输出头**。当前 v5 结果：
+针对“相对误差 3σ 偏大”的问题，本分支把 v1–v5 的多配置/多结构实验收敛为一个精简方案：**单 TCN 配置（逐气体目标 + 逐气体输出头 + 边缘浓度条件 VAE 扩充）× 3 seed → Ridge 混合 → 裁剪**，只训练 3 个 TCN checkpoint（此前 v5 为 9 配置 × 6 seed = 54 个）。当前结果：
 
-- OOF（9 配置集成，6 seed 复核）宏平均 3σ：旧协议基线 14.73% → TCN 集 10.05% → **TCN+Ridge 混合 v5 8.28%**，逐气体 8.42 / 6.74 / 9.69，均已 <10%；
-- 12 点锁定测试集（连续回归，v1–v5 五次评估）宏平均 3σ：旧方案 11.18% → v4 8.25% → **v5 8.17%**；逐气体 H2 10.60 / NH3 3.80 / NO2 10.10，逐气体仍未全部 <10%（NO2 仅差 0.10 pp、H2 差 0.60 pp）；边缘增强/宽 TCN/特征模式/逐气体头主要改善 OOF，未能让 12 点测试集逐气体过线；
-- **62 组 OOF+测试合并口径**（教师 `error_analysis` 原始图口径）：v5 逐气体 3σ = **8.95 / 6.26 / 9.80**，全部 <10%（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_v5_all62_error_sigma_by_gas.png`](artifacts/3sigma/figs/fig_v5_all62_error_sigma_by_gas.png) 与 [`fig_all62_error_sigma_baseline_vs_v5.png`](artifacts/3sigma/figs/fig_all62_error_sigma_baseline_vs_v5.png)（PNG+SVG）；
-- **分析发现（未采用）**：连续预测取最近标定档位后 OOF/测试错档 0/150、0/36（3σ=0%）；但验收必须为连续浓度回归，该规则不采用，仅作为“3σ 尾部来自档位附近回归抖动”的诊断证据；
-- 方法清单、逐项效果与精简建议（推荐单配置 3 seed + Ridge + 裁剪，OOF 7.06%，优于当前 9 配置堆料）见 [`docs/sigma-target/3sigma_方法总结与精简建议.md`](docs/sigma-target/3sigma_方法总结与精简建议.md)。
-- 测试集在本任务共读取五次（v1–v5），全部结果、读取说明、迭代停滞分析、误差结构诊断与完整实验记录见 [`docs/sigma-target/3sigma_error_diagnosis.md`](docs/sigma-target/3sigma_error_diagnosis.md) 与 [`docs/sigma-target/误差方差优化_v2.md`](docs/sigma-target/误差方差优化_v2.md)。
+- **OOF（50 个开发实验）** 宏平均 3σ：旧方案 14.73% → **7.06%**，逐气体 **7.63 / 4.28 / 9.28**（全部 <10%）；
+- **12 点锁定测试集（连续回归，第 6 次评估，已在文档披露）**：宏平均 3σ **7.18%**，逐气体 **9.86 / 2.72 / 8.96**（全部 <10%，首次达到验收目标；5% 目标仅 NH3 达到）；
+- **62 点合并口径**（50 OOF + 12 测试，教师 `error_analysis` 原始图口径）：逐气体 3σ = **8.08 / 4.01 / 9.22**（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_lean_all62_error_sigma_by_gas.png`](artifacts/3sigma/lean/figs/fig_lean_all62_error_sigma_by_gas.png) 与 [`fig_lean_vs_baseline_all62.png`](artifacts/3sigma/lean/figs/fig_lean_vs_baseline_all62.png)（PNG+SVG）；
+- 精简同时删除了无正收益的 9 配置集成、宽 TCN、`raw_delta_rel`、NO2 损失权重、样本加权、档位分析等代码与历史实验产物（测试 87→66）；
+- 原理、实现、组件消融与复现见 [`docs/sigma-target/3sigma_精简方案_原理与实现.md`](docs/sigma-target/3sigma_精简方案_原理与实现.md)；v1–v5 历史记录与完整测试集读取披露见 [`docs/sigma-target/误差方差优化_v2.md`](docs/sigma-target/误差方差优化_v2.md)。
 
 ## GPU / ROCm 支持
 

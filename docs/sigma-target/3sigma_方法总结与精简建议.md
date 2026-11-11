@@ -2,9 +2,9 @@
 
 > 分支：`experiment/3sigma-edge-aug`  
 > 数据口径：50 个开发实验 OOF（多 seed 预测层平均）；12 个锁定测试实验共读取 5 次，本文不新增读取  
-> 复现脚本：`artifacts/3sigma/scripts/ablate_3sigma_methods.py`（OOF 消融）、`plot_method_summary.py`（图）  
-> 原始结果：`artifacts/3sigma/method_ablation.json`  
-> 图（PNG+SVG）：`artifacts/3sigma/figs/fig_3sigma_method_summary.{png,svg}`
+> 注：本文是精简前的分析记录，精简后的实现与最终结果见 [`3sigma_精简方案_原理与实现.md`](3sigma_精简方案_原理与实现.md)。文中提到的 `--channels`、`--feature-mode raw_delta_rel`、`--gas-loss-weights`、`--sample-weight-powers`、`level_decision` 等已在精简提交中删除；如需复现这些实验，请回到精简前的 git 提交。  
+> 原始结果：`artifacts/3sigma/ablation/method_ablation.json`；消融脚本随历史产物清理已删除，数字保留在 JSON 与 git 历史中。  
+> 图（PNG+SVG）：`artifacts/3sigma/ablation/fig_3sigma_method_summary.{png,svg}`
 
 ## 0. 结论先行
 
@@ -17,7 +17,7 @@
 3. **精简后的方法链**（单配置）：噪声 0.1× + PCA-VAE 合成 3× → 逐气体目标 + 逐气体头 + 边缘浓度条件扩充 4× → 3 seed 平均 → Ridge 混合（w=0.4，alpha=0.01）→ 裁剪。OOF 7.06%，比 v5 少 18 倍模型、少 8 个配置、少 3 个结构开关，且**OOF 更好**。
 4. **测试集情况**：v5（9 配置候选）测试宏 8.17%，逐气体 H2 10.60 / NH3 3.80 / NO2 10.10，仍未全部 <10%。**精简方案没有在现有 12 点测试集上评估**（已读 5 次，不应再读第 6 次）；其测试表现必须用新的独立锁定集验证，不能把 OOF 7.06% 直接当测试结论。
 
-![3σ 方法路径与精简对比](../../artifacts/3sigma/figs/fig_3sigma_method_summary.png)
+![3σ 方法路径与精简对比](../../artifacts/3sigma/ablation/fig_3sigma_method_summary.png)
 
 ## 1. 指标与评估口径
 
@@ -259,17 +259,14 @@ uv run --no-sync python -m tcn_union.evaluation.hybrid_evaluate \
 ## 6. 复现
 
 ```bash
-# 方法消融（OOF，不读测试集）
-uv run --no-sync python artifacts/3sigma/scripts/ablate_3sigma_methods.py
-
-# 汇总图（PNG+SVG）
+# 方法消融汇总图（PNG+SVG；读取 ablation/method_ablation.json）
 uv run --no-sync python artifacts/3sigma/scripts/plot_method_summary.py
 ```
 
 产物：
 
-- `artifacts/3sigma/method_ablation.json`：全部消融数字；
-- `artifacts/3sigma/figs/fig_3sigma_method_summary.{png,svg}`：三联图；
+- `artifacts/3sigma/ablation/method_ablation.json`：全部消融数字；
+- `artifacts/3sigma/ablation/fig_3sigma_method_summary.{png,svg}`：三联图；
 - 历史完整结果仍见 [`误差方差优化_v2.md`](误差方差优化_v2.md)。
 
 ## 7. 一句话总结

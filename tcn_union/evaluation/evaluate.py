@@ -236,9 +236,8 @@ def _tcn_predict(checkpoint_path: Path, features: np.ndarray, device: torch.devi
     参数：`checkpoint_path` 是最终模型文件；`features` 为
     `[runs,channels,time]` 特征；`device` 是计算设备。
     返回：`(预测[runs,3], checkpoint内容)`。输入使用训练保存的均值/标准差，
-    输出使用标签统计量反标准化；TCN 宽度由 `architecture.channels` 决定
-    （缺键时按 16 处理，兼容旧 checkpoint），输出头由 `architecture.head`
-    决定（`"per_gas"` 时重建逐气体头，缺键按 `"shared"` 处理）；checkpoint
+    输出使用标签统计量反标准化；输出头由 `architecture.head` 决定
+    （`"per_gas"` 时重建逐气体头，缺键按 `"shared"` 处理）；checkpoint
     的 `target_transform` 为单值或逐气体配置时，由 `_restore_target` 逐气体
     取指数还原到原始浓度（旧 checkpoint 缺该键时按 `none` 处理）；
     eval/no_grad 确保推理时 dropout 关闭且不建梯度。
@@ -250,7 +249,6 @@ def _tcn_predict(checkpoint_path: Path, features: np.ndarray, device: torch.devi
     architecture = checkpoint["architecture"]
     model = GasTCN(
         int(architecture["in_channels"]),
-        channels=int(architecture.get("channels", 16)),
         per_gas_head=architecture.get("head", "shared") == "per_gas",
     )
     model.load_state_dict(checkpoint["state_dict"])

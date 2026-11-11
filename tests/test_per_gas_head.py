@@ -21,11 +21,11 @@ from tcn_union.evaluation.evaluate import _tcn_predict
 from tcn_union.training.train import _save_checkpoint, _train_network
 
 
-def _identity_stats(channels: int) -> dict[str, np.ndarray]:
+def _identity_stats(in_channels: int) -> dict[str, np.ndarray]:
     """恒等 z-score 统计量，使推理期望可直接由模型输出得到。"""
     return {
-        "x_mean": np.zeros(channels, dtype=np.float32),
-        "x_std": np.ones(channels, dtype=np.float32),
+        "x_mean": np.zeros(in_channels, dtype=np.float32),
+        "x_std": np.ones(in_channels, dtype=np.float32),
         "y_mean": np.zeros(3, dtype=np.float32),
         "y_std": np.ones(3, dtype=np.float32),
     }
@@ -88,7 +88,7 @@ class PerGasHeadModelTest(unittest.TestCase):
             self.assertIn(name, per_gas_state)
         self.assertNotIn("head.0.weight", per_gas_state)
         for head in per_gas.heads:
-            # 逐气体头的输入是 TCN 主干隐藏宽度 channels（默认 16），输出单气体。
+            # 逐气体头的输入是 TCN 主干固定隐藏宽度 16，输出单气体。
             self.assertEqual(tuple(head[0].weight.shape), (16, 16))
             self.assertEqual(tuple(head[2].weight.shape), (1, 16))
 
@@ -101,14 +101,6 @@ class PerGasHeadModelTest(unittest.TestCase):
                 [head(hidden[:, :, -1]) for head in model.heads], dim=1
             )
             torch.testing.assert_close(model(x), expected)
-
-    def test_per_gas_head_combines_with_channel_width(self) -> None:
-        model = GasTCN(9, channels=32, per_gas_head=True).eval()
-        self.assertEqual((model.in_channels, model.channels), (9, 32))
-        self.assertEqual(tuple(model.heads[0][0].weight.shape), (16, 32))
-        with torch.no_grad():
-            output = model(torch.randn(2, 9, 51))
-        self.assertEqual(tuple(output.shape), (2, 3))
 
     def test_default_matches_explicit_shared_head(self) -> None:
         torch.manual_seed(7)
