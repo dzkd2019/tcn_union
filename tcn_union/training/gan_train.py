@@ -55,6 +55,28 @@ MODES = {
 }
 
 
+def _edge_case_labels(rows: list[dict[str, Any]]) -> np.ndarray:
+    """返回训练行中“任一气体处于开发集最小/最大浓度档位”的标签组合（去重）。
+
+    边缘档位是相对误差方差的集中来源（低浓度小分母、高浓度端系统性偏差），
+    后续用 VAE 按这些标签条件采样，相当于给边缘案例补充重复试验。
+    """
+    labels = np.stack(
+        [np.asarray(row["_labels"], dtype=np.float64) for row in rows]
+    )
+    lower = labels.min(axis=0)
+    upper = labels.max(axis=0)
+    is_edge = np.zeros(len(labels), dtype=bool)
+    for axis in range(labels.shape[1]):
+        is_edge |= np.isclose(labels[:, axis], lower[axis]) | np.isclose(
+            labels[:, axis], upper[axis]
+        )
+    edge = labels[is_edge]
+    if edge.size == 0:
+        return np.empty((0, labels.shape[1]), dtype=np.float64)
+    return np.unique(edge, axis=0)
+
+
 def _generative_features(
     rows: list[dict[str, Any]],
     count: int,
@@ -65,8 +87,15 @@ def _generative_features(
     generator: str,
     seed: int,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray]:
-    """在给定训练行上拟合指定生成器，并生成 TCN 可用的特征。"""
+    edge_copies: int = 0,
+    feature_mode: str = MODE,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """在给定训练行上拟合指定生成器，并生成 TCN 可用的特征。
+
+    `edge_copies>0` 时（仅 VAE）额外按边缘浓度组合条件采样：每个边缘组合
+    复制 `edge_copies` 次，作为“边缘案例的重复试验”拼进合成样本。
+    返回 `(features, labels, edge_count)`。
+    """
     if generator == "vae":
         model = fit_vae(rows, vae_config, seed, device)
     elif generator == "gan":
@@ -80,9 +109,32 @@ def _generative_features(
     responses, labels = model.sample(count, seed + 1)
     times = np.arange(round(config.seconds / TIME_STEP_SECONDS) + 1) * TIME_STEP_SECONDS
     features = np.stack(
-        [make_features(times, response.T, config.seconds, MODE) for response in responses]
+        [make_features(times, response.T, config.seconds, feature_mode) for response in responses]
     )
-    return features.astype(np.float32), labels.astype(np.float32)
+    edge_count = 0
+    if edge_copies > 0:
+        if generator != "vae":
+            raise ValueError("edge_copies 目前只支持 --generator vae")
+        edge_labels = _edge_case_labels(rows)
+        if edge_labels.size > 0:
+            repeated = np.repeat(edge_labels, edge_copies, axis=0)
+            edge_responses, edge_labels_out = model.sample(
+                len(repeated), seed + 2, condition_labels=repeated
+            )
+            edge_features = np.stack(
+                [
+                    make_features(times, response.T, config.seconds, feature_mode)
+                    for response in edge_responses
+                ]
+            )
+            features = np.concatenate((features, edge_features), axis=0)
+            labels = np.concatenate((labels, edge_labels_out.astype(np.float32)), axis=0)
+            edge_count = len(repeated)
+    return (
+        features.astype(np.float32),
+        labels.astype(np.float32),
+        edge_count,
+    )
 
 
 def _augmented_arrays(
@@ -99,25 +151,31 @@ def _augmented_arrays(
     generator: str,
     seed: int,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, int, int]:
-    """返回真实训练特征，按需拼上噪声视图和 GAN 合成特征。"""
-    features = _features(rows, seconds, MODE)
+    edge_copies: int = 0,
+    feature_mode: str = MODE,
+) -> tuple[np.ndarray, np.ndarray, int, int, int]:
+    """返回真实训练特征，按需拼上噪声视图和 GAN 合成特征。
+
+    返回 `(x, y, noise_count, gan_count, edge_count)`；gan_count 含边缘复制样本。
+    """
+    features = _features(rows, seconds, feature_mode)
     x = np.stack([features[row["file"]] for row in rows])
     y = np.stack([row["_labels"] for row in rows]).astype(np.float32)
     noise_count = 0
     gan_count = 0
+    edge_count = 0
     if use_noise:
         x_noise, y_noise = noisy_features(
-            rows, seconds, MODE, noise_config, seed + 17
+            rows, seconds, feature_mode, noise_config, seed + 17
         )
         x = np.concatenate((x, x_noise), axis=0)
         y = np.concatenate((y, y_noise), axis=0)
         noise_count = len(x_noise)
     if use_gan:
-        gan_count = max(1, round(synthetic_ratio * len(rows)))
-        x_gan, y_gan = _generative_features(
+        base_gan_count = max(1, round(synthetic_ratio * len(rows)))
+        x_gan, y_gan, edge_count = _generative_features(
             rows,
-            gan_count,
+            base_gan_count,
             gan_config,
             vae_config,
             pca_config,
@@ -125,10 +183,13 @@ def _augmented_arrays(
             generator,
             seed,
             device,
+            edge_copies,
+            feature_mode,
         )
+        gan_count = len(x_gan)
         x = np.concatenate((x, x_gan), axis=0)
         y = np.concatenate((y, y_gan), axis=0)
-    return x, y, noise_count, gan_count
+    return x, y, noise_count, gan_count, edge_count
 
 
 def _fold_metrics(
@@ -174,17 +235,21 @@ def cross_validate(
     synthetic_ratio: float,
     noise_config: NoiseConfig,
     ema_decay: float | None,
+    edge_copies: int = 0,
     max_epochs: int = MAX_EPOCHS,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
     gas_loss_weights: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
+    feature_mode: str = MODE,
+    channels: int = 16,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。
 
     `target_transform` 透传给 ``_train_network``：单值或逐气体配置，log 气体
-    在 log 浓度空间训练和早停，返回的验证预测仍是原始浓度。
+    在 log 浓度空间训练和早停，返回的验证预测仍是原始浓度。`edge_copies>0`
+    时用 VAE 对边缘浓度组合额外条件采样（见 ``_generative_features``）。
     """
     # MODES 决定这一轮是否加噪声/生成样本/辅助头；最终方案是 noise_gan。
     use_noise, use_gan, aux_positions = MODES[mode]
@@ -197,7 +262,7 @@ def cross_validate(
 
         # 增强只作用于训练折；验证折始终保留真实曲线。
         # 噪声和生成器的随机种子都随 fold 改变，避免不同折共用同一批合成样本。
-        x_train, y_train, noise_count, gan_count = _augmented_arrays(
+        x_train, y_train, noise_count, gan_count, edge_count = _augmented_arrays(
             train_rows,
             10.0,
             use_noise,
@@ -211,11 +276,13 @@ def cross_validate(
             generator,
             seed + 1000 * fold,
             device,
+            edge_copies,
+            feature_mode,
         )
         # 前 len(train_rows) 条是真实样本；后面是噪声/合成样本。
         # 早停和 NMAE 的分母仍只用真实训练标签，避免合成标签改变评价尺度。
         y_train_real = y_train[: len(train_rows)]
-        features = _features(val_rows, 10.0, MODE)
+        features = _features(val_rows, 10.0, feature_mode)
         x_val = np.stack([features[row["file"]] for row in val_rows])
         y_val = np.stack([row["_labels"] for row in val_rows]).astype(np.float32)
 
@@ -237,6 +304,7 @@ def cross_validate(
             gas_loss_weights=gas_loss_weights,
             validation_metric=validation_metric,
             target_transform=target_transform,
+            channels=channels,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("五折训练没有产生验证预测")
@@ -246,6 +314,7 @@ def cross_validate(
             "best_epoch": best_epoch,
             "noise_count": noise_count,
             "gan_count": gan_count,
+            "edge_count": edge_count,
             "synthetic_count": noise_count + gan_count,
         }
         row.update(_fold_metrics(y_val, prediction, y_train_real))
@@ -282,6 +351,7 @@ def _summary(fold_scores: list[dict[str, Any]]) -> dict[str, Any]:
         "best_epochs": [int(row["best_epoch"]) for row in fold_scores],
         "noise_counts": [int(row["noise_count"]) for row in fold_scores],
         "gan_counts": [int(row["gan_count"]) for row in fold_scores],
+        "edge_counts": [int(row["edge_count"]) for row in fold_scores],
         "synthetic_counts": [int(row["synthetic_count"]) for row in fold_scores],
     }
 
@@ -307,10 +377,13 @@ def train_final(
     synthetic_ratio: float,
     noise_config: NoiseConfig,
     ema_decay: float | None,
+    edge_copies: int = 0,
     sample_weight_power: float = 0.0,
     sample_weight_powers: tuple[float, float, float] | None = None,
     gas_loss_weights: tuple[float, float, float] | None = None,
     target_transform: str | list[str] = "none",
+    feature_mode: str = MODE,
+    channels: int = 16,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
@@ -320,7 +393,7 @@ def train_final(
     """
     use_noise, use_gan, aux_positions = MODES[mode]
     # 最终训练也只在开发集上构造增强样本。
-    x_dev, y_dev, noise_count, gan_count = _augmented_arrays(
+    x_dev, y_dev, noise_count, gan_count, edge_count = _augmented_arrays(
         dev_rows,
         10.0,
         use_noise,
@@ -334,6 +407,8 @@ def train_final(
         generator,
         seed + 5000,
         device,
+        edge_copies,
+        feature_mode,
     )
     # early_stop=False：最终重训没有验证集，用固定 epochs 训练。
     model, stats, _, _, _ = _train_network(
@@ -353,6 +428,7 @@ def train_final(
         sample_weight_powers=sample_weight_powers,
         gas_loss_weights=gas_loss_weights,
         target_transform=target_transform,
+        channels=channels,
     )
     metadata = {
         "mode": mode,
@@ -368,6 +444,8 @@ def train_final(
         "direct_vae_latent_dim": direct_vae_config.latent_dim if generator == "direct_vae" else None,
         "noise_count": noise_count,
         "gan_count": gan_count,
+        "edge_count": edge_count,
+        "edge_copies": edge_copies,
         "synthetic_count": noise_count + gan_count,
         "aux_positions": list(aux_positions),
         "aux_weight": AUX_WEIGHT if aux_positions else None,
@@ -377,7 +455,7 @@ def train_final(
         output_path,
         model,
         stats,
-        MODE,
+        feature_mode,
         10.0,
         dev_rows,
         seed,
@@ -385,6 +463,7 @@ def train_final(
         device,
         augmentation=metadata,
         target_transform=target_transform,
+        channels=channels,
     )
 
 
@@ -402,10 +481,28 @@ def main() -> None:
         help="全开发集最终重训使用的种子列表（默认与历史协议一致）",
     )
     parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
+    parser.add_argument(
+        "--feature-mode",
+        choices=["raw_delta", "delta", "raw_delta_rel"],
+        default=MODE,
+        help="TCN 输入特征模式（默认 raw_delta；raw_delta_rel 额外含绝对与相对增量）",
+    )
+    parser.add_argument(
+        "--channels",
+        type=int,
+        default=16,
+        help="GasTCN 通道宽度（默认 16）",
+    )
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
     parser.add_argument("--noise-scale", type=float, default=1.0)
     parser.add_argument("--noise-copies", type=int, default=1)
     parser.add_argument("--generator", choices=["gan", "pca", "vae", "direct_vae"], default="gan")
+    parser.add_argument(
+        "--edge-copies",
+        type=int,
+        default=0,
+        help="用 VAE 对边缘浓度组合条件采样的重复次数（0 关闭；仅 --generator vae）",
+    )
     parser.add_argument("--gan-epochs", type=int, default=300)
     parser.add_argument("--vae-components", type=int, default=6)
     parser.add_argument("--vae-latent-dim", type=int, default=4)
@@ -456,6 +553,12 @@ def main() -> None:
         parser.error("--noise-copies 必须为正")
     if args.max_epochs < 1:
         parser.error("--max-epochs 必须为正")
+    if args.edge_copies < 0:
+        parser.error("--edge-copies 不能为负")
+    if args.edge_copies > 0 and args.generator != "vae":
+        parser.error("--edge-copies 目前只支持 --generator vae")
+    if args.channels < 1:
+        parser.error("--channels 必须为正")
     try:
         # 提前校验标签空间配置，避免读到 manifest、开始五折训练后才报错。
         _target_flags(args.target_transform)
@@ -514,7 +617,9 @@ def main() -> None:
         "protocol": "train-fold-only noise/GAN; clean/aux/noise/gan/combined ablation; test untouched",
         "base_seed": args.seed,
         "final_seeds": args.final_seeds,
-        "mode": MODE,
+        "mode": args.feature_mode,
+        "feature_mode": args.feature_mode,
+        "channels": args.channels,
         "synthetic_ratio": args.synthetic_ratio,
         "noise_scale": args.noise_scale,
         "noise_copies": args.noise_copies,
@@ -525,6 +630,7 @@ def main() -> None:
         "vae_beta": args.vae_beta,
         "pca_components": args.pca_components,
         "ema_decay": args.ema_decay,
+        "edge_copies": args.edge_copies,
         "sample_weight_power": args.sample_weight_power,
         "sample_weight_powers": weight_powers,
         "gas_loss_weights": gas_weights,
@@ -547,12 +653,15 @@ def main() -> None:
             args.synthetic_ratio,
             noise_config,
             args.ema_decay,
+            args.edge_copies,
             args.max_epochs,
             sample_weight_power=args.sample_weight_power,
             sample_weight_powers=weight_powers,
             gas_loss_weights=gas_weights,
             validation_metric=args.validation_metric,
             target_transform=args.target_transform,
+            feature_mode=args.feature_mode,
+            channels=args.channels,
         )
         mode_dir = args.output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
@@ -587,10 +696,13 @@ def main() -> None:
                     args.synthetic_ratio,
                     noise_config,
                     args.ema_decay,
+                    args.edge_copies,
                     sample_weight_power=args.sample_weight_power,
                     sample_weight_powers=weight_powers,
                     gas_loss_weights=gas_weights,
                     target_transform=args.target_transform,
+                    feature_mode=args.feature_mode,
+                    channels=args.channels,
                 )
                 print(f"  saved {path}", flush=True)
 

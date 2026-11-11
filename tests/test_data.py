@@ -22,6 +22,46 @@ class DataContractTests(unittest.TestCase):
             self.assertEqual(delta.shape, (3, length))
             np.testing.assert_array_equal(delta[:, 0], np.zeros(3, dtype=np.float32))
 
+    def test_raw_delta_rel_concatenates_raw_absolute_and_relative_delta(self) -> None:
+        time, response, _ = load_run(ROOT / "data/1.csv")
+        raw_delta = make_features(time, response, 10.0, "raw_delta")
+        relative = make_features(time, response, 10.0, "delta")
+        features = make_features(time, response, 10.0, "raw_delta_rel")
+        self.assertEqual(features.shape, (9, 51))
+        self.assertEqual(features.dtype, np.float32)
+        # 前 3 通道与 raw_delta 的原始响应逐位一致，最后 3 通道与现有
+        # 归一化相对增量（delta 模式 / raw_delta 后 3 通道）逐位一致。
+        np.testing.assert_array_equal(features[:3], raw_delta[:3])
+        np.testing.assert_array_equal(features[6:], raw_delta[3:])
+        np.testing.assert_array_equal(features[6:], relative)
+        # 中间 3 通道是未归一化的绝对增量 response(t)-response(0)。
+        absolute = (response[:51] - response[0][None, :]).T.astype(np.float32)
+        np.testing.assert_array_equal(features[3:6], absolute)
+        # t=0 处两类增量都为 0，原始通道等于初值。
+        np.testing.assert_array_equal(features[:3, 0], response[0].astype(np.float32))
+        np.testing.assert_array_equal(features[3:, 0], np.zeros(6, dtype=np.float32))
+
+    def test_legacy_feature_modes_are_bitwise_unchanged(self) -> None:
+        time, response, _ = load_run(ROOT / "data/1.csv")
+        for seconds, samples in ((5.0, 26), (10.0, 51)):
+            prefix = response[:samples]
+            baseline = prefix[0]
+            expected_delta = (
+                (prefix - baseline) / np.maximum(np.abs(baseline), 1e-8)
+            ).T.astype(np.float32)
+            np.testing.assert_array_equal(
+                make_features(time, response, seconds, "delta"), expected_delta
+            )
+            np.testing.assert_array_equal(
+                make_features(time, response, seconds, "raw_delta"),
+                np.concatenate((prefix.T.astype(np.float32), expected_delta), axis=0),
+            )
+
+    def test_unknown_feature_mode_lists_all_supported_modes(self) -> None:
+        time, response, _ = load_run(ROOT / "data/1.csv")
+        with self.assertRaisesRegex(ValueError, "raw_delta_rel"):
+            make_features(time, response, 10.0, "rel")
+
     def test_prediction_prefix_ignores_extra_label_columns(self) -> None:
         source = (ROOT / "data/1.csv").read_text(encoding="utf-8-sig").splitlines()[:28]
         altered = source.copy()

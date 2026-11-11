@@ -198,14 +198,14 @@ def _tcn_predictions(
     参数：`model_dirs` 每个目录下含 ``<seconds>s/seed_<seed>.pt``（可只含部分
     种子）；`test_rows` 是锁定测试实验；`seconds` 是预测窗口；`seeds` 是要
     集成的种子。
-    返回：`(seed 到预测[runs,3] 的映射, 特征模式)`。集成覆盖所有目录中实际
-    存在的“目录 × 请求 seed”，同一 seed 在多个目录出现时取算术平均，因此 CSV
-    中每个 seed 只有一行；任一请求 seed 在所有目录中都缺失、或 checkpoint 的
-    窗口/特征模式不一致时显式报错。
+    返回：`(seed 到预测[runs,3] 的映射, 特征模式描述)`。集成覆盖所有目录中
+    实际存在的“目录 × 请求 seed”，同一 seed 在多个目录出现时取算术平均，因此
+    CSV 中每个 seed 只有一行；允许不同目录使用不同特征模式（如 raw_delta 与
+    raw_delta_rel 混合集成），按各自模式构造输入；窗口不一致时显式报错。
     """
     per_seed: dict[int, list[np.ndarray]] = {seed: [] for seed in seeds}
-    mode: str | None = None
-    test_x: np.ndarray | None = None
+    modes: set[str] = set()
+    features_by_mode: dict[str, np.ndarray] = {}
     for model_dir in model_dirs:
         available = _available_seeds(model_dir, seconds, seeds)
         if not available:
@@ -221,17 +221,15 @@ def _tcn_predictions(
                     f"checkpoint window mismatch: {path} has {checkpoint_seconds}s"
                 )
             checkpoint_mode = str(checkpoint["mode"])
-            if mode is None:
-                mode = checkpoint_mode
-                feature_map = _load_features(test_rows, float(seconds), mode)
-                test_x = np.stack(
+            modes.add(checkpoint_mode)
+            if checkpoint_mode not in features_by_mode:
+                feature_map = _load_features(test_rows, float(seconds), checkpoint_mode)
+                features_by_mode[checkpoint_mode] = np.stack(
                     [feature_map[row["file"]] for row in test_rows]
                 )
-            elif checkpoint_mode != mode:
-                raise ValueError(
-                    f"checkpoint mode mismatch: {path} has {checkpoint_mode}, expected {mode}"
-                )
-            prediction, _ = _tcn_predict(path, test_x, device)
+            prediction, _ = _tcn_predict(
+                path, features_by_mode[checkpoint_mode], device
+            )
             per_seed[seed].append(prediction)
     missing = [seed for seed in seeds if not per_seed[seed]]
     if missing:
@@ -240,7 +238,7 @@ def _tcn_predictions(
         )
     return {
         seed: _mean_predictions(predictions) for seed, predictions in per_seed.items()
-    }, str(mode)
+    }, "+".join(sorted(modes))
 
 
 def _prediction_rows(
