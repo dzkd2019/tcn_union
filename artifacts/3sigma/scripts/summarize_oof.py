@@ -39,6 +39,7 @@ from tcn_union.evaluation.evaluate import AXES
 GASES = AXES
 SEEDS = (20260923, 20260924, 20260925)
 SEEDS6 = (20260923, 20260924, 20260925, 20260926, 20260927, 20260928)
+SEEDS3 = SEEDS6[:3]
 OUTPUT_DIR = ROOT / "artifacts/3sigma"
 FIGS = OUTPUT_DIR / "figs"
 
@@ -144,10 +145,10 @@ def main() -> None:
         [f"artifacts/3sigma/pergas_gw112/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
         ["artifacts/variance_search/pg422_final/noise_gan/oof.csv"]
         + [f"artifacts/3sigma/baseline_pg422/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6[1:]],
-        [f"artifacts/3sigma/pergas_edge4/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS],
-        [f"artifacts/3sigma/pergas_edge8/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS],
-        [f"artifacts/3sigma/pghead_log/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS],
-        [f"artifacts/3sigma/pghead_pergas_edge4/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS],
+        [f"artifacts/3sigma/pergas_edge4/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        [f"artifacts/3sigma/pergas_edge8/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        [f"artifacts/3sigma/pghead_log/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        [f"artifacts/3sigma/pghead_pergas_edge4/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
     ]
     tcn_predictions = []
     reference_truth = None
@@ -157,7 +158,7 @@ def main() -> None:
         tcn_predictions.append(prediction)
     tcn_mean = np.mean(tcn_predictions, axis=0)
     sigma, macro = _three_sigma(reference_truth, tcn_mean)
-    rows.append({"config": "TCN 九配置集成（5×6seed + 4×3seed）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
+    rows.append({"config": "TCN 九配置集成（6 seed×9）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
 
     # 混合模型：TCN 四配置平均 + Ridge（w=0.5）。
     with (OUTPUT_DIR / "hybrid_oof_v5.csv").open(encoding="utf-8") as handle:

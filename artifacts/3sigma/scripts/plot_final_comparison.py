@@ -57,7 +57,7 @@ def _oof_values() -> dict[str, dict[str, float]]:
         rows = {row["config"]: row for row in csv.DictReader(handle)}
     mapping = {
         "旧协议基线": "none+低浓度加权（3 seed）",
-        "TCN 九配置集成": "TCN 九配置集成（5×6seed + 4×3seed）",
+        "TCN 九配置集成": "TCN 九配置集成（6 seed×9）",
         "TCN+Ridge 混合 v5": "TCN 九配置 + Ridge（w=0.4, α=0.01, clip）",
     }
     result = {}
