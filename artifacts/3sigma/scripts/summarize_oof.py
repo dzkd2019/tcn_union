@@ -141,6 +141,7 @@ def main() -> None:
         [f"artifacts/3sigma/log_p0/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
         [f"artifacts/3sigma/log_p0_noise02/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
         [f"artifacts/3sigma/pergas_p0/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
+        [f"artifacts/3sigma/pergas_gw112/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6],
         ["artifacts/variance_search/pg422_final/noise_gan/oof.csv"]
         + [f"artifacts/3sigma/baseline_pg422/seed_{seed}/noise_gan/oof.csv" for seed in SEEDS6[1:]],
     ]
@@ -152,7 +153,7 @@ def main() -> None:
         tcn_predictions.append(prediction)
     tcn_mean = np.mean(tcn_predictions, axis=0)
     sigma, macro = _three_sigma(reference_truth, tcn_mean)
-    rows.append({"config": "TCN 四配置集成（6 seed×4）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
+    rows.append({"config": "TCN 五配置集成（6 seed×5）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
 
     # 混合模型：TCN 四配置平均 + Ridge（w=0.5）。
     with (OUTPUT_DIR / "hybrid_oof.csv").open(encoding="utf-8") as handle:
@@ -160,7 +161,7 @@ def main() -> None:
     hybrid_truth = np.array([[float(row[f"{gas}_true"]) for gas in GASES] for row in hybrid_rows])
     hybrid_pred = np.array([[float(row[f"{gas}_pred"]) for gas in GASES] for row in hybrid_rows])
     sigma, macro = _three_sigma(hybrid_truth, hybrid_pred)
-    rows.append({"config": "TCN 四配置 + Ridge（6 seed, w=0.4, clip）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
+    rows.append({"config": "TCN 五配置 + Ridge（6 seed, w=0.4, clip）", **{gas: sigma[gas] for gas in GASES}, "macro": macro})
 
     summary_path = OUTPUT_DIR / "experiments_summary.csv"
     with summary_path.open("w", newline="", encoding="utf-8") as handle:

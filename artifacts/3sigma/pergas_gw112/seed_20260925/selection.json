@@ -1,0 +1,233 @@
+{
+  "protocol": "train-fold-only noise/GAN; clean/aux/noise/gan/combined ablation; test untouched",
+  "base_seed": 20260925,
+  "final_seeds": [
+    20260923,
+    20260924,
+    20260925
+  ],
+  "mode": "raw_delta",
+  "synthetic_ratio": 3.0,
+  "noise_scale": 0.1,
+  "noise_copies": 1,
+  "generator": "vae",
+  "gan_epochs": 300,
+  "vae_components": 6,
+  "vae_latent_dim": 4,
+  "vae_beta": 0.1,
+  "pca_components": 6,
+  "ema_decay": null,
+  "sample_weight_power": 0.0,
+  "sample_weight_powers": null,
+  "gas_loss_weights": [
+    1.0,
+    1.0,
+    2.0
+  ],
+  "validation_metric": "three_sigma",
+  "target_transform": "log,none,log",
+  "selected": {
+    "noise_gan": {
+      "seconds": 10.0,
+      "noise": true,
+      "gan": true,
+      "aux_positions": [],
+      "aux_weight": null,
+      "selected_epochs": 95,
+      "fold_scores": [
+        {
+          "fold": 0,
+          "best_epoch": 43,
+          "noise_count": 40,
+          "gan_count": 120,
+          "synthetic_count": 160,
+          "macro_nmae": 13.452309429645538,
+          "H2_nmae": 0.04110331833362579,
+          "NH3_nmae": 0.011709647253155708,
+          "NO2_nmae": 0.037608552724123,
+          "H2_mae": 986.4796752929688,
+          "NH3_mae": 0.46838587522506714,
+          "NO2_mae": 0.300868421792984,
+          "H2_rmse": 1249.509765625,
+          "NH3_rmse": 0.7260755896568298,
+          "NO2_rmse": 0.409572958946228,
+          "H2_nrmse": 0.052062906324863434,
+          "NH3_nrmse": 0.018151890486478806,
+          "NO2_nrmse": 0.0511966198682785,
+          "H2_mape": 5.7023515701293945,
+          "NH3_mape": 1.5951613187789917,
+          "NO2_mape": 4.750402927398682
+        },
+        {
+          "fold": 1,
+          "best_epoch": 22,
+          "noise_count": 40,
+          "gan_count": 120,
+          "synthetic_count": 160,
+          "macro_nmae": 14.18777185678482,
+          "H2_nmae": 0.039946384727954865,
+          "NH3_nmae": 0.020769568160176277,
+          "NO2_nmae": 0.025371093302965164,
+          "H2_mae": 958.7131958007812,
+          "NH3_mae": 0.8307827115058899,
+          "NO2_mae": 0.2029687464237213,
+          "H2_rmse": 1091.3382568359375,
+          "NH3_rmse": 1.079935073852539,
+          "NO2_rmse": 0.24581840634346008,
+          "H2_nrmse": 0.04547242820262909,
+          "NH3_nrmse": 0.026998376473784447,
+          "NO2_nrmse": 0.03072730079293251,
+          "H2_mape": 6.510468006134033,
+          "NH3_mape": 3.0128414630889893,
+          "NO2_mape": 3.8119382858276367
+        },
+        {
+          "fold": 2,
+          "best_epoch": 174,
+          "noise_count": 40,
+          "gan_count": 120,
+          "synthetic_count": 160,
+          "macro_nmae": 16.86365818977356,
+          "H2_nmae": 0.025210129097104073,
+          "NH3_nmae": 0.02956143394112587,
+          "NO2_nmae": 0.026063328608870506,
+          "H2_mae": 605.0430908203125,
+          "NH3_mae": 1.1824573278427124,
+          "NO2_mae": 0.20850662887096405,
+          "H2_rmse": 672.5114135742188,
+          "NH3_rmse": 1.5387437343597412,
+          "NO2_rmse": 0.27102747559547424,
+          "H2_nrmse": 0.02802130952477455,
+          "NH3_nrmse": 0.03846859186887741,
+          "NO2_nrmse": 0.03387843444943428,
+          "H2_mape": 5.0788140296936035,
+          "NH3_mape": 4.577360153198242,
+          "NO2_mape": 4.677090644836426
+        },
+        {
+          "fold": 3,
+          "best_epoch": 95,
+          "noise_count": 40,
+          "gan_count": 120,
+          "synthetic_count": 160,
+          "macro_nmae": 15.579865336418152,
+          "H2_nmae": 0.020044827833771706,
+          "NH3_nmae": 0.017541002482175827,
+          "NO2_nmae": 0.019273145124316216,
+          "H2_mae": 481.07586669921875,
+          "NH3_mae": 0.7016401290893555,
+          "NO2_mae": 0.15418516099452972,
+          "H2_rmse": 643.8427124023438,
+          "NH3_rmse": 0.9637833833694458,
+          "NO2_rmse": 0.21137836575508118,
+          "H2_nrmse": 0.026826780289411545,
+          "NH3_nrmse": 0.024094585329294205,
+          "NO2_nrmse": 0.026422295719385147,
+          "H2_mape": 2.7693283557891846,
+          "NH3_mape": 2.373476028442383,
+          "NO2_mape": 5.034679412841797
+        },
+        {
+          "fold": 4,
+          "best_epoch": 229,
+          "noise_count": 40,
+          "gan_count": 120,
+          "synthetic_count": 160,
+          "macro_nmae": 15.57119107246399,
+          "H2_nmae": 0.025512630119919777,
+          "NH3_nmae": 0.024893417954444885,
+          "NO2_nmae": 0.03605455532670021,
+          "H2_mae": 612.3031005859375,
+          "NH3_mae": 0.9957367181777954,
+          "NO2_mae": 0.2884364426136017,
+          "H2_rmse": 918.5958862304688,
+          "NH3_rmse": 1.2073644399642944,
+          "NO2_rmse": 0.331283837556839,
+          "H2_nrmse": 0.03827482834458351,
+          "NH3_nrmse": 0.03018411062657833,
+          "NO2_nrmse": 0.041410479694604874,
+          "H2_mape": 4.480805397033691,
+          "NH3_mape": 3.4399027824401855,
+          "NO2_mape": 4.4415483474731445
+        }
+      ],
+      "fold_summary": {
+        "macro_nmae": 15.130959177017212,
+        "by_gas_nmae": {
+          "H2": 0.030363458022475243,
+          "NH3": 0.020895013958215712,
+          "NO2": 0.028874135017395018
+        },
+        "by_gas_rmse": {
+          "H2": 915.1596069335938,
+          "NH3": 1.1031804442405702,
+          "NO2": 0.2938162088394165
+        },
+        "best_epochs": [
+          43,
+          22,
+          174,
+          95,
+          229
+        ],
+        "noise_counts": [
+          40,
+          40,
+          40,
+          40,
+          40
+        ],
+        "gan_counts": [
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        "synthetic_counts": [
+          160,
+          160,
+          160,
+          160,
+          160
+        ]
+      },
+      "global_oof": {
+        "H2": {
+          "MAE": 728.722978515625,
+          "RMSE": 944.7663740434074,
+          "R2": 0.9825317920700164,
+          "R2_null_reason": null,
+          "NMAE": 0.03036345743815104,
+          "NRMSE": 0.03936526558514197,
+          "MAPE_percent": 4.908353556315104,
+          "MAPE_null_reason": null
+        },
+        "NH3": {
+          "MAE": 0.8358005523681641,
+          "RMSE": 1.1355866191324422,
+          "R2": 0.9926729717639053,
+          "R2_null_reason": null,
+          "NMAE": 0.020895013809204104,
+          "NRMSE": 0.028389665478311055,
+          "MAPE_percent": 2.999748268127441,
+          "MAPE_null_reason": null
+        },
+        "NO2": {
+          "MAE": 0.23099307775497435,
+          "RMSE": 0.3020140264672895,
+          "R2": 0.9880761775539918,
+          "R2_null_reason": null,
+          "NMAE": 0.028874134719371794,
+          "NRMSE": 0.037751753308411184,
+          "MAPE_percent": 4.543131812413534,
+          "MAPE_null_reason": null
+        },
+        "macro_NMAE": 0.026710868655575648,
+        "macro_MAPE_percent": 4.150411212285359,
+        "macro_MAPE_null_reason": null
+      },
+      "oof_file": "artifacts/3sigma/pergas_gw112/seed_20260925/noise_gan/oof.csv"
+    }
+  }
+}

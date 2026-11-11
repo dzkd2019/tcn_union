@@ -108,7 +108,7 @@ def main() -> None:
     oof = pd.read_csv(OUTPUT_DIR / "hybrid_oof.csv")
     truth_oof, prediction_oof = _frame_arrays(oof)
 
-    test_rows = pd.read_csv(OUTPUT_DIR / "hybrid_eval_v2/test_predictions.csv")
+    test_rows = pd.read_csv(OUTPUT_DIR / "hybrid_eval_v3/test_predictions.csv")
     ensemble = test_rows[
         (test_rows["model"] == "candidate") & (test_rows["seed"].astype(str) == "ensemble")
     ].sort_values("file").reset_index(drop=True)
@@ -129,19 +129,19 @@ def main() -> None:
         "details": {},
     }
     for label, truth, prediction in (
-        ("OOF hybrid v2", truth_oof, prediction_oof),
-        ("test hybrid v2", truth_test, prediction_test),
+        ("OOF hybrid v3", truth_oof, prediction_oof),
+        ("test hybrid v3", truth_test, prediction_test),
         ("test TCN-only", truth_tcn, prediction_tcn),
     ):
         summary["details"][label] = _evaluate(truth, prediction, levels, None)
     for tolerance in TOLERANCES:
         sweep = {"tolerance": tolerance}
-        sweep["OOF hybrid v2"] = _evaluate(truth_oof, prediction_oof, levels, tolerance)
-        sweep["test hybrid v2"] = _evaluate(truth_test, prediction_test, levels, tolerance)
+        sweep["OOF hybrid v3"] = _evaluate(truth_oof, prediction_oof, levels, tolerance)
+        sweep["test hybrid v3"] = _evaluate(truth_test, prediction_test, levels, tolerance)
         summary["tolerance_sweep"].append(sweep)
 
     rows = []
-    for label in ("OOF hybrid v2", "test hybrid v2", "test TCN-only"):
+    for label in ("OOF hybrid v3", "test hybrid v3", "test TCN-only"):
         detail = summary["details"][label]
         for gas in (*GASES, "macro"):
             rows.append(
@@ -170,7 +170,7 @@ def main() -> None:
     width = 0.36
     for panel, (label, title) in zip(
         panels,
-        (("OOF hybrid v2", "OOF（50 个开发实验）"), ("test hybrid v2", "锁定测试集（12 个实验）")),
+        (("OOF hybrid v3", "OOF（50 个开发实验）"), ("test hybrid v3", "锁定测试集（12 个实验）")),
         strict=True,
     ):
         detail = summary["details"][label]
@@ -206,7 +206,7 @@ def main() -> None:
         print(f"Wrote {FIGS / f'fig_level_decision.{suffix}'}")
     plt.close(figure)
 
-    for label in ("OOF hybrid v2", "test hybrid v2", "test TCN-only"):
+    for label in ("OOF hybrid v3", "test hybrid v3", "test TCN-only"):
         detail = summary["details"][label]
         print(
             f"{label:<16} raw macro={detail['raw_macro']:.2f}  "
