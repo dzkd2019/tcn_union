@@ -48,6 +48,7 @@ def _config_paths(name: str, seeds: tuple[int, ...]) -> list[Path]:
         "log_n02": ("noise_gan", "log_p0_noise02"),
         "pergas_p0": ("noise_gan", "pergas_p0"),
         "none_pg422": ("noise_gan", "baseline_pg422"),
+        "pergas_gw112": ("noise_gan", "pergas_gw112"),
     }[name]
     mode, directory = base
     paths = []
@@ -62,7 +63,8 @@ def _config_paths(name: str, seeds: tuple[int, ...]) -> list[Path]:
     return paths
 
 
-TCN_CONFIGS = ("log_p0", "log_n02", "pergas_p0", "none_pg422")
+TCN_CONFIGS_V2 = ("log_p0", "log_n02", "pergas_p0", "none_pg422")
+TCN_CONFIGS_V3 = TCN_CONFIGS_V2 + ("pergas_gw112",)
 
 
 def _load_frame(path: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -140,29 +142,34 @@ def main() -> None:
         model = _fit_ridge(x_all[train], truth[train])
         ridge_oof[validation] = _predict_ridge(model, x_all[validation])
 
-    def tcn_mean(seeds: tuple[int, ...]) -> dict[str, np.ndarray]:
+    def tcn_mean(
+        seeds: tuple[int, ...], names: tuple[str, ...]
+    ) -> dict[str, np.ndarray]:
         by_config = {
             name: _config_prediction(_config_paths(name, seeds), files)
-            for name in TCN_CONFIGS
+            for name in names
         }
         return {"mean": np.mean(list(by_config.values()), axis=0), "configs": by_config}
 
-    tcn_v1 = tcn_mean(SEEDS_V1)
-    tcn_v2 = tcn_mean(SEEDS_V2)
+    tcn_v1 = tcn_mean(SEEDS_V1, TCN_CONFIGS_V2)
+    tcn_v2 = tcn_mean(SEEDS_V2, TCN_CONFIGS_V2)
+    tcn_v3 = tcn_mean(SEEDS_V2, TCN_CONFIGS_V3)
     hybrid_v1 = (1.0 - RIDGE_WEIGHT_V1) * tcn_v1["mean"] + RIDGE_WEIGHT_V1 * ridge_oof
     hybrid_v2 = (1.0 - RIDGE_WEIGHT_V2) * tcn_v2["mean"] + RIDGE_WEIGHT_V2 * ridge_oof
     hybrid_v2 = _clip_to_development_range(hybrid_v2, truth)
+    hybrid_v3 = (1.0 - RIDGE_WEIGHT_V2) * tcn_v3["mean"] + RIDGE_WEIGHT_V2 * ridge_oof
+    hybrid_v3 = _clip_to_development_range(hybrid_v3, truth)
 
-    baseline = tcn_v2["configs"]["none_pg422"]
+    baseline = tcn_v3["configs"]["none_pg422"]
     rng = np.random.default_rng(0)
     delta_baseline: list[float] = []
     delta_tcn: list[float] = []
     for _ in range(4000):
         pick = rng.integers(0, len(files), len(files))
-        hybrid_score = _macro_three_sigma(truth[pick], hybrid_v2[pick])
+        hybrid_score = _macro_three_sigma(truth[pick], hybrid_v3[pick])
         delta_baseline.append(hybrid_score - _macro_three_sigma(truth[pick], baseline[pick]))
         delta_tcn.append(
-            hybrid_score - _macro_three_sigma(truth[pick], tcn_v2["mean"][pick])
+            hybrid_score - _macro_three_sigma(truth[pick], tcn_v3["mean"][pick])
         )
 
     result = {
@@ -190,6 +197,24 @@ def main() -> None:
                 "hybrid_minus_tcn_mean": _interval(delta_tcn),
             },
         },
+        "v3": {
+            "seeds": list(SEEDS_V2),
+            "tcn_configs": list(TCN_CONFIGS_V3),
+            "ridge_weight": RIDGE_WEIGHT_V2,
+            "clip_to_development_range": True,
+            "tcn_mean": _three_sigma(truth, tcn_v3["mean"]),
+            "ridge": _three_sigma(truth, ridge_oof),
+            "hybrid": _three_sigma(truth, hybrid_v3),
+            "baseline_none_pg422": _three_sigma(truth, baseline),
+            "per_config": {
+                name: _three_sigma(truth, prediction)
+                for name, prediction in tcn_v3["configs"].items()
+            },
+            "bootstrap_delta_macro3sigma": {
+                "hybrid_minus_baseline": _interval(delta_baseline),
+                "hybrid_minus_tcn_mean": _interval(delta_tcn),
+            },
+        },
     }
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUT_DIR / "hybrid_oof_summary.json").write_text(
@@ -202,10 +227,14 @@ def main() -> None:
         )
         for index, name in enumerate(files):
             writer.writerow(
-                [name, int(folds[index]), *truth[index].tolist(), *hybrid_v2[index].tolist()]
+                [name, int(folds[index]), *truth[index].tolist(), *hybrid_v3[index].tolist()]
             )
 
-    for version, summary in (("v1", result["v1"]), ("v2", result["v2"])):
+    for version, summary in (
+        ("v1", result["v1"]),
+        ("v2", result["v2"]),
+        ("v3", result["v3"]),
+    ):
         for name in ("tcn_mean", "ridge", "hybrid"):
             if name not in summary:
                 continue
@@ -216,7 +245,7 @@ def main() -> None:
                 f"{version} {name:<9} {per_gas}  macro={summary[name]['three_sigma_macro']:.2f}  "
                 f"MAPE={summary[name]['mape_macro']:.2f}"
             )
-    print("bootstrap:", json.dumps(result["v2"]["bootstrap_delta_macro3sigma"], ensure_ascii=False))
+    print("v3 bootstrap:", json.dumps(result["v3"]["bootstrap_delta_macro3sigma"], ensure_ascii=False))
     print(f"Wrote {OUTPUT_DIR / 'hybrid_oof_summary.json'}")
 
 
