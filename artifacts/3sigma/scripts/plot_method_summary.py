@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
-JSON_PATH = ROOT / "artifacts/3sigma/method_ablation.json"
-FIGS = ROOT / "artifacts/3sigma/figs"
+JSON_PATH = ROOT / "artifacts/3sigma/ablation/method_ablation.json"
+FIGS = ROOT / "artifacts/3sigma/ablation"
 
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = ["Source Han Sans CN", "Microsoft YaHei", "DejaVu Sans"]

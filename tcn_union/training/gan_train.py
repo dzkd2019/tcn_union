@@ -237,13 +237,9 @@ def cross_validate(
     ema_decay: float | None,
     edge_copies: int = 0,
     max_epochs: int = MAX_EPOCHS,
-    sample_weight_power: float = 0.0,
-    sample_weight_powers: tuple[float, float, float] | None = None,
-    gas_loss_weights: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
     feature_mode: str = MODE,
-    channels: int = 16,
     per_gas_head: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。
@@ -300,12 +296,8 @@ def cross_validate(
             aux_positions=aux_positions,
             aux_weight=AUX_WEIGHT,
             ema_decay=ema_decay,
-            sample_weight_power=sample_weight_power,
-            sample_weight_powers=sample_weight_powers,
-            gas_loss_weights=gas_loss_weights,
             validation_metric=validation_metric,
             target_transform=target_transform,
-            channels=channels,
             per_gas_head=per_gas_head,
         )
         if prediction is None or best_score is None:
@@ -380,12 +372,8 @@ def train_final(
     noise_config: NoiseConfig,
     ema_decay: float | None,
     edge_copies: int = 0,
-    sample_weight_power: float = 0.0,
-    sample_weight_powers: tuple[float, float, float] | None = None,
-    gas_loss_weights: tuple[float, float, float] | None = None,
     target_transform: str | list[str] = "none",
     feature_mode: str = MODE,
-    channels: int = 16,
     per_gas_head: bool = False,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
@@ -427,11 +415,7 @@ def train_final(
         aux_positions=aux_positions,
         aux_weight=AUX_WEIGHT,
         ema_decay=ema_decay,
-        sample_weight_power=sample_weight_power,
-        sample_weight_powers=sample_weight_powers,
-        gas_loss_weights=gas_loss_weights,
         target_transform=target_transform,
-        channels=channels,
         per_gas_head=per_gas_head,
     )
     metadata = {
@@ -467,7 +451,6 @@ def train_final(
         device,
         augmentation=metadata,
         target_transform=target_transform,
-        channels=channels,
         per_gas_head=per_gas_head,
     )
 
@@ -488,15 +471,9 @@ def main() -> None:
     parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
     parser.add_argument(
         "--feature-mode",
-        choices=["raw_delta", "delta", "raw_delta_rel"],
+        choices=["raw_delta", "delta"],
         default=MODE,
-        help="TCN 输入特征模式（默认 raw_delta；raw_delta_rel 额外含绝对与相对增量）",
-    )
-    parser.add_argument(
-        "--channels",
-        type=int,
-        default=16,
-        help="GasTCN 通道宽度（默认 16）",
+        help="TCN 输入特征模式（默认 raw_delta；delta 只保留相对增量）",
     )
     parser.add_argument(
         "--per-gas-head",
@@ -519,24 +496,6 @@ def main() -> None:
     parser.add_argument("--vae-beta", type=float, default=0.1)
     parser.add_argument("--pca-components", type=int, default=6)
     parser.add_argument("--ema-decay", type=float, default=None)
-    parser.add_argument(
-        "--sample-weight-power",
-        type=float,
-        default=0.0,
-        help="低浓度损失权重；0 表示等权，1/2 表示按浓度中位数反比加权",
-    )
-    parser.add_argument(
-        "--sample-weight-powers",
-        type=str,
-        default=None,
-        help="三气体分别的低浓度权重，如 4,2,2；优先于 --sample-weight-power",
-    )
-    parser.add_argument(
-        "--gas-loss-weights",
-        type=str,
-        default=None,
-        help="三气体损失权重（H2,NH3,NO2），如 1,1,2 表示加强 NO2；默认等权",
-    )
     parser.add_argument(
         "--validation-metric",
         choices=["nmae", "three_sigma"],
@@ -567,33 +526,11 @@ def main() -> None:
         parser.error("--edge-copies 不能为负")
     if args.edge_copies > 0 and args.generator != "vae":
         parser.error("--edge-copies 目前只支持 --generator vae")
-    if args.channels < 1:
-        parser.error("--channels 必须为正")
     try:
         # 提前校验标签空间配置，避免读到 manifest、开始五折训练后才报错。
         _target_flags(args.target_transform)
     except ValueError as exc:
         parser.error(str(exc))
-    weight_powers = None
-    if args.sample_weight_powers:
-        fields = [field.strip() for field in args.sample_weight_powers.split(",")]
-        if len(fields) != 3:
-            parser.error("--sample-weight-powers 必须是三个逗号分隔的数字")
-        try:
-            weight_powers = tuple(float(field) for field in fields)
-        except ValueError:
-            parser.error("--sample-weight-powers 必须全部是数字")
-    gas_weights = None
-    if args.gas_loss_weights:
-        fields = [field.strip() for field in args.gas_loss_weights.split(",")]
-        if len(fields) != 3:
-            parser.error("--gas-loss-weights 必须是三个逗号分隔的数字")
-        try:
-            gas_weights = tuple(float(field) for field in fields)
-        except ValueError:
-            parser.error("--gas-loss-weights 必须全部是数字")
-        if any(weight < 0.0 for weight in gas_weights) or sum(gas_weights) <= 0.0:
-            parser.error("--gas-loss-weights 必须非负且和为正")
     device = resolve_device(args.device)
     configure_threads(device)
     print(f"[device] {describe_device(device)}", flush=True)
@@ -629,7 +566,6 @@ def main() -> None:
         "final_seeds": args.final_seeds,
         "mode": args.feature_mode,
         "feature_mode": args.feature_mode,
-        "channels": args.channels,
         "per_gas_head": args.per_gas_head,
         "synthetic_ratio": args.synthetic_ratio,
         "noise_scale": args.noise_scale,
@@ -642,9 +578,6 @@ def main() -> None:
         "pca_components": args.pca_components,
         "ema_decay": args.ema_decay,
         "edge_copies": args.edge_copies,
-        "sample_weight_power": args.sample_weight_power,
-        "sample_weight_powers": weight_powers,
-        "gas_loss_weights": gas_weights,
         "validation_metric": args.validation_metric,
         "target_transform": args.target_transform,
         "selected": {},
@@ -666,13 +599,9 @@ def main() -> None:
             args.ema_decay,
             args.edge_copies,
             args.max_epochs,
-            sample_weight_power=args.sample_weight_power,
-            sample_weight_powers=weight_powers,
-            gas_loss_weights=gas_weights,
             validation_metric=args.validation_metric,
             target_transform=args.target_transform,
             feature_mode=args.feature_mode,
-            channels=args.channels,
             per_gas_head=args.per_gas_head,
         )
         mode_dir = args.output_dir / mode
@@ -709,12 +638,8 @@ def main() -> None:
                     noise_config,
                     args.ema_decay,
                     args.edge_copies,
-                    sample_weight_power=args.sample_weight_power,
-                    sample_weight_powers=weight_powers,
-                    gas_loss_weights=gas_weights,
                     target_transform=args.target_transform,
                     feature_mode=args.feature_mode,
-                    channels=args.channels,
                     per_gas_head=args.per_gas_head,
                 )
                 print(f"  saved {path}", flush=True)

@@ -210,12 +210,8 @@ def _train_network(
     aux_positions: tuple[int, ...] = (),
     aux_weight: float = 0.5,
     ema_decay: float | None = None,
-    sample_weight_power: float = 0.0,
-    sample_weight_powers: tuple[float, float, float] | None = None,
-    gas_loss_weights: tuple[float, float, float] | None = None,
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
-    channels: int = 16,
     per_gas_head: bool = False,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
@@ -229,19 +225,16 @@ def _train_network(
     `aux_positions` 非空时在同一隐藏序列的过去位置增加辅助损失，权重为
     `aux_weight`，不改变主输出和推理接口。`ema_decay` 非空时维护权重的
     指数滑动平均，并用 EMA 权重做验证、早停和最终返回。
-    `sample_weight_power>0` 时按 (每气体训练中位数浓度 / 样本浓度)^power 加权，
-    让低浓度样本对损失贡献更大；`gas_loss_weights` 为长度 3 的非负列表，按
-    H2/NH3/NO2 加权各气体在联合损失中的占比（默认等权）；`validation_metric
-    ="three_sigma"` 时用验证集相对误差 3σ 的宏平均做早停，而不是 macro-NMAE。
+    `validation_metric="three_sigma"` 时用验证集相对误差 3σ 的宏平均做早停，
+    而不是 macro-NMAE。
     `target_transform="log"` 时先把训练标签变为 `log(max(y,1e-6))`，再在 log
     空间拟合 z-score、计算 SmoothL1 和早停；验证预测会先反标准化再取指数，
     因此 `three_sigma`/NMAE 仍按原始浓度计算。也可传入逗号分隔的三值字符串
     （如 `"none,log,log"`，顺序 H2/NH3/NO2）对每路气体单独选择标签空间，z-score
     与损失逐气体独立，验证预测逐气体反变换。log 空间的绝对误差近似原始空间
     的相对误差，可让训练目标直接对齐低浓度点的相对误差；默认 `none` 保持
-    原始浓度空间，行为与之前完全一致。`channels` 是 TCN 隐藏通道宽度（默认
-    16，与旧网络结构逐位一致），可按实验需要加宽；`per_gas_head=True` 时用
-    三个独立输出头替换共享头（共享卷积主干），默认 False 行为不变。
+    原始浓度空间，行为与之前完全一致。`per_gas_head=True` 时用三个独立输出
+    头替换共享头（共享卷积主干），默认 False 行为不变。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -268,48 +261,18 @@ def _train_network(
     stats = fit_scalers(x_train, y_train_fit)
     x_train_z, y_train_z = _scaled(x_train, y_train_fit, stats)
 
-    # 低浓度样本的绝对误差小，但相对误差大；按浓度中位数反比加权，
-    # 让损失更关注低浓度尾部。power=0 时退化为原来的等权训练。
-    if sample_weight_power < 0.0:
-        raise ValueError("sample_weight_power 不能为负")
-    if sample_weight_powers is not None:
-        if len(sample_weight_powers) != 3 or any(p < 0 for p in sample_weight_powers):
-            raise ValueError("sample_weight_powers 必须是三个非负数")
-        power_vector = np.asarray(sample_weight_powers, dtype=np.float64)
-    else:
-        power_vector = np.full(3, float(sample_weight_power))
-    if gas_loss_weights is not None:
-        if len(gas_loss_weights) != 3 or any(w < 0 for w in gas_loss_weights):
-            raise ValueError("gas_loss_weights 必须是三个非负数")
-        gas_weight_vector = np.asarray(gas_loss_weights, dtype=np.float64)
-        if gas_weight_vector.sum() <= 0.0:
-            raise ValueError("gas_loss_weights 之和必须为正")
-    else:
-        gas_weight_vector = np.ones(3, dtype=np.float64)
-    safe_y = np.maximum(y_train.astype(np.float64), 1e-9)
-    if np.any(power_vector > 0.0):
-        median_y = np.median(safe_y, axis=0, keepdims=True)
-        sample_weights = np.clip(median_y / safe_y, 0.1, 10.0) ** power_vector[None, :]
-        sample_weights = sample_weights / sample_weights.mean(axis=0, keepdims=True)
-    else:
-        sample_weights = np.ones_like(safe_y, dtype=np.float64)
-
     # 小样本训练集直接放进内存；每个 epoch 重新打乱一次。
     dataset = TensorDataset(
         torch.from_numpy(x_train_z),
         torch.from_numpy(y_train_z),
-        torch.from_numpy(sample_weights.astype(np.float32)),
     )
     generator = torch.Generator().manual_seed(seed)
     loader = DataLoader(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
     )
 
-    # 模型输入通道数由特征决定：raw_delta 为 6，delta 为 3，raw_delta_rel 为 9；
-    # 隐藏宽度由 channels 指定，默认 16 与旧结构一致；输出头默认共享。
-    model = GasTCN(
-        x_train.shape[1], channels=channels, per_gas_head=per_gas_head
-    ).to(device)
+    # 模型输入通道数由特征决定（raw_delta 为 6、delta 为 3），隐藏宽度固定 16。
+    model = GasTCN(x_train.shape[1], per_gas_head=per_gas_head).to(device)
     if ema_decay is not None and not 0.0 < ema_decay < 1.0:
         raise ValueError("ema_decay must be in (0, 1)")
     ema_state = None
@@ -323,10 +286,6 @@ def _train_network(
         model.parameters(), lr=1e-3, weight_decay=1e-3, betas=(0.9, 0.999)
     )
     criterion = nn.SmoothL1Loss(beta=1.0, reduction="none")
-    # 每气体损失权重放到训练设备上，避免 torch 与 numpy 混算。
-    gas_weight_tensor = torch.as_tensor(
-        gas_weight_vector, dtype=torch.float32, device=device
-    )
 
     best_score = math.inf
     best_epoch = 0
@@ -344,20 +303,16 @@ def _train_network(
     for epoch in range(1, epochs + 1):
         # ---- 训练阶段：只更新参数，不做验证 ----
         model.train()
-        for batch_x, batch_y, batch_weight in loader:
+        for batch_x, batch_y in loader:
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
-            batch_weight = batch_weight.to(device)
             optimizer.zero_grad(set_to_none=True)
             prediction = model(batch_x)
-            weighted = criterion(prediction, batch_y) * batch_weight
-            loss = ((weighted @ gas_weight_tensor) / gas_weight_vector.sum()).mean()
+            loss = criterion(prediction, batch_y).mean()
             if aux_positions:
                 # 辅助头只在训练时加损失；推理仍然只使用最后一个位置的主输出。
                 for auxiliary in model.forward_positions(batch_x, aux_positions):
-                    aux_weighted = criterion(auxiliary, batch_y) * batch_weight
-                    aux_loss = ((aux_weighted @ gas_weight_tensor) / gas_weight_vector.sum()).mean()
-                    loss = loss + aux_weight * aux_loss
+                    loss = loss + aux_weight * criterion(auxiliary, batch_y).mean()
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     f"non-finite training loss at epoch {epoch}"
@@ -398,21 +353,18 @@ def _train_network(
             pred = _restore_target(pred, target_flags)
             if y_validation is None:
                 raise RuntimeError("validation labels are missing")
-            # 早停分数与训练损失使用同一组气体权重：默认等权时与原口径一致。
+            # 归约用 float64（np.ones(3) 只用于保持历史算术顺序），与删除
+            # 样本/气体权重前的验证分数计算一致。
+            ones = np.ones(3, dtype=np.float64)
             if validation_metric == "three_sigma":
                 relative = 100.0 * (pred - y_validation) / np.maximum(
                     np.abs(y_validation), 1e-9
                 )
                 per_gas = np.std(relative, axis=0, ddof=1)
-                score = float(
-                    3.0 * np.sum(per_gas * gas_weight_vector) / gas_weight_vector.sum()
-                )
+                score = float(3.0 * np.sum(per_gas * ones) / ones.sum())
             elif validation_metric == "nmae":
                 score, axis_scores = _macro_nmae(y_validation, pred, train_range_y)
-                score = float(
-                    np.sum(np.asarray(axis_scores) * gas_weight_vector)
-                    / gas_weight_vector.sum()
-                )
+                score = float(np.sum(np.asarray(axis_scores) * ones) / ones.sum())
             else:
                 raise ValueError("validation_metric 必须是 nmae 或 three_sigma")
             if not np.isfinite(score):
@@ -451,18 +403,12 @@ def _train_network(
 def _channel_order(mode: str) -> list[str]:
     """返回所选特征模式的通道名称与拼接顺序。
 
-    参数：`mode` 为 `raw_delta`、`delta` 或 `raw_delta_rel`。
+    参数：`mode` 为 `raw_delta` 或 `delta`。
     返回：`raw_delta` 时先列出 H2/NH3/NO2 原始响应、再列出三路相对增量；
-    `delta` 时只列出三路相对增量；`raw_delta_rel` 时依次为原始响应、绝对
-    增量（`response(t)-response(0)`）和相对增量（除以初始响应幅度）。明确
-    顺序供 checkpoint 记录和推理复用。
+    `delta` 时只列出三路相对增量。明确顺序供 checkpoint 记录和推理复用。
     """
     raw = ["H2_raw", "NH3_raw", "NO2_raw"]
     delta = ["H2_delta", "NH3_delta", "NO2_delta"]
-    if mode == "raw_delta_rel":
-        absolute_delta = ["H2_delta_abs", "NH3_delta_abs", "NO2_delta_abs"]
-        relative_delta = ["H2_rel_delta", "NH3_rel_delta", "NO2_rel_delta"]
-        return raw + absolute_delta + relative_delta
     return raw + delta if mode == "raw_delta" else delta
 
 
@@ -472,7 +418,7 @@ def _features(
     """为开发集中的每个实验构造指定窗口和模式的特征。
 
     参数：`rows` 为已加载 manifest 记录；`seconds` 是 5/10 秒前缀；
-    `mode` 决定使用 delta、raw_delta 或 raw_delta_rel 通道。
+    `mode` 决定使用 delta 或 raw_delta 通道。
     返回：`文件相对路径 -> [channels,samples] 特征` 映射。测试行被排除，且
     特征只依赖响应前缀，使后续折分组保持实验级并确保因果输入。
     """
@@ -499,7 +445,6 @@ def _save_checkpoint(
     *,
     augmentation: dict[str, Any] | None = None,
     target_transform: str | list[str] = "none",
-    channels: int = 16,
     per_gas_head: bool = False,
 ) -> None:
     """保存可复现推理所需的权重、预处理统计量和训练元数据。
@@ -508,13 +453,11 @@ def _save_checkpoint(
     `stats` 为训练集 z-score 参数；`mode/seconds` 定义特征协议；`train_rows`
     提供训练文件哈希；`seed/epochs/device` 记录训练配置；`target_transform`
     记录标签空间（写出时三气体一致则存单值字符串，否则存长度 3 的列表，
-    `log` 对应气体在推理端需对还原结果取指数）；`channels` 记录实际 TCN
-    隐藏宽度（默认 16，与旧 checkpoint 一致），推理端据此重建网络；
-    `per_gas_head` 决定 architecture 的 `head` 取 `"per_gas"` 还是 `"shared"`
-    （默认 shared，旧 checkpoint 缺该键时也按 shared 处理）。
+    `log` 对应气体在推理端需对还原结果取指数）；`per_gas_head` 决定
+    architecture 的 `head` 取 `"per_gas"` 还是 `"shared"`（默认 shared，
+    旧 checkpoint 缺该键时也按 shared 处理）。
     返回：无。文件除 state_dict 外还记录架构、通道顺序、标签/输入缩放量、
-    数据哈希及软件版本，保证预测端可还原训练时的数据变换；`mode` 含相对
-    增量时架构里额外写入 `relative_delta` 通道说明。
+    数据哈希及软件版本，保证预测端可还原训练时的数据变换。
     """
     # 三气体一致时仍写单值字符串（兼容旧 checkpoint）；逐气体时写长度 3 列表。
     target_flags = _target_flags(target_transform)
@@ -526,17 +469,12 @@ def _save_checkpoint(
     architecture = {
         "name": "GasTCN",
         "in_channels": len(_channel_order(mode)),
-        "channels": channels,
         "dilations": [1, 2, 4],
         "kernel_size": 5,
         "dropout": 0.1,
         "receptive_field_samples": 57,
         "head": "per_gas" if per_gas_head else "shared",
     }
-    if "rel" in mode:
-        architecture["relative_delta"] = (
-            "3 channels: (response(t)-response(0))/max(|response(0)|,1e-8)"
-        )
     payload = {
         "state_dict": {
             key: value.detach().cpu()

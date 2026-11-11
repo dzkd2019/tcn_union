@@ -43,7 +43,6 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
     architecture = checkpoint["architecture"]
     model = GasTCN(
         int(architecture["in_channels"]),
-        channels=int(architecture.get("channels", 16)),
         per_gas_head=architecture.get("head", "shared") == "per_gas",
     )
     model.load_state_dict(checkpoint["state_dict"])
