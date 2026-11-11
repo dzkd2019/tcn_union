@@ -196,6 +196,57 @@ def _macro_nmae(
     return float(np.mean(axis_scores)), axis_scores.tolist()
 
 
+def _low_conc_powers(
+    power: float | str | list[str] | tuple[float, ...] | None,
+) -> tuple[float, float, float]:
+    """把 `--low-conc-power` 解析为三气体（H2,NH3,NO2）的加权强度。
+
+    支持 None/单值（三气体共用）、逗号分隔三值字符串或长度 3 的序列；
+    取值必须非负。返回长度 3 的 float 元组。
+    """
+    if power is None:
+        return (0.0, 0.0, 0.0)
+    if isinstance(power, (int, float)):
+        values = (float(power),)
+    elif isinstance(power, str):
+        values = tuple(piece.strip() for piece in power.split(",") if piece.strip())
+        values = tuple(float(piece) for piece in values)
+    else:
+        values = tuple(float(piece) for piece in power)
+    if len(values) == 1:
+        values = values * 3
+    if len(values) != 3 or any(value < 0.0 for value in values):
+        raise ValueError(
+            "low_conc_power 必须是非负单值，或按 H2,NH3,NO2 逗号分隔的三个非负值"
+        )
+    return (values[0], values[1], values[2])
+
+
+def _low_conc_weights(
+    target: np.ndarray,
+    power: float | str | list[str] | tuple[float, ...] | None,
+    lower: float = 0.25,
+    upper: float = 4.0,
+) -> np.ndarray:
+    """按“低浓度更大权重”为每个样本×气体计算损失权重。
+
+    参数：`target[N,3]` 是原始浓度标签；`power` 为逐气体加权强度（单值或
+    H2,NH3,NO2 三值，0 表示该气体不加权）；`lower`/`upper` 限制权重范围，
+    避免单点主导或某气体被忽略。返回 `[N,3]` 权重：
+    `(median_gas / max(y,1e-9)) ** power_gas` 再裁剪。该权重只用于训练损失，
+    验证/测试指标始终是原始浓度口径。
+    """
+    powers = np.asarray(_low_conc_powers(power), dtype=np.float64)
+    if not np.any(powers > 0.0):
+        return np.ones_like(target, dtype=np.float32)
+    target = np.asarray(target, dtype=np.float64)
+    median = np.median(target, axis=0, keepdims=True)
+    ratios = median / np.maximum(target, 1e-9)
+    weights = np.where(powers[None, :] > 0.0, ratios ** powers[None, :], 1.0)
+    weights = np.clip(weights, lower, upper)
+    return weights.astype(np.float32)
+
+
 def _train_network(
     x_train: np.ndarray,
     y_train: np.ndarray,
@@ -213,6 +264,7 @@ def _train_network(
     validation_metric: str = "nmae",
     target_transform: str | list[str] = "none",
     per_gas_head: bool = False,
+    low_conc_power: float | str | list[str] | tuple[float, ...] = 0.0,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -234,7 +286,10 @@ def _train_network(
     与损失逐气体独立，验证预测逐气体反变换。log 空间的绝对误差近似原始空间
     的相对误差，可让训练目标直接对齐低浓度点的相对误差；默认 `none` 保持
     原始浓度空间，行为与之前完全一致。`per_gas_head=True` 时用三个独立输出
-    头替换共享头（共享卷积主干），默认 False 行为不变。
+    头替换共享头（共享卷积主干），默认 False 行为不变。`low_conc_power` 非零时
+    按 `(median_gas/y)^power_gas` 给每个样本×气体的 SmoothL1 损失加权（裁剪到
+    0.25–4），可传单值或按 H2,NH3,NO2 的三个值，让训练更关注低浓度/相对误差
+    大的样本；默认 0 不加权，行为与旧实现逐位一致。
     输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
@@ -262,10 +317,19 @@ def _train_network(
     x_train_z, y_train_z = _scaled(x_train, y_train_fit, stats)
 
     # 小样本训练集直接放进内存；每个 epoch 重新打乱一次。
-    dataset = TensorDataset(
-        torch.from_numpy(x_train_z),
-        torch.from_numpy(y_train_z),
-    )
+    loss_weights = _low_conc_weights(y_train, low_conc_power)
+    weighted_loss = bool(np.any(np.asarray(_low_conc_powers(low_conc_power)) > 0.0))
+    if weighted_loss:
+        dataset = TensorDataset(
+            torch.from_numpy(x_train_z),
+            torch.from_numpy(y_train_z),
+            torch.from_numpy(loss_weights),
+        )
+    else:
+        dataset = TensorDataset(
+            torch.from_numpy(x_train_z),
+            torch.from_numpy(y_train_z),
+        )
     generator = torch.Generator().manual_seed(seed)
     loader = DataLoader(
         dataset, batch_size=BATCH_SIZE, shuffle=True, generator=generator
@@ -303,16 +367,25 @@ def _train_network(
     for epoch in range(1, epochs + 1):
         # ---- 训练阶段：只更新参数，不做验证 ----
         model.train()
-        for batch_x, batch_y in loader:
-            batch_x = batch_x.to(device)
-            batch_y = batch_y.to(device)
+        for batch in loader:
+            batch_x = batch[0].to(device)
+            batch_y = batch[1].to(device)
+            batch_weight = batch[2].to(device) if weighted_loss else None
             optimizer.zero_grad(set_to_none=True)
             prediction = model(batch_x)
-            loss = criterion(prediction, batch_y).mean()
+            if batch_weight is None:
+                loss = criterion(prediction, batch_y).mean()
+            else:
+                per_element = criterion(prediction, batch_y) * batch_weight
+                loss = per_element.sum() / batch_weight.sum()
             if aux_positions:
                 # 辅助头只在训练时加损失；推理仍然只使用最后一个位置的主输出。
                 for auxiliary in model.forward_positions(batch_x, aux_positions):
-                    loss = loss + aux_weight * criterion(auxiliary, batch_y).mean()
+                    if batch_weight is None:
+                        loss = loss + aux_weight * criterion(auxiliary, batch_y).mean()
+                    else:
+                        per_element = criterion(auxiliary, batch_y) * batch_weight
+                        loss = loss + aux_weight * per_element.sum() / batch_weight.sum()
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     f"non-finite training loss at epoch {epoch}"

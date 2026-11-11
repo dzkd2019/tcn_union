@@ -1,0 +1,105 @@
+{
+  "protocol": "OOF 50 development runs; 3 seeds 20260923-20260925; per-seed predictions averaged then clipped to development label ranges; Ridge not used",
+  "weight_definition": "w = clip((median_gas / y_gas)^p, 0.25, 4), weighted SmoothL1 loss; p scalar or per-gas H2,NH3,NO2",
+  "screening": {
+    "baseline_lean_tcn": {
+      "H2": 9.32,
+      "NH3": 4.41,
+      "NO2": 10.65,
+      "macro": 8.13
+    },
+    "p05_all": {
+      "H2": 9.89,
+      "NH3": 5.49,
+      "NO2": 10.55,
+      "macro": 8.64
+    },
+    "p10_all": {
+      "H2": 9.95,
+      "NH3": 5.24,
+      "NO2": 8.11,
+      "macro": 7.77
+    },
+    "p05_edge8": {
+      "H2": 9.13,
+      "NH3": 5.77,
+      "NO2": 11.67,
+      "macro": 8.86
+    },
+    "p10_edge8": {
+      "H2": 9.06,
+      "NH3": 6.13,
+      "NO2": 9.37,
+      "macro": 8.18
+    },
+    "p075_edge8": {
+      "H2": 10.3,
+      "NH3": 6.5,
+      "NO2": 10.92,
+      "macro": 9.24
+    },
+    "p10_noise0.2": {
+      "H2": 8.58,
+      "NH3": 5.13,
+      "NO2": 10.35,
+      "macro": 8.02
+    },
+    "pg_0_03_1": {
+      "H2": 9.62,
+      "NH3": 5.48,
+      "NO2": 9.01,
+      "macro": 8.04
+    },
+    "final_ensemble_p10_pg": {
+      "H2": 9.31,
+      "NH3": 4.95,
+      "NO2": 8.16,
+      "macro": 7.47
+    }
+  },
+  "final_candidate": {
+    "configs": {
+      "p10": "--low-conc-power 1.0 --edge-copies 4",
+      "q": "--low-conc-power 0,0.3,1.0 --edge-copies 4"
+    },
+    "seeds": [
+      20260923,
+      20260924,
+      20260925
+    ],
+    "clip": true,
+    "ridge": false
+  },
+  "test_history": {
+    "baseline": {
+      "H2": 10.75,
+      "NH3": 6.65,
+      "NO2": 16.14,
+      "macro": 11.18
+    },
+    "v4": {
+      "H2": 11.0,
+      "NH3": 3.71,
+      "NO2": 10.04,
+      "macro": 8.25
+    },
+    "v5": {
+      "H2": 10.6,
+      "NH3": 3.8,
+      "NO2": 10.1,
+      "macro": 8.17
+    },
+    "lean_with_ridge_6th": {
+      "H2": 9.86,
+      "NH3": 2.72,
+      "NO2": 8.96,
+      "macro": 7.18
+    },
+    "noridge_7th": {
+      "H2": 6.46,
+      "NH3": 5.71,
+      "NO2": 9.16,
+      "macro": 7.11
+    }
+  }
+}
