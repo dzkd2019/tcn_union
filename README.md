@@ -203,6 +203,7 @@ PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见
 - **12 点锁定测试集（连续回归，第 6 次评估，已在文档披露）**：宏平均 3σ **7.18%**，逐气体 **9.86 / 2.72 / 8.96**（全部 <10%，首次达到验收目标；5% 目标仅 NH3 达到）；
 - **62 点合并口径**（50 OOF + 12 测试，教师 `error_analysis` 原始图口径）：逐气体 3σ = **8.08 / 4.01 / 9.22**（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_lean_all62_error_sigma_by_gas.png`](artifacts/3sigma/lean/figs/fig_lean_all62_error_sigma_by_gas.png) 与 [`fig_lean_vs_baseline_all62.png`](artifacts/3sigma/lean/figs/fig_lean_vs_baseline_all62.png)（PNG+SVG）；
 - 精简同时删除了无正收益的 9 配置集成、宽 TCN、`raw_delta_rel`、NO2 损失权重、样本加权、档位分析等代码与历史实验产物（测试 87→66）；
+- **无 Ridge 变体**（分支 `experiment/3sigma-noridge`）：去掉 Ridge，改用**低浓度损失加权**（`(median/y)^p`，裁剪 0.25–4，逐气体可配）+ 两套加权强度 × 3 seed 的 TCN 预测平均 + 裁剪。OOF 逐气体 **9.31 / 4.95 / 8.16**（宏 7.47%），锁定测试第 7 次读取逐气体 **6.46 / 5.71 / 9.16**（宏 7.11%），62 点合并 **8.86 / 5.05 / 8.59**；不再需要额外线性模型。详见 [`docs/sigma-target/3sigma_无Ridge方案.md`](docs/sigma-target/3sigma_无Ridge方案.md)。
 - 原理、实现、组件消融与复现见 [`docs/sigma-target/3sigma_精简方案_原理与实现.md`](docs/sigma-target/3sigma_精简方案_原理与实现.md)；v1–v5 历史记录与完整测试集读取披露见 [`docs/sigma-target/误差方差优化_v2.md`](docs/sigma-target/误差方差优化_v2.md)。
 
 ## GPU / ROCm 支持

@@ -6,6 +6,7 @@
 > **测试集读取声明**：本文的锁定测试结果来自**第 6 次**读取（前 5 次为 v1–v5，见 [`误差方差优化_v2.md`](误差方差优化_v2.md)）。候选在读取测试集之前已完全冻结：方法/超参只用 OOF 选择，第 6 次读取是用户明确要求下的一次性评估，**没有根据测试结果再调参**。
 >
 > 消融原始数字：`artifacts/3sigma/ablation/method_ablation.json`  
+> 后续变体：不想要 Ridge 的“无 Ridge 方案”（低浓度损失加权替代 Ridge）见 [`3sigma_无Ridge方案.md`](3sigma_无Ridge方案.md)。  
 > 产物目录：`artifacts/3sigma/lean/`（只保留精简方案所需文件）
 
 ---

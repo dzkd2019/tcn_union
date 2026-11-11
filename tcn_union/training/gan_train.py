@@ -29,6 +29,7 @@ from tcn_union.core.data import TIME_STEP_SECONDS, make_features
 from tcn_union.core.device import configure_threads, describe_device, resolve_device
 from tcn_union.evaluation.evaluate import AXES, _metric_summary
 from tcn_union.training.train import (
+    _low_conc_powers,
     BASE_SEED,
     MAX_EPOCHS,
     SEEDS,
@@ -241,6 +242,7 @@ def cross_validate(
     target_transform: str | list[str] = "none",
     feature_mode: str = MODE,
     per_gas_head: bool = False,
+    low_conc_power: float = 0.0,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。
 
@@ -299,6 +301,7 @@ def cross_validate(
             validation_metric=validation_metric,
             target_transform=target_transform,
             per_gas_head=per_gas_head,
+            low_conc_power=low_conc_power,
         )
         if prediction is None or best_score is None:
             raise RuntimeError("五折训练没有产生验证预测")
@@ -375,6 +378,7 @@ def train_final(
     target_transform: str | list[str] = "none",
     feature_mode: str = MODE,
     per_gas_head: bool = False,
+    low_conc_power: float = 0.0,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
@@ -417,6 +421,7 @@ def train_final(
         ema_decay=ema_decay,
         target_transform=target_transform,
         per_gas_head=per_gas_head,
+        low_conc_power=low_conc_power,
     )
     metadata = {
         "mode": mode,
@@ -480,6 +485,13 @@ def main() -> None:
         action="store_true",
         help="使用逐气体输出头（NO2 专项实验）",
     )
+    parser.add_argument(
+        "--low-conc-power",
+        type=str,
+        default="0.0",
+        help="低浓度损失加权强度：单值或 H2,NH3,NO2 三值，权重=(median/y)^p "
+        "裁剪到 0.25–4（0 关闭）",
+    )
     parser.add_argument("--synthetic-ratio", type=float, default=1.0)
     parser.add_argument("--noise-scale", type=float, default=1.0)
     parser.add_argument("--noise-copies", type=int, default=1)
@@ -527,6 +539,10 @@ def main() -> None:
     if args.edge_copies > 0 and args.generator != "vae":
         parser.error("--edge-copies 目前只支持 --generator vae")
     try:
+        _low_conc_powers(args.low_conc_power)
+    except ValueError as exc:
+        parser.error(str(exc))
+    try:
         # 提前校验标签空间配置，避免读到 manifest、开始五折训练后才报错。
         _target_flags(args.target_transform)
     except ValueError as exc:
@@ -567,6 +583,7 @@ def main() -> None:
         "mode": args.feature_mode,
         "feature_mode": args.feature_mode,
         "per_gas_head": args.per_gas_head,
+        "low_conc_power": args.low_conc_power,
         "synthetic_ratio": args.synthetic_ratio,
         "noise_scale": args.noise_scale,
         "noise_copies": args.noise_copies,
@@ -603,6 +620,7 @@ def main() -> None:
             target_transform=args.target_transform,
             feature_mode=args.feature_mode,
             per_gas_head=args.per_gas_head,
+            low_conc_power=args.low_conc_power,
         )
         mode_dir = args.output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
@@ -641,6 +659,7 @@ def main() -> None:
                     target_transform=args.target_transform,
                     feature_mode=args.feature_mode,
                     per_gas_head=args.per_gas_head,
+                    low_conc_power=args.low_conc_power,
                 )
                 print(f"  saved {path}", flush=True)
 

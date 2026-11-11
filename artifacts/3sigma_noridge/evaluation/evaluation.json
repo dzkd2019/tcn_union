@@ -1,0 +1,307 @@
+{
+  "protocol": "locked 12-run test; hybrid candidate = TCN ensemble mean mixed with dev-fitted manual57-feature Ridge (log target); fused predictions clipped to development label range; test read once per candidate version",
+  "test_n": 12,
+  "locked_test_runs": [
+    "data/2.csv",
+    "data/7.csv",
+    "data/15.csv",
+    "data/20.csv",
+    "data/23.csv",
+    "data/27.csv",
+    "data/31.csv",
+    "data/38.csv",
+    "data/41.csv",
+    "data/46.csv",
+    "data/55.csv",
+    "data/60.csv"
+  ],
+  "windows": [
+    10
+  ],
+  "mode": "raw_delta",
+  "seeds": [
+    20260923,
+    20260924,
+    20260925
+  ],
+  "model_dirs": [
+    "artifacts/3sigma_noridge/final/p10/noise_gan",
+    "artifacts/3sigma_noridge/final/q/noise_gan"
+  ],
+  "ridge_weight": 0.0,
+  "clip_to_development_range": true,
+  "ridge": {
+    "alpha": 0.01,
+    "target_space": "log",
+    "train_runs": 50,
+    "feature_version": "manual57-v1",
+    "features_per_gas": 19,
+    "n_features": 57,
+    "abs_seconds": [
+      0.0,
+      1.0,
+      2.0,
+      5.0,
+      10.0
+    ],
+    "delta_seconds": [
+      2.0,
+      5.0,
+      10.0
+    ],
+    "slope_lag_seconds": 1.0
+  },
+  "development_ranges": {
+    "H2": 24000.0,
+    "NH3": 40.0,
+    "NO2": 8.0
+  },
+  "metrics": [
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": 20260923,
+      "n": 12,
+      "H2": {
+        "MAE": 459.2628280584535,
+        "RMSE": 632.8922352045286,
+        "R2": 0.993120280090764,
+        "R2_null_reason": null,
+        "NMAE": 0.01913595116910223,
+        "NRMSE": 0.02637050980018869,
+        "MAPE_percent": 2.2757935553302517,
+        "MAPE_null_reason": null
+      },
+      "NH3": {
+        "MAE": 0.5039284751033998,
+        "RMSE": 0.6631164304042969,
+        "R2": 0.9970131995453213,
+        "R2_null_reason": null,
+        "NMAE": 0.012598211877584994,
+        "NRMSE": 0.016577910760107423,
+        "MAPE_percent": 2.0379317991989154,
+        "MAPE_null_reason": null
+      },
+      "NO2": {
+        "MAE": 0.09965478029633039,
+        "RMSE": 0.1533258910882014,
+        "R2": 0.9970200076070153,
+        "R2_null_reason": null,
+        "NMAE": 0.012456847537041299,
+        "NRMSE": 0.019165736386025176,
+        "MAPE_percent": 2.2247065453799593,
+        "MAPE_null_reason": null
+      },
+      "macro_NMAE": 0.014730336861242843,
+      "macro_MAPE_percent": 2.1794772999697085,
+      "macro_MAPE_null_reason": null
+    },
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": 20260924,
+      "n": 12,
+      "H2": {
+        "MAE": 346.92618711967657,
+        "RMSE": 440.6759946442885,
+        "R2": 0.9966645839879741,
+        "R2_null_reason": null,
+        "NMAE": 0.01445525779665319,
+        "NRMSE": 0.018361499776845355,
+        "MAPE_percent": 2.2443538071992055,
+        "MAPE_null_reason": null
+      },
+      "NH3": {
+        "MAE": 0.4804145062996567,
+        "RMSE": 0.5540235430299753,
+        "R2": 0.9979151103576729,
+        "R2_null_reason": null,
+        "NMAE": 0.012010362657491417,
+        "NRMSE": 0.013850588575749381,
+        "MAPE_percent": 1.9627635705838964,
+        "MAPE_null_reason": null
+      },
+      "NO2": {
+        "MAE": 0.2287005503713481,
+        "RMSE": 0.3291766768998833,
+        "R2": 0.9862645695558641,
+        "R2_null_reason": null,
+        "NMAE": 0.02858756879641851,
+        "NRMSE": 0.04114708461248541,
+        "MAPE_percent": 4.586388102680384,
+        "MAPE_null_reason": null
+      },
+      "macro_NMAE": 0.018351063083521038,
+      "macro_MAPE_percent": 2.9311684934878284,
+      "macro_MAPE_null_reason": null
+    },
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": 20260925,
+      "n": 12,
+      "H2": {
+        "MAE": 367.65578788110605,
+        "RMSE": 535.9362331715133,
+        "R2": 0.9950667007361934,
+        "R2_null_reason": null,
+        "NMAE": 0.015318991161712751,
+        "NRMSE": 0.022330676382146388,
+        "MAPE_percent": 1.7738043975671862,
+        "MAPE_null_reason": null
+      },
+      "NH3": {
+        "MAE": 0.44057541825590657,
+        "RMSE": 0.47755397979264613,
+        "R2": 0.9984509281263833,
+        "R2_null_reason": null,
+        "NMAE": 0.011014385456397664,
+        "NRMSE": 0.011938849494816153,
+        "MAPE_percent": 1.7817565496030652,
+        "MAPE_null_reason": null
+      },
+      "NO2": {
+        "MAE": 0.24033753550849268,
+        "RMSE": 0.29935337663782835,
+        "R2": 0.9886406760994334,
+        "R2_null_reason": null,
+        "NMAE": 0.030042191938561585,
+        "NRMSE": 0.037419172079728544,
+        "MAPE_percent": 4.075642518488579,
+        "MAPE_null_reason": null
+      },
+      "macro_NMAE": 0.018791856185557333,
+      "macro_MAPE_percent": 2.5437344885529436,
+      "macro_MAPE_null_reason": null
+    },
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": "ensemble",
+      "n": 12,
+      "H2": {
+        "MAE": 314.7856250056837,
+        "RMSE": 439.2767603725679,
+        "R2": 0.9966857315842924,
+        "R2_null_reason": null,
+        "NMAE": 0.013116067708570154,
+        "NRMSE": 0.018303198348856995,
+        "MAPE_percent": 1.6471833498164465,
+        "MAPE_null_reason": null
+      },
+      "NH3": {
+        "MAE": 0.3144597755063101,
+        "RMSE": 0.41759445913709925,
+        "R2": 0.9988154972145524,
+        "R2_null_reason": null,
+        "NMAE": 0.007861494387657753,
+        "NRMSE": 0.010439861478427482,
+        "MAPE_percent": 1.2347765610882653,
+        "MAPE_null_reason": null
+      },
+      "NO2": {
+        "MAE": 0.12850538342478612,
+        "RMSE": 0.21145751757363948,
+        "R2": 0.994331992455695,
+        "R2_null_reason": null,
+        "NMAE": 0.016063172928098265,
+        "NRMSE": 0.026432189696704935,
+        "MAPE_percent": 2.116008885254947,
+        "MAPE_null_reason": null
+      },
+      "macro_NMAE": 0.01234691167477539,
+      "macro_MAPE_percent": 1.6659895987198865,
+      "macro_MAPE_null_reason": null
+    },
+    {
+      "model": "ridge",
+      "window_seconds": 10,
+      "seed": "ensemble",
+      "n": 12,
+      "H2": {
+        "MAE": 963.5101768164641,
+        "RMSE": 1233.3024900120226,
+        "R2": 0.9738753525060521,
+        "R2_null_reason": null,
+        "NMAE": 0.04014625736735267,
+        "NRMSE": 0.05138760375050094,
+        "MAPE_percent": 6.064278824469913,
+        "MAPE_null_reason": null
+      },
+      "NH3": {
+        "MAE": 0.55135573063084,
+        "RMSE": 0.6528420271916857,
+        "R2": 0.9971050381794644,
+        "R2_null_reason": null,
+        "NMAE": 0.013783893265771,
+        "NRMSE": 0.016321050679792143,
+        "MAPE_percent": 1.8797332531655158,
+        "MAPE_null_reason": null
+      },
+      "NO2": {
+        "MAE": 0.2233524290731165,
+        "RMSE": 0.32228466817997553,
+        "R2": 0.986833708928241,
+        "R2_null_reason": null,
+        "NMAE": 0.027919053634139563,
+        "NRMSE": 0.04028558352249694,
+        "MAPE_percent": 3.5443845891770245,
+        "MAPE_null_reason": null
+      },
+      "macro_NMAE": 0.027283068089087745,
+      "macro_MAPE_percent": 3.8294655556041506,
+      "macro_MAPE_null_reason": null
+    }
+  ],
+  "three_sigma": [
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": 20260923,
+      "H2": 8.521941128092614,
+      "NH3": 9.01828714032861,
+      "NO2": 10.08730548827384,
+      "macro": 9.209177918898355
+    },
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": 20260924,
+      "H2": 8.809729828900709,
+      "NH3": 8.364469050520636,
+      "NO2": 17.51985196717217,
+      "macro": 11.564683615531171
+    },
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": 20260925,
+      "H2": 5.841257815991537,
+      "NH3": 7.008873478707523,
+      "NO2": 13.426112057502802,
+      "macro": 8.758747784067287
+    },
+    {
+      "model": "candidate",
+      "window_seconds": 10,
+      "seed": "ensemble",
+      "H2": 6.462367456079026,
+      "NH3": 5.711496966181615,
+      "NO2": 9.15913299780561,
+      "macro": 7.110999140022083
+    },
+    {
+      "model": "ridge",
+      "window_seconds": 10,
+      "seed": "ensemble",
+      "H2": 19.16107240322661,
+      "NH3": 7.001603456574019,
+      "NO2": 14.84307165385485,
+      "macro": 13.668582504551827
+    }
+  ],
+  "outputs": {
+    "test_predictions": "artifacts/3sigma_noridge/evaluation/test_predictions.csv",
+    "test_metrics": "artifacts/3sigma_noridge/evaluation/test_metrics.csv"
+  }
+}
