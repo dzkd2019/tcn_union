@@ -4,6 +4,7 @@
 > 动机：Ridge 是一个额外的线性模型，部署/解释都显得“多了一层”；希望在**只保留 TCN 模型族**的前提下，用训练目标（低浓度 Loss 加权）而不是后处理线性模型来降 3σ。  
 > 结论：无 Ridge 方案在 OOF 与 12 点锁定测试集上**逐气体 3σ 均 <10%**（OOF 9.31 / 4.95 / 8.16，测试 6.46 / 5.71 / 9.16），62 点合并口径 8.86 / 5.05 / 8.59；相比“TCN + Ridge”方案 OOF 略差（7.47% vs 7.06%），测试宏平均 7.11% vs 7.18%，符合“性能略微下降”的预期。
 >
+> **状态**：该方案已合并到 `dev` 分支并推送到 `origin`；旧迭代分支与旧产物已清理。  
 > **测试集读取声明**：本方案的测试结果是整个 3σ 任务的**第 7 次读取**。候选在读取测试集前已用 OOF 完全冻结（配置、加权强度、seed 数、集成方式都只在 OOF 上选择），没有根据测试结果调参。
 
 ---
@@ -105,7 +106,7 @@ loss = Σ_i Σ_g w_i,g · SmoothL1(pred_i,g, target_i,g) / Σ_i Σ_g w_i,g
 | 方法 | H2 | NH3 | NO2 | 宏平均 3σ | MAPE |
 |---|---:|---:|---:|---:|---:|
 | 无 Ridge 方案（p=1.0 + p=0,0.3,1.0 平均） | 9.31 | 4.95 | 8.16 | **7.47%** | 1.79 |
-| 对照：TCN + Ridge（精简方案） | 7.63 | 4.28 | 9.28 | 7.06% | 1.70 |
+| 对照：TCN + Ridge（旧精简方案，代码已移除） | 7.63 | 4.28 | 9.28 | 7.06% | 1.70 |
 
 OOF 变差 0.41 pp，逐气体仍全部 <10%；NH3 4.95% 仍达到 5% 目标，H2/NO2 未到 5%。
 
@@ -169,9 +170,9 @@ OOF 变差 0.41 pp，逐气体仍全部 <10%；NH3 4.95% 仍达到 5% 目标，H
 
 - 每个配置 3 个 seed（20260923–25），共 **6 个 TCN checkpoint**；
 - 推理：逐 seed 预测平均 → 裁剪到开发集浓度范围；**不使用 Ridge**；
-- 评估：`hybrid_evaluate --ridge-weight 0 --clip-to-development-range`（Ridge 权重置 0，等价于只用 TCN 集成）。
+- 评估：`python -m tcn_union.evaluation.ensemble_evaluate --clip-to-development-range`（TCN 集平均 + 裁剪；模块已不含 Ridge 代码）。
 
-### 5.3 目录结构
+### 5.3 目录结构与代码清理
 
 ```text
 artifacts/3sigma_noridge/
@@ -181,8 +182,17 @@ artifacts/3sigma_noridge/
 ├── evaluation/{evaluation.json,test_predictions.csv,test_metrics.csv}
 ├── all62_predictions.csv / all62_error_stats.csv
 ├── figs/{fig_noridge_all62_error_sigma_by_gas,fig_noridge_vs_baseline_all62}.{png,svg}
-└── ablation/low_conc_screening.json            # OOF 筛选原始数字
+├── ablation/low_conc_screening.json            # OOF 筛选原始数字
+└── scripts/{build_oof.py,plot_all62.py}        # 无 Ridge 方案的复现脚本
 ```
+
+本次清理删除的旧代码/产物（不再保留兼容）：
+
+- 代码：`tcn_union/evaluation/hybrid_evaluate.py`（Ridge 混合评估）、`report_three_sigma.py`、`plot_variance_comparison.py`；新增无 Ridge 的 `tcn_union/evaluation/ensemble_evaluate.py`；
+- 脚本：旧 62 点/方法对比脚本、旧 `artifacts/3sigma/` 下的分析脚本；
+- 产物：`artifacts/3sigma/`（TCN+Ridge 迭代）、`artifacts/3sigma_diagnosis/`、`artifacts/variance_search/`；
+- 文档：v1–v5 的旧 3σ 记录与诊断文档（历史保留在 git）；
+- 测试：`tests/test_hybrid_evaluate.py` 由无 Ridge 的 `tests/test_ensemble_evaluate.py` 取代，全量测试 **67 个通过**。
 
 ---
 
@@ -191,7 +201,7 @@ artifacts/3sigma_noridge/
 | 版本 | 组成 | 测试逐气体（H2/NH3/NO2） | 宏 3σ |
 |---|---|---|---:|
 | 旧方案 | none+加权，3 seed | 10.75 / 6.65 / 16.14 | 11.18 |
-| v1–v5 | 多配置/多结构迭代（5 次读取） | 见 [`误差方差优化_v2.md`](误差方差优化_v2.md) | 9.74 → 8.17 |
+| v1–v5 | 多配置/多结构迭代（5 次读取，旧文档/产物已清理） | — | 9.74 → 8.17 |
 | TCN + Ridge（精简方案） | 单配置 × 3 seed + Ridge + 裁剪（第 6 次） | 9.86 / 2.72 / 8.96 | 7.18 |
 | **无 Ridge（本方案）** | 2 配置 × 3 seed + 裁剪（第 7 次） | **6.46 / 5.71 / 9.16** | **7.11** |
 
@@ -237,20 +247,20 @@ uv run --no-sync python -m tcn_union.training.gan_train \
   --low-conc-power 1.0 --validation-metric three_sigma
 
 # 4) 逐 seed 的 OOF 两配置平均（得到 artifacts/3sigma_noridge/oof）
-uv run --no-sync python artifacts/3sigma/scripts/build_noridge_oof.py
+uv run --no-sync python artifacts/3sigma_noridge/scripts/build_oof.py
 
 # 5) 锁定测试评估（第 7 次读取；已有 evaluation.json 时不要重复跑）
-uv run --no-sync python -m tcn_union.evaluation.hybrid_evaluate \
+uv run --no-sync python -m tcn_union.evaluation.ensemble_evaluate \
   --manifest artifacts/splits/manifest.csv \
   --model-dirs artifacts/3sigma_noridge/final/p10/noise_gan \
                artifacts/3sigma_noridge/final/q/noise_gan \
   --output-dir artifacts/3sigma_noridge/evaluation \
   --device cuda --windows 10 \
   --seeds 20260923 20260924 20260925 \
-  --ridge-weight 0 --ridge-alpha 0.01 --clip-to-development-range
+  --clip-to-development-range
 
 # 6) 62 点散点图 + 统计（PNG+SVG）
-uv run --no-sync python artifacts/3sigma/scripts/plot_noridge_all62.py
+uv run --no-sync python artifacts/3sigma_noridge/scripts/plot_all62.py
 ```
 
 ---
