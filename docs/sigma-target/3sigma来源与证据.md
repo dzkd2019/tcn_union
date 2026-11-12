@@ -78,6 +78,12 @@ rel_i=\frac{\hat y_i-y_i}{y_i}\times100\%
 
 低浓度组的 3σ 降幅最大，说明“低浓度尾部”确实是主要来源。
 
+下图沿用同一版式，把当前最终方案（62 点 = 50 OOF + 12 测试）的逐点相对误差按真实浓度重新画了一遍。蓝色圆点为低浓度组，橙色方块为高浓度组，灰色虚线为各气体的中位数切分点；每个面板内标出低/高浓度各自的 3σ。
+
+![当前方案不同浓度相对误差散点](../../artifacts/3sigma_noridge/figs/fig_current_relative_error_vs_concentration.png)
+
+> 图注：当前最终方案（A+B 六 checkpoint 集成）的相对误差随真实浓度变化。H2 低/高浓度 3σ 8.08%/9.88%，NH3 6.14%/3.21%，NO2 8.92%/7.66%。数据与统计见 `artifacts/3sigma_noridge/figs/current_relative_error_low_high.csv`，绘图脚本为 `tcn_union/visualization/plot_concentration_error.py`。
+
 ### 1.4 应对手段为什么有效
 
 **（1）H2/NO2 取 log 目标**
