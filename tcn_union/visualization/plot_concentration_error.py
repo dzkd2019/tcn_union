@@ -6,6 +6,7 @@
 - 低浓度蓝色圆点、高浓度橙色方块，虚线为中位数切分点；
 - 面板内标出低/高浓度各自的 3σ。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,11 +32,9 @@ LOW_COLOR = "#0072B2"
 HIGH_COLOR = "#D55E00"
 
 
-def _load_predictions(path: Path) -> pd.DataFrame:
+def load_predictions(path: Path) -> pd.DataFrame:
     frame = pd.read_csv(path)
-    required = {
-        f"{gas}_{kind}" for gas in GASES for kind in ("true", "pred")
-    }
+    required = {f"{gas}_{kind}" for gas in GASES for kind in ("true", "pred")}
     missing = required - set(frame.columns)
     if missing:
         raise ValueError(f"{path} 缺少列: {sorted(missing)}")
@@ -55,7 +54,7 @@ def plot_current_relative_error(
     output_dir: Path,
     title: str = "当前最终方案：相对误差随真实浓度的变化（62 点）",
 ) -> Path:
-    frame = _load_predictions(predictions_path)
+    frame = load_predictions(predictions_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     figure, panels = plt.subplots(1, 3, figsize=(12.6, 3.9), constrained_layout=True)
