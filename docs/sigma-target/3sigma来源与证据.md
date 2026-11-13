@@ -84,7 +84,33 @@ rel_i=\frac{\hat y_i-y_i}{y_i}\times100\%
 
 > 图注：当前最终方案（A+B 六 checkpoint 集成）的相对误差随真实浓度变化。H2 低/高浓度 3σ 8.08%/9.88%，NH3 6.14%/3.21%，NO2 8.92%/7.66%。数据与统计见 `artifacts/3sigma_noridge/figs/current_relative_error_low_high.csv`，绘图脚本为 `tcn_union/visualization/plot_concentration_error.py`。
 
-### 1.4 应对手段为什么有效
+### 1.4 绝对误差的两种画法
+
+相对误差适合看低浓度尾部，绝对误差适合看实际 ppm 偏差。为了避免把两件事混在一起，下面分别给出两张图；纵轴都只表示对应气体的绝对误差，面板之间量级不同，不能直接横向比较。
+
+**（1）按实验序号排列**
+
+横轴是 62 个实验按 `data` 编号排序后的序号，纵轴是 `|pred - true|`；蓝色圆点为 50 个 OOF 实验，粉色方块为 12 个锁定测试。虚线为整体 MAE，面板内标出最大误差点。
+
+![当前方案三种气体绝对误差散点](../../artifacts/3sigma_noridge/figs/fig_current_absolute_error_by_sample.png)
+
+> 图注：当前最终方案（A+B 六 checkpoint 集成）的逐实验绝对误差。H2、NH3、NO2 的 MAE 分别为 370.95、0.328、0.123 ppm；最大点分别为 `data/0.csv` 3604.98 ppm、`data/52.csv` 1.26 ppm、`data/2.csv` 0.62 ppm。
+
+**（2）按真实浓度排列**
+
+横轴是真实浓度，纵轴仍是绝对误差；按每个气体 62 个真实浓度的中位数切分低/高浓度，蓝色圆点为低浓度，橙色方块为高浓度，灰色虚线为中位数切分点。面板内标出低/高浓度各自的绝对误差 3σ。
+
+![当前方案不同浓度绝对误差散点](../../artifacts/3sigma_noridge/figs/fig_current_absolute_error_vs_concentration.png)
+
+> 图注：绝对误差随真实浓度的变化。H2 低/高浓度绝对误差 3σ 为 910.61/2556.31 ppm，NH3 为 0.90/1.11 ppm，NO2 为 0.39/0.40 ppm；切分点分别为 H2=16000、NH3=30、NO2=6。数据与统计见 `artifacts/3sigma_noridge/figs/current_absolute_error_stats.csv`，逐点误差见 `current_absolute_error_points.csv`，脚本为 `tcn_union/visualization/plot_absolute_error.py`。
+
+关键点：
+
+- H2 的绝对误差随浓度升高明显变大（高浓度 MAE 603.58 ppm vs 低浓度 283.07 ppm），但相对误差的高浓度 3σ 反而更低；这说明 H2 的绝对误差主要受 ppm 量级影响，不能直接等同于相对误差变差。
+- H2 最大绝对误差是 `data/0.csv` 的 3604.98 ppm，对应真实浓度 32000 ppm 的系统性低估；这和 3σ 来源三中的高浓度案例是同一个点。
+- NH3、NO2 的绝对误差都在 1 ppm 以下，和 H2 差两三个数量级；因此三张图的纵轴必须独立看。
+
+### 1.5 应对手段为什么有效
 
 **（1）H2/NO2 取 log 目标**
 
