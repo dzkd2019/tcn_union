@@ -46,6 +46,12 @@ def _format_value(value: float, gas: str) -> str:
     return f"{value:+.2f}"
 
 
+def _format_sigma(value: float, gas: str) -> str:
+    if gas == "H2":
+        return f"{value:.0f}"
+    return f"{value:.2f}"
+
+
 def _sort_by_file_id(frame: pd.DataFrame) -> pd.DataFrame:
     order = frame["file"].str.extract(r"(\d+)")[0].astype(int)
     return frame.assign(_order=order).sort_values("_order").reset_index(drop=True)
@@ -59,7 +65,7 @@ def _set_symmetric_ylim(panel: plt.Axes, errors: np.ndarray) -> None:
 def plot_signed_error_by_sample(
     frame: pd.DataFrame,
     output_dir: Path,
-    title: str = "当前最终方案：三种气体有符号误差散点（62 点）",
+    title: str = "当前方案：三种气体绝对误差散点图",
 ) -> Path:
     ordered = _sort_by_file_id(frame)
     x = np.arange(1, len(ordered) + 1)
@@ -82,24 +88,40 @@ def plot_signed_error_by_sample(
                 label=source,
                 zorder=3,
             )
-        panel.axhline(0.0, color="#666666", linewidth=0.8, zorder=2)
+        mean = float(errors.mean())
+        sigma = float(errors.std(ddof=1))
+        panel.axhline(0.0, color="0.55", linewidth=0.8, zorder=1)
         panel.axhline(
-            float(errors.mean()),
-            color="#777777",
-            linestyle="--",
-            linewidth=0.9,
-            zorder=2,
+            mean, color="0.1", linewidth=1.2, linestyle="-", zorder=2, label="均值"
         )
+        bands = [(1.0, "--", "0.35"), (2.0, ":", "0.45"), (3.0, "-.", "0.55")]
+        for k, style, shade in bands:
+            for sign in (-1.0, 1.0):
+                label = None
+                if sign > 0:
+                    label = "±σ" if k == 1.0 else f"±{int(k)}σ"
+                panel.axhline(
+                    mean + sign * k * sigma,
+                    color=shade,
+                    linewidth=1.0,
+                    linestyle=style,
+                    zorder=2,
+                    label=label,
+                )
+        if sigma > 0.0:
+            panel.axhspan(
+                mean - sigma, mean + sigma, color="0.85", alpha=0.25, zorder=0
+            )
         panel.set_xlabel("实验序号（按 data 编号排序）", fontsize=8.5)
         panel.set_ylabel("误差（预测 − 真实）/ ppm", fontsize=8.5)
-        panel.set_title(f"{gas} · 有符号误差", fontsize=9.5, loc="left")
+        panel.set_title(gas, fontsize=10.5, loc="left")
         panel.grid(alpha=0.2, linewidth=0.5)
         panel.tick_params(labelsize=7.5)
         _set_symmetric_ylim(panel, errors)
         panel.text(
             0.02,
             0.96,
-            f"均值={_format_value(float(errors.mean()), gas)} ppm",
+            f"均值={_format_value(mean, gas)} ppm\nσ={_format_sigma(sigma, gas)} ppm",
             transform=panel.transAxes,
             ha="left",
             va="top",
@@ -113,13 +135,13 @@ def plot_signed_error_by_sample(
         handles,
         labels,
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.10),
-        ncol=2,
+        bbox_to_anchor=(0.5, -0.12),
+        ncol=6,
         frameon=False,
-        fontsize=8,
+        fontsize=7.2,
     )
     figure.suptitle(title, fontsize=10.5)
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = output_dir / f"fig_current_signed_error_by_sample.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
@@ -237,7 +259,7 @@ def plot_signed_error_vs_concentration(
         fontsize=8,
     )
     figure.suptitle(title, fontsize=10.5)
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = output_dir / f"fig_current_signed_error_vs_concentration.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
