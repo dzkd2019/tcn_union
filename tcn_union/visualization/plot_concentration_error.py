@@ -17,15 +17,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-plt.rcParams.update(
-    {
-        "font.family": "Noto Serif CJK SC",
-        "font.serif": ["Noto Serif CJK SC"],
-        "axes.unicode_minus": False,
-        "pdf.fonttype": 42,
-        "savefig.dpi": 300,
-    }
-)
+from tcn_union.visualization.plot_style import apply_style
+
+apply_style()
 
 GASES = ("H2", "NH3", "NO2")
 LOW_COLOR = "#0072B2"
@@ -149,7 +143,7 @@ def plot_current_relative_error(
     )
     figure.suptitle(title, fontsize=10.5)
 
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = output_dir / f"fig_current_relative_error_vs_concentration.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")

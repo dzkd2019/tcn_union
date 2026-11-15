@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from tcn_union.visualization.plot_style import apply_style
+
 GASES = ("H2", "NH3", "NO2")
 DEV_COLOR = "#4C72B0"
 TEST_COLOR = "#DD8452"
@@ -31,17 +33,7 @@ def plot_distribution(predictions_path: Path, output_dir: Path) -> None:
     frame = _load_predictions(predictions_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    plt.rcParams.update(
-        {
-            "font.family": "Noto Serif CJK SC",
-            "font.serif": ["Noto Serif CJK SC"],
-            "axes.unicode_minus": False,
-            "pdf.fonttype": 42,
-            "savefig.dpi": 300,
-            "axes.spines.top": False,
-            "axes.spines.right": False,
-        }
-    )
+    apply_style()
     figure, panels = plt.subplots(1, 3, figsize=(10.4, 3.5), constrained_layout=True)
     rows: list[dict[str, float | int | str]] = []
     for panel, gas in zip(panels, GASES, strict=True):
@@ -113,7 +105,7 @@ def plot_distribution(predictions_path: Path, output_dir: Path) -> None:
         fontsize=8,
     )
     figure.suptitle("62 个实验的按气体浓度分布（50 开发 + 12 锁定测试）", fontsize=10.5)
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = output_dir / f"fig_concentration_distribution.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")

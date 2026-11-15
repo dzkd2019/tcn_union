@@ -4,7 +4,7 @@
 
 > 分支：`dev`（最终方案已合并并推送，提交 `cd559e2`）  
 > 代码状态：Ridge 及旧迭代代码已删除；当前评估模块为 `tcn_union/evaluation/ensemble_evaluate.py`  
-> 测试集读取：本方案对应**第 7 次**（共 7 次）锁定测试评估，前 6 次历史已不再保留产物，但结果记录在 git 历史与本轮对话中
+> 测试集读取：最终候选对应**第 7 次**锁定测试评估；此后新增组件/输出头消融分析又读取 **5 次**（no_log、no_weight、no_edge、共享头、A 配置重复评估），累计至少 **12 次**（把更早的 pg422 基线评估算入则为 13 次）。这些额外读取只用于分析、没有用于选择最终方案；更可信的验证仍需新的独立锁定集。
 >
 > 本文分两部分：
 > 1. **低浓度 Loss 加权**的原理、公式、权重统计与实现细节；
@@ -342,6 +342,10 @@ for batch in loader:
 
 输出是 z-score 空间的浓度；训练/推理端用 checkpoint 里的 `x/y` 统计量和 `target_transform` 还原。
 
+![GasTCN 模型架构图](../../artifacts/3sigma_noridge/figs/fig_model_architecture.png)
+
+> 图：当前 3σ 方案使用的 GasTCN 架构（10 s 原始响应 → raw_delta 6 通道 → 3 个因果残差块 → 最后时刻隐藏向量 → 三路逐气体头 → 三种气体浓度）。图中按用户要求不展开多 seed 平均与低浓度加权的两套配置；绘图脚本 `tcn_union/visualization/plot_model_architecture.py`（PNG+SVG）。
+
 ### 4.5 目标变换与损失
 
 | 气体 | 目标空间 | 原因 |
@@ -419,7 +423,7 @@ OOF 逐气体全部 <10%；相比 Ridge 方案 OOF 变差 0.41 pp，但逐气体
 - 逐气体 3σ 全部 <10%；宏平均 7.11%；
 - 5% 目标：只有 OOF NH3（4.95%）达到；测试 NH3 5.71%、H2 6.46%、NO2 9.16% 均未达到 5%；
 - 单 seed 测试宏 3σ 为 **9.21 / 11.56 / 8.76**，只有 3 seed 平均后才全部过线；NO2 距 10% 仅 0.84 pp，结论对 12 点抽样敏感；
-- 测试集共读取 7 次（v1–v5、Ridge 精简方案、本方案），全部**只在候选冻结后评估**，没有根据测试结果调参；但多次读取本身带来自适应偏差，更可信的验证需要新的独立锁定集。
+- 最终候选前后共读取 7 次（v1–v5、Ridge 精简方案、本方案）；后续新增消融分析又读取 5 次，累计至少 12 次。所有评估都只用于分析、未用于选择最终方案，但多次读取本身带来自适应偏差；更可信的验证需要新的独立锁定集。
 
 逐气体 MAPE、NMAE、NRMSE（测试 12 个实验，A+B 六 checkpoint 集成）：
 
@@ -480,6 +484,8 @@ OOF 逐气体全部 <10%；相比 Ridge 方案 OOF 变差 0.41 pp，但逐气体
 | 增强与训练入口、边缘采样、OOF | `tcn_union/training/gan_train.py::_edge_case_labels/_generative_features/_augmented_arrays/cross_validate/train_final` |
 | VAE 条件采样 | `tcn_union/augmentation/vae.py::TrainedVAE.sample(condition_labels=...)` |
 | 无 Ridge 评估 | `tcn_union/evaluation/ensemble_evaluate.py::evaluate_ensemble` |
+| 模型架构图 | `tcn_union/visualization/plot_model_architecture.py`（PNG+SVG） |
+| 分析图（浓度/有符号误差/指标/数据分布/消融） | `tcn_union/visualization/plot_{concentration_error,signed_error,current_per_gas_metrics,data_distribution,component_ablation,per_gas_head_ablation}.py` |
 | 指标/数据划分 | `tcn_union/evaluation/evaluate.py`（`_manifest`、`_metric_summary`、`_tcn_predict`） |
 | 训练 CLI | `python -m tcn_union.training.gan_train ...` |
 | 评估 CLI | `python -m tcn_union.evaluation.ensemble_evaluate ...` |
@@ -585,7 +591,7 @@ uv run --no-sync python artifacts/3sigma_noridge/scripts/plot_all62.py
 
 ## 8. 局限与后续
 
-1. **测试集已读 7 次**：当前 7.11% 只能作为这 12 点上的最终数字，不能继续据此迭代；更可信的验证需要新的独立锁定集；
+1. **测试集已读至少 12 次**（最终候选 7 次 + 后续消融分析 5 次）：当前 7.11% 只能作为这 12 点上的最终数字，不能继续据此迭代；更可信的验证需要新的独立锁定集；
 2. **贴线风险**：OOF H2 9.31%、测试 NO2 9.16% 距 10% 只有 0.7–0.8 pp；换一批测试点可能重新超限；
 3. **依赖 3 seed 集成**：单 seed 测试宏 9.21/11.56/8.76，部署必须保留 6 个 checkpoint 并做平均；
 4. **5% 目标未达**：目前只有 OOF NH3 达到 5%；H2/NO2 仍需更多数据或更强的结构化方法；
