@@ -344,7 +344,7 @@ for batch in loader:
 
 ![GasTCN 模型架构图](../../artifacts/3sigma_noridge/figs/fig_model_architecture.png)
 
-> 图：当前 3σ 方案使用的 GasTCN 架构（10 s 原始响应 → raw_delta 6 通道 → 3 个因果残差块 → 最后时刻隐藏向量 → 三路逐气体头 → 三种气体浓度）。图中按用户要求不展开多 seed 平均与低浓度加权的两套配置；绘图脚本 `tcn_union/visualization/plot_model_architecture.py`（PNG+SVG）。
+> 图：当前 3σ 方案使用的 GasTCN 架构（中文标注）。左侧主框架为 10 s 原始响应（以及仅训练时使用的 PCA-VAE 数据扩充）→ raw_delta 6 通道 → 3 个因果卷积块（k=5，d=1/2/4）→ 最后时刻隐藏向量 → 三路逐气体头 → 三种气体浓度；右侧两个面板分别给出训练目标与损失（H2/NO2 的 log 变换、NH3 原空间、低浓度加权 SmoothL1）和因果卷积块内部结构。图中不展开多 seed 平均，也不展开低浓度加权的两套配置；绘图脚本 `tcn_union/visualization/plot_model_architecture.py`（PNG+SVG）。
 
 ### 4.5 目标变换与损失
 
