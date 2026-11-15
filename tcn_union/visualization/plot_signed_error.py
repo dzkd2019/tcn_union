@@ -33,6 +33,15 @@ apply_style()
 
 SOURCE_COLORS = {"OOF": "#4477AA", "测试": "#CC6677"}
 SOURCE_MARKERS = {"OOF": "o", "测试": "s"}
+SOURCE_ALIASES = {"OOF": "OOF", "oof": "OOF", "test": "测试", "测试": "测试"}
+
+
+def _normalize_sources(frame: pd.DataFrame) -> pd.DataFrame:
+    frame = frame.copy()
+    frame["source"] = frame["source"].map(
+        lambda value: SOURCE_ALIASES.get(str(value).strip(), str(value).strip())
+    )
+    return frame
 
 
 def _signed_error(frame: pd.DataFrame, gas: str) -> np.ndarray:
@@ -68,9 +77,10 @@ def _set_symmetric_ylim(panel: plt.Axes, errors: np.ndarray) -> None:
 def plot_signed_error_by_sample(
     frame: pd.DataFrame,
     output_dir: Path,
-    title: str = "当前方案：三种气体绝对误差散点图",
+    title: str = "当前方案：三种气体有符号误差散点图",
+    output_stem: str = "fig_current_signed_error_by_sample",
 ) -> Path:
-    ordered = _sort_by_file_id(frame)
+    ordered = _sort_by_file_id(_normalize_sources(frame))
     x = np.arange(1, len(ordered) + 1)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -145,11 +155,11 @@ def plot_signed_error_by_sample(
     )
     figure.suptitle(title, fontsize=10.5)
     for suffix in ("png", "svg"):
-        path = output_dir / f"fig_current_signed_error_by_sample.{suffix}"
+        path = output_dir / f"{output_stem}.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
     plt.close(figure)
-    return output_dir / "fig_current_signed_error_by_sample.png"
+    return output_dir / f"{output_stem}.png"
 
 
 def plot_signed_error_vs_concentration(
@@ -314,10 +324,32 @@ def main() -> None:
         type=Path,
         default=Path("artifacts/3sigma_noridge/figs"),
     )
+    parser.add_argument(
+        "--title",
+        default="当前方案：三种气体有符号误差散点图",
+        help="按实验序号散点图的标题",
+    )
+    parser.add_argument(
+        "--output-stem",
+        default="fig_current_signed_error_by_sample",
+        help="输出文件名（不含扩展名）",
+    )
+    parser.add_argument(
+        "--by-sample-only",
+        action="store_true",
+        help="只画按实验序号排列的有符号误差散点，不生成浓度分组图和 CSV",
+    )
     args = parser.parse_args()
 
     frame = load_predictions(args.predictions)
-    plot_signed_error_by_sample(frame, args.output_dir)
+    plot_signed_error_by_sample(
+        frame,
+        args.output_dir,
+        title=args.title,
+        output_stem=args.output_stem,
+    )
+    if args.by_sample_only:
+        return
     stats_path = plot_signed_error_vs_concentration(frame, args.output_dir)
     write_point_errors(frame, stats_path.parent / "current_signed_error_points.csv")
 
