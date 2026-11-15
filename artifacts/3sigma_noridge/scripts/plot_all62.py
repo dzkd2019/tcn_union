@@ -31,6 +31,7 @@ GASES = ("H2", "NH3", "NO2")
 COLORS = {"H2": "#1F77B4", "NH3": "#F2A900", "NO2": "#D2691E"}
 MARKERS = {"H2": "o", "NH3": "^", "NO2": "s"}
 SEEDS = (20260923, 20260924, 20260925)
+GAS_RANGES = {"H2": 24000.0, "NH3": 40.0, "NO2": 8.0}
 
 NORIDGE = ROOT / "artifacts/3sigma_noridge"
 NORIDGE_OOF = NORIDGE / "oof"
@@ -266,6 +267,168 @@ def _comparison_figure(baseline: pd.DataFrame, lean: pd.DataFrame, test_start: i
     plt.close(figure)
 
 
+def _absolute(frame: pd.DataFrame, gas: str) -> np.ndarray:
+    truth = frame[f"{gas}_true"].to_numpy(float)
+    prediction = frame[f"{gas}_pred"].to_numpy(float)
+    return prediction - truth
+
+
+def _normalized_absolute(frame: pd.DataFrame, gas: str) -> np.ndarray:
+    return _absolute(frame, gas) / GAS_RANGES[gas] * 100.0
+
+
+def _format_ppm(value: float, gas: str) -> str:
+    return f"{value:+.0f}" if gas == "H2" else f"{value:+.2f}"
+
+
+def _format_sigma_ppm(value: float, gas: str) -> str:
+    return f"{value:.0f}" if gas == "H2" else f"{value:.2f}"
+
+
+def _draw_absolute_panel(
+    panel: plt.Axes,
+    error: np.ndarray,
+    *,
+    gas: str,
+    test_start: int,
+    filled: bool,
+    title: str,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+) -> None:
+    x = np.arange(len(error))
+    if gas == "合并":
+        colors = list(np.tile([COLORS[item] for item in GASES], len(error) // 3))
+        panel.scatter(
+            x,
+            error,
+            s=18,
+            marker="o",
+            c=colors,
+            alpha=0.85,
+            edgecolors="white",
+            linewidths=0.3,
+            zorder=3,
+        )
+        start = test_start * 3
+    else:
+        kwargs = {
+            "s": 20,
+            "marker": MARKERS[gas],
+            "alpha": 0.85,
+            "linewidths": 0.35,
+            "zorder": 3,
+        }
+        if filled:
+            kwargs["c"] = COLORS[gas]
+        else:
+            kwargs["facecolors"] = "none"
+            kwargs["edgecolors"] = COLORS[gas]
+            kwargs["linewidths"] = 0.7
+        panel.scatter(x, error, **kwargs)
+        start = test_start
+
+    mean = float(np.mean(error))
+    sigma = float(np.std(error, ddof=1))
+    panel.axhline(0.0, color="0.55", linewidth=0.7, zorder=1)
+    panel.axhline(mean, color="0.1", linewidth=1.0, zorder=2)
+    for k, style, shade in ((1.0, "--", "0.35"), (2.0, ":", "0.45"), (3.0, "-.", "0.55")):
+        for sign in (-1.0, 1.0):
+            panel.axhline(mean + sign * k * sigma, color=shade, linewidth=0.85, linestyle=style, zorder=2)
+    panel.axvspan(start - 0.5, len(error) - 0.5, color="#F2D9A6", alpha=0.35, zorder=0)
+
+    if gas == "合并":
+        text = f"n={len(error)} 均值={mean:+.2f}%  σ={sigma:.2f}%\n（各气体按量程归一化）"
+    else:
+        text = (
+            f"n={len(error)}  均值={_format_ppm(mean, gas)} ppm  "
+            f"σ={_format_sigma_ppm(sigma, gas)} ppm"
+        )
+    panel.text(
+        0.01,
+        0.98,
+        text,
+        transform=panel.transAxes,
+        fontsize=6.6,
+        va="top",
+        ha="left",
+        bbox=dict(boxstyle="round,pad=0.2", facecolor="white", edgecolor="0.8", alpha=0.85),
+    )
+    panel.set_title(title, fontsize=9.0, loc="left")
+    if xlabel is not None:
+        panel.set_xlabel(xlabel, fontsize=8.0)
+    if ylabel is not None:
+        panel.set_ylabel(ylabel, fontsize=8.0)
+    panel.grid(axis="y", alpha=0.2)
+    panel.tick_params(labelsize=7.0)
+
+
+def _absolute_comparison_figure(
+    baseline: pd.DataFrame, current: pd.DataFrame, test_start: int
+) -> None:
+    figure, panels = plt.subplots(2, 4, figsize=(13.2, 5.8), constrained_layout=True)
+    methods = (
+        ("旧方案", baseline, False),
+        ("当前方案", current, True),
+    )
+    columns = [
+        ("H2", "H2", "误差（预测 − 真实）/ ppm"),
+        ("NH3", "NH3", "误差（预测 − 真实）/ ppm"),
+        ("NO2", "NO2", "误差（预测 − 真实）/ ppm"),
+        ("三气体合并", "合并", "归一化误差（%/量程）"),
+    ]
+    limits: list[float] = []
+    for gas, _, _ in columns:
+        if gas == "三气体合并":
+            values = np.concatenate(
+                [_normalized_absolute(frame, item) for frame in (baseline, current) for item in GASES]
+            )
+        else:
+            values = np.concatenate([_absolute(frame, gas) for frame in (baseline, current)])
+        limits.append(max(float(np.abs(values).max()) * 1.15, 1e-9))
+
+    for row, (method, frame, filled) in enumerate(methods):
+        for column, (label, gas, ylabel) in enumerate(columns):
+            panel = panels[row, column]
+            if gas == "合并":
+                error = np.stack(
+                    [_normalized_absolute(frame, item) for item in GASES], axis=1
+                ).reshape(-1)
+            else:
+                error = _absolute(frame, gas)
+            _draw_absolute_panel(
+                panel,
+                error,
+                gas=gas,
+                test_start=test_start,
+                filled=filled,
+                title=f"{label} · {method}",
+                xlabel="实验序号（0–49 OOF，50–61 锁定测试）" if row == 1 and column < 3 else None,
+                ylabel=ylabel if column == 0 else None,
+            )
+            panel.set_ylim(-limits[column], limits[column])
+            if gas == "合并":
+                panel.text(
+                    0.99,
+                    0.02,
+                    "各气体按开发集量程归一化：H2 24000 / NH3 40 / NO2 8 ppm",
+                    transform=panel.transAxes,
+                    fontsize=6.2,
+                    ha="right",
+                    va="bottom",
+                    color="0.35",
+                )
+
+    figure.suptitle(
+        "旧方案与当前方案：62组数据绝对误差分布",
+        fontsize=11,
+    )
+    for suffix in ("png", "svg"):
+        path = FIGS / f"fig_abs_error_vs_baseline_all62.{suffix}"
+        figure.savefig(path, dpi=250, bbox_inches="tight", facecolor="white")
+        print(f"Wrote {path}")
+
+
 def _stats_rows(frame: pd.DataFrame, test_start: int) -> list[dict[str, object]]:
     rows = []
     for gas in GASES:
@@ -321,6 +484,7 @@ def main() -> None:
 
     stats = _noridge_figure(lean, test_start)
     _comparison_figure(baseline, lean, test_start)
+    _absolute_comparison_figure(baseline, lean, test_start)
 
     lean[["file", "source", *[f"{gas}_true" for gas in GASES], *[f"{gas}_pred" for gas in GASES]]].to_csv(
         NORIDGE / "all62_predictions.csv", index=False
