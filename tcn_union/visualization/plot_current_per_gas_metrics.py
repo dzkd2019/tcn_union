@@ -13,6 +13,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from tcn_union.visualization.plot_style import apply_style
+
 GASES = ("H2", "NH3", "NO2")
 LABELS = (*GASES, "宏平均")
 METRICS = (
@@ -62,17 +64,8 @@ def _percent_rows(row: dict, ranges: dict[str, float]) -> list[dict[str, float |
 
 
 def _plot(rows: list[dict[str, float | str]], output_dir: Path) -> None:
-    plt.rcParams.update(
-        {
-            "font.family": "Noto Serif CJK SC",
-            "font.serif": ["Noto Serif CJK SC"],
-            "axes.unicode_minus": False,
-            "pdf.fonttype": 42,
-            "savefig.dpi": 300,
-            "axes.spines.top": False,
-            "axes.spines.right": False,
-        }
-    )
+    apply_style()
+    plt.rcParams.update({"axes.spines.top": False, "axes.spines.right": False})
     figure, panels = plt.subplots(1, 3, figsize=(10.2, 3.5), constrained_layout=True)
     x = np.arange(len(LABELS))
     for panel, (key, title, _) in zip(panels, METRICS, strict=True):
@@ -115,7 +108,7 @@ def _plot(rows: list[dict[str, float | str]], output_dir: Path) -> None:
         fontsize=7.2,
         color="#555555",
     )
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = output_dir / f"fig_current_per_gas_metrics.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")

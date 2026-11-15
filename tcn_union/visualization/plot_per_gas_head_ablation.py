@@ -16,6 +16,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from tcn_union.visualization.plot_style import apply_style
+
 GASES = ("H2", "NH3", "NO2")
 COLORS = {"shared": "#8A9BA8", "per_gas": "#167D8D"}
 
@@ -68,17 +70,7 @@ def main() -> None:
                 *[f"{item['sigma'][g]:.4f}" for g in GASES],
             ])
 
-    plt.rcParams.update({
-        "font.family": "Noto Serif CJK SC",
-        "font.size": 8,
-        "axes.titlesize": 9,
-        "axes.labelsize": 8,
-        "legend.fontsize": 7,
-        "xtick.labelsize": 7.5,
-        "ytick.labelsize": 7.5,
-        "mathtext.fontset": "stix",
-        "svg.fonttype": "none",
-    })
+    apply_style()
     figure, (left, right) = plt.subplots(1, 2, figsize=(7.4, 3.05), constrained_layout=True)
 
     x = np.arange(2)
@@ -90,7 +82,7 @@ def main() -> None:
     left.set_xticks(x, ["OOF（50 个开发实验）", "锁定测试（12 个实验）"])
     left.set_ylabel("宏平均 3σ / %")
     left.set_title("(a) 整体：宏平均 3σ")
-    left.set_ylim(0, 14.5)
+    left.set_ylim(0, 16.7)
     left.grid(axis="y", alpha=0.25)
     left.legend(loc="upper right", frameon=False)
     for bars in (bars_shared, bars_per_gas):
@@ -105,7 +97,7 @@ def main() -> None:
     right.set_xticks(x, list(GASES))
     right.set_ylabel("测试 3σ / %")
     right.set_title("(b) 锁定测试：逐气体 3σ")
-    right.set_ylim(0, 15.5)
+    right.set_ylim(0, 16.7)
     right.grid(axis="y", alpha=0.25)
     for bars in (bars_shared, bars_per_gas):
         for bar in bars:

@@ -27,6 +27,9 @@ from tcn_union.visualization.plot_concentration_error import (
     LOW_COLOR,
     load_predictions,
 )
+from tcn_union.visualization.plot_style import apply_style
+
+apply_style()
 
 SOURCE_COLORS = {"OOF": "#4477AA", "测试": "#CC6677"}
 SOURCE_MARKERS = {"OOF": "o", "测试": "s"}

@@ -17,6 +17,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from tcn_union.visualization.plot_style import apply_style
+
 GASES = ("H2", "NH3", "NO2")
 GAS_COLORS = {"H2": "#2B6F8A", "NH3": "#D5A03A", "NO2": "#C06043"}
 
@@ -82,17 +84,7 @@ def main() -> None:
                 f"{item['macro'] - full['macro']:+.4f}",
             ])
 
-    plt.rcParams.update({
-        "font.family": "Noto Serif CJK SC",
-        "font.size": 7.5,
-        "axes.titlesize": 8.8,
-        "axes.labelsize": 7.8,
-        "legend.fontsize": 7,
-        "xtick.labelsize": 7,
-        "ytick.labelsize": 7,
-        "mathtext.fontset": "stix",
-        "svg.fonttype": "none",
-    })
+    apply_style()
     figure, (left, right) = plt.subplots(1, 2, figsize=(7.6, 3.25), constrained_layout=True)
 
     labels = [item["label"] for item in rows]
@@ -100,7 +92,7 @@ def main() -> None:
     width = 0.36
     oof = [item["oof"] for item in rows]
     test = [item["macro"] for item in rows]
-    bars_oof = left.bar(x - width / 2, oof, width, color="#8A9BA8", label="OOF 宏 3σ")
+    bars_oof = left.bar(x - width / 2, oof, width, color="#8A9BA8", label="OOF 逐折验证 3σ")
     bars_test = left.bar(x + width / 2, test, width, color="#167D8D", label="测试宏 3σ")
     for bars in (bars_oof, bars_test):
         for bar in bars:
@@ -108,7 +100,7 @@ def main() -> None:
     left.set_xticks(x, labels, rotation=20, ha="right")
     left.set_ylabel("宏平均 3σ / %")
     left.set_title("(a) 完整 A 与留一结果")
-    left.set_ylim(0, 14.8)
+    left.set_ylim(0, 16.2)
     left.grid(axis="y", alpha=0.25)
     left.legend(loc="upper right", frameon=False)
 
@@ -124,7 +116,7 @@ def main() -> None:
     right.set_xticks(x, [item["label"] for item in removed], rotation=20, ha="right")
     right.set_ylabel("相对完整 A 的 Δ3σ / pp")
     right.set_title("(b) 逐气体：正值表示去掉后变差")
-    right.set_ylim(-3.0, 6.2)
+    right.set_ylim(-3.2, 7.8)
     right.grid(axis="y", alpha=0.25)
     right.legend(loc="upper left", frameon=False, ncol=3)
 
