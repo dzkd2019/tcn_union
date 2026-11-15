@@ -119,11 +119,11 @@ def _draw_main_frame(ax) -> None:
     ax.text(group_x + 0.2, group_y + group_h - 0.55, "3 个块 · 16 通道", fontsize=8.6, ha="left", va="center", color="#333333", zorder=3)
 
     block_centers = (4.25, 5.45, 6.65)
-    for center, dilation in zip(block_centers, (4, 2, 1), strict=True):
+    for center, dilation, channel in zip(block_centers, (1, 2, 4), (6, 16, 16), strict=True):
         _box(
             ax, 6.2, center, 5.5, 0.72,
             face=GREEN_FILL, edge=GREEN_EDGE,
-            lines=[(f"因果卷积块（k=5，d={dilation}）", 10.2, True)],
+            lines=[(f"因果卷积块（k=5，d={dilation}）", 10.2, True), (f"输入{channel} 通道，输出 16 通道", 8.6, False)],
         )
     _arrow(ax, (6.2, 3.55), (6.2, 3.89))
     _arrow(ax, (6.2, 4.61), (6.2, 5.09))
@@ -182,14 +182,14 @@ def _draw_loss_panel(ax) -> None:
     _box(
         ax, 14.0, 10.65, 2.35, 0.72,
         face=GREEN_FILL, edge=GREEN_EDGE,
-        lines=[("log 变换", 9.4, True), ("H2 / NO2；NH3 原空间", 7.4, False)],
+        lines=[("log 变换", 9.4, True), ("H2 / NO2 / NH3", 7.4, False)],
         line_gap=0.24,
     )
     _arrow(ax, (14.0, 10.29), (14.0, 9.80))
     _box(
         ax, 13.45, 9.25, 2.15, 0.85,
         face=GREEN_FILL, edge=GREEN_EDGE,
-        lines=[("SmoothL1 损失", 9.2, True), ("低浓度加权", 8.4, False)],
+        lines=[("Loss 损失", 9.2, True), ("低浓度加权", 8.4, False)],
         line_gap=0.22,
     )
     _box(
