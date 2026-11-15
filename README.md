@@ -204,7 +204,7 @@ PCA 为什么选 6 个主成分、解释方差/重构误差/下游 OOF 证据见
 - **62 点合并口径**（50 OOF + 12 测试，教师 `error_analysis` 原始图口径）：逐气体 3σ = **8.86 / 5.05 / 8.59**（旧方案 18.47 / 12.73 / 20.37）；散点图见 [`fig_noridge_all62_error_sigma_by_gas.png`](artifacts/3sigma_noridge/figs/fig_noridge_all62_error_sigma_by_gas.png) 与 [`fig_noridge_vs_baseline_all62.png`](artifacts/3sigma_noridge/figs/fig_noridge_vs_baseline_all62.png)（PNG+SVG）；
 - 训练入口 `--low-conc-power`（单值或 `H2,NH3,NO2` 三值），评估入口 `python -m tcn_union.evaluation.ensemble_evaluate --clip-to-development-range`（模块已不含 Ridge 代码）；
 - 旧 Ridge 评估代码、v1–v5 迭代产物/脚本/文档已清理（历史保留在 git）；全量测试 **67 个通过**；
-- 模型架构图：[`fig_model_architecture.png`](artifacts/3sigma_noridge/figs/fig_model_architecture.png)（PNG+SVG，`tcn_union/visualization/plot_model_architecture.py`）；
+- 模型架构图：[`fig_model_architecture.png`](artifacts/3sigma_noridge/figs/fig_model_architecture.png)（中文标注，含 PCA-VAE 扩充、log 变换、低浓度加权与因果卷积块结构；PNG+SVG，`tcn_union/visualization/plot_model_architecture.py`）；
 - 分析文档：[`3sigma来源与证据.md`](docs/sigma-target/3sigma来源与证据.md)（四类误差来源与真实案例）、[`四组件消融.md`](docs/sigma-target/四组件消融.md)、[`逐气体输出头消融.md`](docs/sigma-target/逐气体输出头消融.md)、[`数据分布.md`](docs/sigma-target/数据分布.md)；
 - 原理、实现、OOF 筛选、测试读取披露与复现命令见 [`docs/sigma-target/3sigma_方案.md`](docs/sigma-target/3sigma_方案.md)。
 
