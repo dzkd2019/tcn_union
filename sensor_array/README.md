@@ -9,7 +9,7 @@
 - 数据只有 **三种气体**（H$_2$、NH$_3$、NO$_2$），没有第四种气体的浓度列；`data/` 的 62 个
   CSV 表头与 `响应曲线.pdf` 图题都只含这三种气体。本工作的模型、实验与结论都只针对
   这三种气体，不对第四种气体做任何声称。
-- 主模型采用 **一阶惯性 + 纯延迟的灰盒模型**：每路传感器 3 个形状参数（增益、时间常数、
+- 基础模型采用 **一阶惯性 + 纯延迟的灰盒模型**：每路传感器 3 个形状参数（增益、时间常数、
   延迟），增益与时间常数用对数浓度的低阶多项式参数化，共 45 个参数。
 - 建模目标是 **相对响应** $y_j(t)=(R_j(t)-R_j(0))/R_j(0)$。初始基线 $R_j(0)$ 随实验序号
   漂移（NH$_3$ 通道达 9.5 倍），且与浓度设计混淆，不能由浓度唯一确定；因此把 $R_j(0)$
@@ -18,6 +18,11 @@
   （宏平均 3.5%）。同协议的 TCN 宏平均 3.6%，与灰盒相当；直接岭回归 2.6%，是三者中
   插值最准的，但它没有动态参数、只能在测量时间点上取值。灰盒仍是主模型：45 个参数、
   任意 $t$ 连续可算、增益/时间常数可解释，代价是比岭回归高约 0.9 个百分点。
+- **章节扩展（2026-11）**：在灰盒骨架上加 5 个 B 样条残差基（每传感器 10 个浓度系数），
+  62 折宏 nRMSE 从 3.47% 降到 **3.02%**；再以该模型做恒浓度 MAP + Laplace + CV+ 的
+  早期浓度估计，10 s 中位误差约 3–8%，误差预算证明模型偏差是主因（噪声 CRLB <0.1%）。
+  完整结果见 `docs/chapter_results.md`，从零讲解见 `docs/learning_guide.md`，
+  图 `figures/fig08`–`fig16`。
 - 主要限制：NH$_3$ 浓度与采集顺序完全混淆（相关系数 0.976），H$_2$=32000 只有 4 条
   且都在 NO$_2$=2，62/100 个浓度组合、无重复。这些限制写在 §6，不能靠模型弥补。
 
@@ -261,3 +266,16 @@ experiment = load_experiments()[0]
 relative = model.predict_relative(experiment.concentration[None], experiment.time)[0]
 absolute = model.predict_response(experiment.concentration[None], experiment.time, experiment.initial[None])[0]
 ```
+
+
+## 9. 章节扩展：混合模型、可辨识性与早期估计
+
+本节是在 v1 灰盒基础上的硕士论文章节扩展，代码与结果都在同一目录。
+
+- `hybrid.py`：灰盒 + 低秩 B 样条残差；K=5，62 折宏 nRMSE 3.02%。
+- `identifiability.py`：二阶差分噪声估计、FIM/CRLB、条件数；5 s CRLB 中位 0.026/0.015/0.033%。
+- `estimate.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算。
+- `degradation.py`：逐路屏蔽传感器的降级实验。
+- `inverse_augmentation.py`：B 实验（正模型合成 → 逆 TCN），当前为负结果。
+- `chapter_figures.py`：fig08–fig16；`docs/chapter_results.md` 是结果汇总，
+  `docs/learning_guide.md` 是从零开始的学习文档。

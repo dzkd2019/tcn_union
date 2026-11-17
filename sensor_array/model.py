@@ -273,8 +273,7 @@ class FirstOrderArrayModel:
         Path(path).write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: Path | str) -> FirstOrderArrayModel:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    def from_dict(cls, payload: dict) -> FirstOrderArrayModel:
         model = cls(
             reference=np.array(payload["reference"]),
             signs=np.array(payload["signs"]),
@@ -286,3 +285,7 @@ class FirstOrderArrayModel:
         model.tau_coef = np.array(payload["tau_coef"])
         model.delay = np.array(payload["delay"])
         return model
+
+    @classmethod
+    def load(cls, path: Path | str) -> FirstOrderArrayModel:
+        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))

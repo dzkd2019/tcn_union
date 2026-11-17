@@ -27,15 +27,17 @@ MODEL_COLORS = {
     "two_stage": "#CC79A7",
     "tcn": "#6A4C93",
     "grey_box": "#009E73",
+    "hybrid": "#4C72B0",
 }
 MODEL_LABELS = {
     "mean_curve": "均值曲线",
     "direct_ridge": "直接岭回归",
     "two_stage": "两阶段回归",
     "tcn": "TCN",
-    "grey_box": "灰盒（本文）",
+    "grey_box": "灰盒",
+    "hybrid": "混合（本文）",
 }
-MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box"]
+MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box", "hybrid"]
 
 
 def _style() -> None:

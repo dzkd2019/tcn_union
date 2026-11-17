@@ -2,7 +2,7 @@
 
 本项目使用 H2、NH3、NO2 三路传感器响应的早期前缀，预测一次实验的三种浓度标签。当前实现包含数据校验、实验级固定划分、因果 TCN、Ridge 对照、锁定测试评估、预测 CLI 和结果绘图。
 
-正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)：一阶惯性 + 纯延迟灰盒、45 个参数，62 折留一实验宏 nRMSE 3.5%。
+正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)：一阶惯性 + 纯延迟灰盒（45 参数，62 折宏 nRMSE 3.5%），章节扩展的混合模型（3.0%）与早期浓度估计见 [`docs/chapter_results.md`](sensor_array/docs/chapter_results.md)、[`docs/learning_guide.md`](sensor_array/docs/learning_guide.md)。
 
 ## 当前结论
 

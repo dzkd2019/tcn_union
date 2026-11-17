@@ -21,10 +21,11 @@ import pandas as pd
 from .baselines import DirectRidgeModel, MeanCurveModel, TCNModel, TwoStageModel
 from .data import design_table, load_experiments
 from .evaluate import logo, summarize
+from .hybrid import HybridArrayModel
 from .model import FirstOrderArrayModel, fit_experiment_shapes
 
 ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
-MODEL_NAMES = ["mean_curve", "two_stage", "grey_box", "direct_ridge", "tcn"]
+MODEL_NAMES = ["mean_curve", "two_stage", "grey_box", "hybrid", "direct_ridge", "tcn"]
 
 
 def _shape_by_file(experiments, shapes):
@@ -52,6 +53,8 @@ def run_one(name: str, experiments, shapes) -> pd.DataFrame:
             model = TwoStageModel().fit(train, shape_init=_subset_init(train, shape_by_file))
         elif name == "grey_box":
             model = FirstOrderArrayModel().fit(train, shape_init=_subset_init(train, shape_by_file))
+        elif name == "hybrid":
+            model = HybridArrayModel().fit(train, shape_init=_subset_init(train, shape_by_file))
         elif name == "direct_ridge":
             model = DirectRidgeModel().fit(train)
         elif name == "tcn":
@@ -88,6 +91,8 @@ def combine() -> None:
     shapes = fit_experiment_shapes(experiments)
     final = FirstOrderArrayModel().fit(experiments, shape_init=shapes)
     final.save(ARTIFACTS / "model.json")
+    hybrid = HybridArrayModel().fit(experiments, grey=final)
+    hybrid.save(ARTIFACTS / "hybrid.json")
     relative = np.stack([experiment.relative for experiment in experiments])
     prediction = final.predict_relative(np.stack([e.concentration for e in experiments]), experiments[0].time)
     np.savez(
@@ -97,6 +102,9 @@ def combine() -> None:
         initial=np.stack([e.initial for e in experiments]),
         relative=relative,
         prediction=prediction,
+        hybrid_prediction=hybrid.predict_relative(
+            np.stack([e.concentration for e in experiments]), experiments[0].time
+        ),
         delay=final.delay,
     )
     print("delay (s):", np.round(final.delay, 3))
