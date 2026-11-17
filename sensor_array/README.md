@@ -276,6 +276,6 @@ absolute = model.predict_response(experiment.concentration[None], experiment.tim
 - `identifiability.py`：二阶差分噪声估计、FIM/CRLB、条件数；5 s CRLB 中位 0.026/0.015/0.033%。
 - `estimate.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算。
 - `degradation.py`：逐路屏蔽传感器的降级实验。
-- `inverse_augmentation.py`：B 实验（正模型合成 / 循环一致性 → 逆 TCN）。3 个种子 × 5 折：仅真实 5.86% MAPE（3.62% NMAE）、+循环 5.62%（p=0.19）、+合成 5.61%（p=0.46）、+合成+循环 5.50%（p=0.35）、合成预训练+微调 4.75%（p=0.001）；预训练式合成增强有稳定收益，1:1 混合与循环约束未证明显著，见 `docs/chapter_results.md` §8。
+- `inverse_augmentation.py`：B 实验（正模型合成 / 循环一致性 → 逆 TCN）。3 个种子 × 5 折：仅真实 5.86% MAPE（3.62% NMAE）、+循环 5.69%（p=0.37）、+合成 5.61%（p=0.46）、+合成+循环 5.48%（p=0.24）、合成预训练+微调 4.75%（p=0.001）；预训练式合成增强有稳定收益，1:1 混合与循环约束未证明显著，见 `docs/chapter_results.md` §8。
 - `chapter_figures.py`：fig08–fig16；`docs/chapter_results.md` 是结果汇总，
   `docs/learning_guide.md` 是从零开始的学习文档。

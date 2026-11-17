@@ -86,6 +86,7 @@ def _train(
     target_mean: np.ndarray | None = None,
     target_scale: np.ndarray | None = None,
     curve_scale: np.ndarray | None = None,
+    cycle_truth: np.ndarray | None = None,
 ) -> GasTCN:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -118,7 +119,8 @@ def _train(
                 real_prediction = prediction[: len(real_indices)]
                 log_c_hat = real_prediction * scale_tensor + mean_tensor
                 rendered = cycle(log_c_hat)
-                truth = real_batch.transpose(1, 2)
+                # 渲染结果是 raw 相对响应，不能与标准化后的输入直接相减。
+                truth = torch.from_numpy(cycle_truth[real_indices]).transpose(1, 2)
                 cycle_loss = (((rendered - truth) / curve_tensor) ** 2).mean()
                 loss = loss + cycle_weight * cycle_loss
             loss.backward()
@@ -154,6 +156,8 @@ def main() -> None:
         mean = np.log(concentration).mean(axis=0)
         scale = np.log(concentration).std(axis=0)
         real_x = np.stack([_features(experiment.relative[: len(TIME)]) for experiment in train])
+        # TCN 输入做标准化；循环损失必须在 raw 尺度上比较，故保留副本。
+        real_x_raw = real_x.copy()
         real_y = (np.log(concentration) - mean) / scale
         synthetic_x = np.stack([_features(curve) for curve in synthetic])
         synthetic_y = (np.log(synthetic_concentration) - mean) / scale
@@ -161,7 +165,7 @@ def main() -> None:
         x_std = real_x.std(axis=(0, 2), keepdims=True) + 1e-8
         real_x = (real_x - x_mean) / x_std
         synthetic_x = (synthetic_x - x_mean) / x_std
-        curve_scale = np.sqrt(np.mean(real_x.transpose(0, 2, 1) ** 2, axis=(0, 1)))
+        curve_scale = np.sqrt(np.mean(real_x_raw.transpose(0, 2, 1) ** 2, axis=(0, 1)))
         curve_scale = np.maximum(curve_scale, 1e-6)
 
         truth = np.stack([by_id[identifier].concentration for identifier in test_ids])
@@ -185,6 +189,7 @@ def main() -> None:
                 target_mean=mean,
                 target_scale=scale,
                 curve_scale=curve_scale,
+                cycle_truth=real_x_raw,
             ),
             "real+synthetic+cycle": _train(
                 real_x,
@@ -197,6 +202,7 @@ def main() -> None:
                 target_mean=mean,
                 target_scale=scale,
                 curve_scale=curve_scale,
+                cycle_truth=real_x_raw,
             ),
             "pretrain+finetune": _train(synthetic_x, synthetic_y, None, None, SEED + fold, epochs=100),
         }
