@@ -1,5 +1,11 @@
 # Engineering Principles
 
+## 0. Data Constraint
+
+- 现有数据集（`data/0.csv`–`data/61.csv`，62 次实验）**不可扩充**：传感器已损坏。
+- 任何方案、实验、论文与后续工作都**不得建议或依赖补测、补采、重新采集数据**。
+- 只能在现有 62 条实验上做建模、验证、外推与仿真分析。
+
 ## 1. Simplicity First
 
 - Always prefer the simplest correct solution that satisfies the current requirements.
