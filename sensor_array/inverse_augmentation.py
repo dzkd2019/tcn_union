@@ -157,11 +157,16 @@ def main() -> None:
         real_y = (np.log(concentration) - mean) / scale
         synthetic_x = np.stack([_features(curve) for curve in synthetic])
         synthetic_y = (np.log(synthetic_concentration) - mean) / scale
+        x_mean = real_x.mean(axis=(0, 2), keepdims=True)
+        x_std = real_x.std(axis=(0, 2), keepdims=True) + 1e-8
+        real_x = (real_x - x_mean) / x_std
+        synthetic_x = (synthetic_x - x_mean) / x_std
         curve_scale = np.sqrt(np.mean(real_x.transpose(0, 2, 1) ** 2, axis=(0, 1)))
         curve_scale = np.maximum(curve_scale, 1e-6)
 
         truth = np.stack([by_id[identifier].concentration for identifier in test_ids])
         test_x = np.stack([_features(by_id[identifier].relative[: len(TIME)]) for identifier in test_ids])
+        test_x = (test_x - x_mean) / x_std
         cycle = HybridForward(model, TIME)
         for parameter in cycle.parameters():
             parameter.requires_grad_(False)
@@ -211,20 +216,27 @@ def main() -> None:
             with torch.no_grad():
                 prediction = model_tcn(torch.from_numpy(test_x)).numpy()
             prediction = np.exp(prediction * scale + mean)
-            error = np.abs(prediction / truth - 1.0)
+            relative = np.abs(prediction / truth - 1.0)
+            absolute = np.abs(prediction - truth)
+            label_range = np.ptp(concentration, axis=0)
             rows.append(
                 {
                     "seed": SEED,
                     "fold": fold,
                     "arm": arm,
-                    "nmae_macro": float(error.mean() * 100.0),
-                    **{f"nmae_{gas}": float(error[:, index].mean() * 100.0) for index, gas in enumerate(GASES)},
+                    "mape_macro": float(relative.mean() * 100.0),
+                    "nmae_macro": float((absolute / label_range).mean() * 100.0),
+                    **{f"mape_{gas}": float(relative[:, index].mean() * 100.0) for index, gas in enumerate(GASES)},
+                    **{f"nmae_{gas}": float((absolute[:, index] / label_range[index]).mean() * 100.0) for index, gas in enumerate(GASES)},
                 }
             )
         print(f"fold {fold} done", flush=True)
     frame = pd.DataFrame(rows)
-    frame.to_csv(ARTIFACTS / "inverse_augmentation.csv", index=False, encoding="utf-8")
-    print(frame.groupby("arm")[["nmae_macro", "nmae_H2", "nmae_NH3", "nmae_NO2"]].agg(["mean", "std"]))
+    frame.to_csv(ARTIFACTS / f"inverse_augmentation_seed{SEED}.csv", index=False, encoding="utf-8")
+    if SEED == 0:
+        frame.to_csv(ARTIFACTS / "inverse_augmentation.csv", index=False, encoding="utf-8")
+    columns = ["mape_macro", "nmae_macro", "mape_H2", "mape_NH3", "mape_NO2"]
+    print(frame.groupby("arm")[columns].agg(["mean", "std"]))
 
 
 if __name__ == "__main__":
