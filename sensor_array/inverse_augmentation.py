@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import os
+
 import numpy as np
 import pandas as pd
 import torch
@@ -26,7 +28,7 @@ SYNTHETIC = 800
 EPOCHS = 150
 STEPS_PER_EPOCH = 10
 BATCH = 8
-SEED = 0
+SEED = int(os.environ.get("B_SEED", "0"))
 CYCLE_WEIGHT = 0.1
 
 
@@ -212,6 +214,7 @@ def main() -> None:
             error = np.abs(prediction / truth - 1.0)
             rows.append(
                 {
+                    "seed": SEED,
                     "fold": fold,
                     "arm": arm,
                     "nmae_macro": float(error.mean() * 100.0),
