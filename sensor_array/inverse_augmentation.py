@@ -1,8 +1,10 @@
-"""B 实验：用正向混合模型生成合成曲线，检验能否增强逆模型。
+"""B 实验：用正向混合模型生成合成曲线 / 循环一致性增强逆模型。
 
 只在 50 条开发实验上做五折；12 条锁定测试实验不参与。
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -18,17 +20,55 @@ from .data import GASES, load_experiments
 from .hybrid import HybridArrayModel
 from .model import fit_experiment_shapes
 
-ARTIFACTS = __import__("pathlib").Path(__file__).resolve().parent / "artifacts"
+ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 TIME = np.arange(0.0, 10.0 + 0.2, 0.2)
 SYNTHETIC = 800
 EPOCHS = 150
 STEPS_PER_EPOCH = 10
 BATCH = 8
 SEED = 0
+CYCLE_WEIGHT = 0.1
 
 
 def _features(relative: np.ndarray) -> np.ndarray:
     return np.asarray(relative, dtype=np.float32).T
+
+
+class HybridForward(nn.Module):
+    """把 HybridArrayModel 的 numpy 参数冻结成一个可微的正向模块。"""
+
+    def __init__(self, model: HybridArrayModel, time: np.ndarray) -> None:
+        super().__init__()
+        self.register_buffer("phi", torch.tensor(model._basis(time), dtype=torch.float32))
+        self.register_buffer(
+            "beta", torch.tensor(model.beta.reshape(model.n_basis, -1, 3), dtype=torch.float32)
+        )
+        self.register_buffer("gain", torch.tensor(model.grey.gain_coef, dtype=torch.float32))
+        self.register_buffer("tau_coef", torch.tensor(model.grey.tau_coef, dtype=torch.float32))
+        self.register_buffer("delay", torch.tensor(model.grey.delay, dtype=torch.float32))
+        self.register_buffer("signs", torch.tensor(model.grey.signs, dtype=torch.float32))
+        self.register_buffer("reference", torch.tensor(model.reference, dtype=torch.float32))
+        self.register_buffer("time", torch.tensor(time, dtype=torch.float32))
+
+    def _features(self, log_c: torch.Tensor) -> torch.Tensor:
+        u = torch.clamp(log_c - torch.log(self.reference), -4.0, 4.0)
+        u0, u1, u2 = u[:, 0], u[:, 1], u[:, 2]
+        return torch.stack(
+            [torch.ones_like(u0), u0, u1, u2, u0 * u0, u0 * u1, u0 * u2, u1 * u1, u1 * u2, u2 * u2],
+            dim=1,
+        )
+
+    def forward(self, log_c: torch.Tensor) -> torch.Tensor:
+        features = self._features(log_c)
+        amplitude = torch.exp(features @ self.gain.T)
+        tau = torch.exp(features[:, :4] @ self.tau_coef.T)
+        shape = 1.0 - torch.exp(
+            -torch.clamp(self.time[None, :, None] - self.delay[None, None, :], min=0.0)
+            / tau[:, None, :]
+        )
+        grey = self.signs[None, None, :] * amplitude[:, None, :] * shape
+        residual = torch.einsum("tk,kmj,bm->btj", self.phi, self.beta, features)
+        return grey + residual
 
 
 def _train(
@@ -39,6 +79,11 @@ def _train(
     seed: int,
     epochs: int = EPOCHS,
     lr: float = 3e-3,
+    cycle: HybridForward | None = None,
+    cycle_weight: float = 0.0,
+    target_mean: np.ndarray | None = None,
+    target_scale: np.ndarray | None = None,
+    curve_scale: np.ndarray | None = None,
 ) -> GasTCN:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -47,13 +92,16 @@ def _train(
     loss_function = nn.MSELoss()
     real_count = len(train_real)
     synthetic_count = 0 if synthetic is None else len(synthetic)
+    mean_tensor = None if target_mean is None else torch.tensor(target_mean, dtype=torch.float32)
+    scale_tensor = None if target_scale is None else torch.tensor(target_scale, dtype=torch.float32)
+    curve_tensor = None if curve_scale is None else torch.tensor(curve_scale, dtype=torch.float32)
     for _ in range(epochs):
         model.train()
         for _ in range(STEPS_PER_EPOCH):
             if synthetic is None:
-                indices = rng.integers(0, real_count, BATCH)
-                batch_x = torch.from_numpy(train_real[indices])
-                batch_y = torch.from_numpy(train_targets[indices])
+                real_indices = rng.integers(0, real_count, BATCH)
+                batch_x = torch.from_numpy(train_real[real_indices])
+                batch_y = torch.from_numpy(train_targets[real_indices])
             else:
                 half = BATCH // 2
                 real_indices = rng.integers(0, real_count, half)
@@ -61,7 +109,16 @@ def _train(
                 batch_x = torch.from_numpy(np.concatenate([train_real[real_indices], synthetic[synthetic_indices]]))
                 batch_y = torch.from_numpy(np.concatenate([train_targets[real_indices], synthetic_targets[synthetic_indices]]))
             optimizer.zero_grad()
-            loss = loss_function(model(batch_x), batch_y)
+            prediction = model(batch_x)
+            loss = loss_function(prediction, batch_y)
+            if cycle is not None:
+                real_batch = torch.from_numpy(train_real[real_indices])
+                real_prediction = prediction[: len(real_indices)]
+                log_c_hat = real_prediction * scale_tensor + mean_tensor
+                rendered = cycle(log_c_hat)
+                truth = real_batch.transpose(1, 2)
+                cycle_loss = (((rendered - truth) / curve_tensor) ** 2).mean()
+                loss = loss + cycle_weight * cycle_loss
             loss.backward()
             optimizer.step()
     return model
@@ -98,25 +155,55 @@ def main() -> None:
         real_y = (np.log(concentration) - mean) / scale
         synthetic_x = np.stack([_features(curve) for curve in synthetic])
         synthetic_y = (np.log(synthetic_concentration) - mean) / scale
+        curve_scale = np.sqrt(np.mean(real_x.transpose(0, 2, 1) ** 2, axis=(0, 1)))
+        curve_scale = np.maximum(curve_scale, 1e-6)
 
         truth = np.stack([by_id[identifier].concentration for identifier in test_ids])
         test_x = np.stack([_features(by_id[identifier].relative[: len(TIME)]) for identifier in test_ids])
+        cycle = HybridForward(model, TIME)
+        for parameter in cycle.parameters():
+            parameter.requires_grad_(False)
+
         arms = {
             "real": _train(real_x, real_y, None, None, SEED + fold),
             "real+synthetic": _train(real_x, real_y, synthetic_x, synthetic_y, SEED + fold),
+            "real+cycle": _train(
+                real_x,
+                real_y,
+                None,
+                None,
+                SEED + fold,
+                cycle=cycle,
+                cycle_weight=CYCLE_WEIGHT,
+                target_mean=mean,
+                target_scale=scale,
+                curve_scale=curve_scale,
+            ),
+            "real+synthetic+cycle": _train(
+                real_x,
+                real_y,
+                synthetic_x,
+                synthetic_y,
+                SEED + fold,
+                cycle=cycle,
+                cycle_weight=CYCLE_WEIGHT,
+                target_mean=mean,
+                target_scale=scale,
+                curve_scale=curve_scale,
+            ),
             "pretrain+finetune": _train(synthetic_x, synthetic_y, None, None, SEED + fold, epochs=100),
         }
-        if "pretrain+finetune" in arms:
-            model_tcn = arms["pretrain+finetune"]
-            optimizer = torch.optim.Adam(model_tcn.parameters(), lr=1e-3, weight_decay=1e-4)
-            rng = np.random.default_rng(SEED + fold)
-            for _ in range(60):
-                model_tcn.train()
-                indices = rng.integers(0, len(real_x), BATCH)
-                optimizer.zero_grad()
-                loss = nn.MSELoss()(model_tcn(torch.from_numpy(real_x[indices])), torch.from_numpy(real_y[indices]))
-                loss.backward()
-                optimizer.step()
+        model_tcn = arms["pretrain+finetune"]
+        optimizer = torch.optim.Adam(model_tcn.parameters(), lr=1e-3, weight_decay=1e-4)
+        rng = np.random.default_rng(SEED + fold)
+        for _ in range(60):
+            model_tcn.train()
+            indices = rng.integers(0, len(real_x), BATCH)
+            optimizer.zero_grad()
+            loss = nn.MSELoss()(model_tcn(torch.from_numpy(real_x[indices])), torch.from_numpy(real_y[indices]))
+            loss.backward()
+            optimizer.step()
+
         for arm, model_tcn in arms.items():
             model_tcn.eval()
             with torch.no_grad():
