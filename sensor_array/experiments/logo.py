@@ -2,29 +2,27 @@
 
 模型可以分组运行（长任务便于并行与断点续跑）：
 
-    .venv/bin/python -m sensor_array.run_experiments mean_curve two_stage grey_box direct_ridge
-    .venv/bin/python -m sensor_array.run_experiments tcn
-    .venv/bin/python -m sensor_array.run_experiments --combine
+    .venv/bin/python -m sensor_array.experiments.logo mean_curve two_stage grey_box direct_ridge
+    .venv/bin/python -m sensor_array.experiments.logo tcn
+    .venv/bin/python -m sensor_array.experiments.logo --combine
 
-每个模型把自己的 LOGO 指标与预测写到 ``artifacts/logo_<name>.csv`` 与
-``artifacts/pred_<name>.npz``；``--combine`` 汇总全部模型、拟合最终模型并写出
-``model.json``。不传参数时顺序跑完全部模型并汇总。
+每个模型把自己的 LOGO 指标与预测写到 ``artifacts/logo/logo_<name>.csv`` 与
+``artifacts/logo/pred_<name>.npz``；``--combine`` 汇总全部模型、拟合最终模型并写出
+``artifacts/models/model.json`` 与 ``artifacts/models/hybrid.json``。不传参数时顺序跑完全部模型并汇总。
 """
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-from .baselines import DirectRidgeModel, MeanCurveModel, TCNModel, TwoStageModel
-from .data import design_table, load_experiments
-from .evaluate import logo, summarize
-from .hybrid import HybridArrayModel
-from .model import FirstOrderArrayModel, fit_experiment_shapes
+from ..core.baselines import DirectRidgeModel, MeanCurveModel, TCNModel, TwoStageModel
+from ..core.data import design_table, load_experiments
+from ..core.metrics import logo, summarize
+from ..core.hybrid import HybridArrayModel
+from ..core.grey_box import FirstOrderArrayModel, fit_experiment_shapes
+from ..paths import LOGO, MODELS, ensure
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 MODEL_NAMES = ["mean_curve", "two_stage", "grey_box", "hybrid", "direct_ridge", "tcn"]
 
 
@@ -66,37 +64,37 @@ def run_one(name: str, experiments, shapes) -> pd.DataFrame:
     print(f"running LOGO: {name}", flush=True)
     frame = logo(experiments, fit, name)
     predictions = frame.attrs["predictions"]
-    np.savez(ARTIFACTS / f"pred_{name}.npz", **{str(key): value for key, value in predictions.items()})
-    frame.to_csv(ARTIFACTS / f"logo_{name}.csv", index=False)
+    np.savez(LOGO / f"pred_{name}.npz", **{str(key): value for key, value in predictions.items()})
+    frame.to_csv(LOGO / f"logo_{name}.csv", index=False)
     print(f"finished LOGO: {name}", flush=True)
     return frame
 
 
 def combine() -> None:
-    frames = [pd.read_csv(ARTIFACTS / f"logo_{name}.csv") for name in MODEL_NAMES]
+    frames = [pd.read_csv(LOGO / f"logo_{name}.csv") for name in MODEL_NAMES]
     metrics = pd.concat(frames, ignore_index=True)
-    metrics.to_csv(ARTIFACTS / "logo_metrics.csv", index=False)
+    metrics.to_csv(LOGO / "logo_metrics.csv", index=False)
     table = summarize(metrics)
-    table.to_csv(ARTIFACTS / "summary.csv", index=False)
+    table.to_csv(LOGO / "summary.csv", index=False)
     print(table.round(4).to_string(index=False))
 
     predictions = {}
     for name in MODEL_NAMES:
-        with np.load(ARTIFACTS / f"pred_{name}.npz") as archive:
+        with np.load(LOGO / f"pred_{name}.npz") as archive:
             predictions.update({f"{name}_{key}": archive[key] for key in archive.files})
-    np.savez(ARTIFACTS / "logo_predictions.npz", **predictions)
+    np.savez(LOGO / "logo_predictions.npz", **predictions)
 
     experiments = load_experiments()
-    design_table(experiments).to_csv(ARTIFACTS / "design_table.csv", index=False)
+    design_table(experiments).to_csv(LOGO / "design_table.csv", index=False)
     shapes = fit_experiment_shapes(experiments)
     final = FirstOrderArrayModel().fit(experiments, shape_init=shapes)
-    final.save(ARTIFACTS / "model.json")
+    final.save(MODELS / "model.json")
     hybrid = HybridArrayModel().fit(experiments, grey=final)
-    hybrid.save(ARTIFACTS / "hybrid.json")
+    hybrid.save(MODELS / "hybrid.json")
     relative = np.stack([experiment.relative for experiment in experiments])
     prediction = final.predict_relative(np.stack([e.concentration for e in experiments]), experiments[0].time)
     np.savez(
-        ARTIFACTS / "final_predictions.npz",
+        LOGO / "final_predictions.npz",
         time=experiments[0].time,
         concentration=np.stack([e.concentration for e in experiments]),
         initial=np.stack([e.initial for e in experiments]),
@@ -108,18 +106,18 @@ def combine() -> None:
         delay=final.delay,
     )
     print("delay (s):", np.round(final.delay, 3))
-    print("final model saved to", ARTIFACTS / "model.json")
+    print("final model saved to", MODELS / "model.json")
 
 
 def main() -> None:
-    ARTIFACTS.mkdir(exist_ok=True)
+    ensure()
     arguments = sys.argv[1:]
     if arguments == ["--combine"]:
         combine()
         return
     names = arguments or MODEL_NAMES
     experiments = load_experiments()
-    design_table(experiments).to_csv(ARTIFACTS / "design_table.csv", index=False)
+    design_table(experiments).to_csv(LOGO / "design_table.csv", index=False)
     shapes = fit_experiment_shapes(experiments)
     for name in names:
         run_one(name, experiments, shapes)

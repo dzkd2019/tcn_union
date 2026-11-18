@@ -16,13 +16,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ..paths import DATA
+
 GASES = ("H2", "NH3", "NO2")
 # 三路响应的固定符号：全部实验中 H2、NH3 通道上升、NO2 通道下降。符号由数据
 # 固定，不作为待拟合参数；这样幅度 A_j 为正，可以在对数空间参数化。
 RESPONSE_SIGNS = np.array([1.0, 1.0, -1.0])
 # 对数浓度特征的参考点，取各气体实验区间的几何中心附近。
 REFERENCE_CONCENTRATION = np.array([16000.0, 30.0, 6.0])
-DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+DEFAULT_DATA_DIR = DATA
 EXPECTED_HEADER = ["time", "H2", "NH3", "NO2", "conc1", "conc2", "conc3"]
 
 

@@ -17,18 +17,17 @@ CV+ conformal 用 62 折的折外误差校准区间；自适应停止则找最�
 from __future__ import annotations
 
 from itertools import product
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares
 
-from .data import Experiment, load_experiments
-from .hybrid import HybridArrayModel
+from ..core.data import Experiment, load_experiments
+from ..core.hybrid import HybridArrayModel
 from .identifiability import estimate_noise
-from .model import fit_experiment_shapes
+from ..core.grey_box import fit_experiment_shapes
+from ..paths import ANALYSIS, ensure
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 WINDOWS = (2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0)
 ALPHAS = (0.1, 0.2)
 STOP_TARGETS = (0.05, 0.10, 0.20, 0.30)
@@ -361,11 +360,11 @@ def main() -> None:
     stopping = stopping_table(conformal)
     budget = error_budget(experiments, noise=noise, frame=frame)
 
-    ARTIFACTS.mkdir(exist_ok=True)
-    frame.to_csv(ARTIFACTS / "estimates.csv", index=False, encoding="utf-8")
-    conformal.to_csv(ARTIFACTS / "conformal.csv", index=False, encoding="utf-8")
-    stopping.to_csv(ARTIFACTS / "stopping.csv", index=False, encoding="utf-8")
-    budget.to_csv(ARTIFACTS / "error_budget.csv", index=False, encoding="utf-8")
+    ensure()
+    frame.to_csv(ANALYSIS / "estimates.csv", index=False, encoding="utf-8")
+    conformal.to_csv(ANALYSIS / "conformal.csv", index=False, encoding="utf-8")
+    stopping.to_csv(ANALYSIS / "stopping.csv", index=False, encoding="utf-8")
+    budget.to_csv(ANALYSIS / "error_budget.csv", index=False, encoding="utf-8")
 
     point = frame.groupby(["tmax", "gas"])["abs_rel_error"].median().unstack()
     print("\n中位绝对相对误差 (%):")

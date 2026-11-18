@@ -5,13 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .data import GASES, load_experiments
-from .estimate import _fit_fold, concentration_bounds, map_estimate
-from .model import fit_experiment_shapes
+from ..core.data import GASES, load_experiments
+from .estimation import _fit_fold, concentration_bounds, map_estimate
+from ..core.grey_box import fit_experiment_shapes
+from ..paths import ANALYSIS, ensure
 
 WINDOW = 10.0
 DROP_SIGMA = 1e6
-ARTIFACTS = __import__("pathlib").Path(__file__).resolve().parent / "artifacts"
 
 
 def main() -> None:
@@ -52,7 +52,8 @@ def main() -> None:
                 )
         print(f"降级折 {i + 1}/{len(experiments)} (file {experiment.file_id})", flush=True)
     frame = pd.DataFrame(rows)
-    frame.to_csv(ARTIFACTS / "degradation.csv", index=False, encoding="utf-8")
+    ensure()
+    frame.to_csv(ANALYSIS / "degradation.csv", index=False, encoding="utf-8")
     print(frame.groupby(["drop", "gas"])["abs_rel_error"].median().unstack() * 100.0)
 
 

@@ -23,10 +23,10 @@ import pandas as pd
 from scipy.interpolate import BSpline
 
 from .data import REFERENCE_CONCENTRATION, Experiment, load_experiments
-from .evaluate import curve_metrics
-from .model import FirstOrderArrayModel, _monomial_features, fit_experiment_shapes
+from ..paths import ANALYSIS, MODELS, ensure
+from .metrics import curve_metrics
+from .grey_box import FirstOrderArrayModel, _monomial_features, fit_experiment_shapes
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 
 
 def bspline_basis(
@@ -230,8 +230,8 @@ def main() -> None:
     shapes = fit_experiment_shapes(experiments)
     grey = FirstOrderArrayModel().fit(experiments, shape_init=shapes)
     model = HybridArrayModel().fit(experiments, grey=grey)
-    ARTIFACTS.mkdir(exist_ok=True)
-    model.save(ARTIFACTS / "hybrid.json")
+    ensure()
+    model.save(MODELS / "hybrid.json")
 
     concentration = np.stack([e.concentration for e in experiments])
     prediction = model.predict_relative(concentration, experiments[0].time)
@@ -245,9 +245,9 @@ def main() -> None:
     print("in-sample:", {key: round(value, 5) for key, value in in_sample.items()})
 
     frame, summary = sensitivity_table(experiments)
-    frame.to_csv(ARTIFACTS / "hybrid_sensitivity.csv", index=False, encoding="utf-8")
+    frame.to_csv(ANALYSIS / "hybrid_sensitivity.csv", index=False, encoding="utf-8")
     print(summary.round(4).to_string(index=False))
-    print(f"写入 {ARTIFACTS / 'hybrid.json'} 与 {ARTIFACTS / 'hybrid_sensitivity.csv'}")
+    print(f"写入 {MODELS / 'hybrid.json'} 与 {ANALYSIS / 'hybrid_sensitivity.csv'}")
 
 
 if __name__ == "__main__":

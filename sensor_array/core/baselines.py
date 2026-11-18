@@ -17,7 +17,7 @@ from sklearn.linear_model import Ridge
 from torch import nn
 
 from .data import REFERENCE_CONCENTRATION, Experiment
-from .model import FirstOrderArrayModel, _monomial_features, _ridge_least_squares, fit_experiment_shapes
+from .grey_box import FirstOrderArrayModel, _monomial_features, _ridge_least_squares, fit_experiment_shapes
 
 
 class MeanCurveModel:

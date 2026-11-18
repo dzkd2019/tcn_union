@@ -133,7 +133,7 @@ CV+ 90% 区间的实际覆盖率：
 | 去 NH3 | 19.17 | 34.18 | 26.53 |
 | 去 NO2 | 15.03 | 4.32 | 33.96 |
 
-（`sensor_array/artifacts/degradation.csv`；脚本 `sensor_array/degradation.py`。）
+（`sensor_array/artifacts/analysis/degradation.csv`；脚本 `sensor_array/analysis/degradation.py`。）
 
 ## 7. 误差预算：模型偏差是主因
 
@@ -218,25 +218,25 @@ CV+ 90% 区间的实际覆盖率：
 
 ```bash
 # 正模型六模型 LOGO（约 30 min，TCN 占大部分）
-.venv/bin/python -m sensor_array.run_experiments
-.venv/bin/python -m sensor_array.run_experiments --combine
+.venv/bin/python -m sensor_array.experiments.logo
+.venv/bin/python -m sensor_array.experiments.logo --combine
 
 # 混合模型 K 敏感性
-.venv/bin/python -m sensor_array.hybrid
+.venv/bin/python -m sensor_array.core.hybrid
 
 # 可辨识性（CRLB）
-.venv/bin/python -m sensor_array.identifiability
+.venv/bin/python -m sensor_array.analysis.identifiability
 
 # 估计器（62 折 × 11 窗 + 误差预算，约 12 min）
-.venv/bin/python -m sensor_array.estimate
+.venv/bin/python -m sensor_array.analysis.estimation
 
 # 传感器降级（约 4 min）
-.venv/bin/python -m sensor_array.degradation
+.venv/bin/python -m sensor_array.analysis.degradation
 
 # B：合成增强（每个种子约 6 min；三种子后把 seed*.csv 合并为 inverse_augmentation.csv）
-for s in 0 1 2; do B_SEED=$s .venv/bin/python -m sensor_array.inverse_augmentation; done
+for s in 0 1 2; do B_SEED=$s .venv/bin/python -m sensor_array.experiments.inverse_augmentation; done
 
 # 图（PNG + SVG）
-.venv/bin/python -m sensor_array.figures
-.venv/bin/python -m sensor_array.chapter_figures
+.venv/bin/python -m sensor_array.plotting.response
+.venv/bin/python -m sensor_array.plotting.chapter
 ```

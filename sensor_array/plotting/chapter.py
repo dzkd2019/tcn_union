@@ -1,6 +1,6 @@
 """章节图 fig08–fig16（PNG + SVG）。
 
-运行：``.venv/bin/python -m sensor_array.chapter_figures``
+运行：``.venv/bin/python -m sensor_array.plotting.chapter``
 """
 from __future__ import annotations
 
@@ -11,9 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .data import GASES, load_experiments
-from .figures import (
-    ARTIFACTS,
+from ..core.data import GASES, load_experiments
+from .style import (
     GAS_COLORS,
     GAS_LABEL,
     MODEL_COLORS,
@@ -22,8 +21,9 @@ from .figures import (
     _save,
     _style,
 )
-from .hybrid import HybridArrayModel, bspline_basis
-from .model import FirstOrderArrayModel, fit_experiment_shapes
+from ..core.hybrid import HybridArrayModel, bspline_basis
+from ..core.grey_box import FirstOrderArrayModel, fit_experiment_shapes
+from ..paths import ANALYSIS, MODELS
 
 MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box", "hybrid"]
 MODEL_COLORS = {**MODEL_COLORS, "hybrid": "#4C72B0"}
@@ -31,7 +31,7 @@ MODEL_LABELS = {**MODEL_LABELS, "grey_box": "灰盒", "hybrid": "混合（本文
 
 
 def figure_hybrid(experiments, model: HybridArrayModel) -> None:
-    sensitivity = pd.read_csv(ARTIFACTS / "hybrid_sensitivity.csv")
+    sensitivity = pd.read_csv(ANALYSIS / "hybrid_sensitivity.csv")
     aggregate = sensitivity.groupby("n_basis")["nrmse_macro"].agg(["mean", "std"])
     time = experiments[0].time
     index = 21
@@ -94,7 +94,7 @@ def figure_hybrid(experiments, model: HybridArrayModel) -> None:
 
 
 def figure_crlb(estimate: pd.DataFrame | None) -> None:
-    table = pd.read_csv(ARTIFACTS / "identifiability.csv")
+    table = pd.read_csv(ANALYSIS / "identifiability.csv")
     table = table[table["mode"] == "c"]
     figure, axes = plt.subplots(1, 2, figsize=(8.8, 3.6))
     ax = axes[0]
@@ -133,7 +133,7 @@ def figure_crlb(estimate: pd.DataFrame | None) -> None:
 
 
 def figure_identifiability_map(experiments) -> None:
-    table = pd.read_csv(ARTIFACTS / "identifiability.csv")
+    table = pd.read_csv(ANALYSIS / "identifiability.csv")
     table = table[(table["mode"] == "c") & (table["tmax"] == 5.0)]
     concentration = np.stack([experiment.concentration for experiment in experiments])
     figure, axes = plt.subplots(1, 3, figsize=(9.6, 3.3))
@@ -298,7 +298,7 @@ def figure_stopping(stopping: pd.DataFrame) -> None:
 
 
 def figure_degradation() -> None:
-    data = pd.read_csv(ARTIFACTS / "degradation.csv")
+    data = pd.read_csv(ANALYSIS / "degradation.csv")
     median = data.groupby(["drop", "gas"])["abs_rel_error"].median().unstack() * 100.0
     order = ["none", "H2", "NH3", "NO2"]
     labels = ["完整", "去 H$_2$", "去 NH$_3$", "去 NO$_2$"]
@@ -317,7 +317,7 @@ def figure_degradation() -> None:
 
 
 def figure_budget() -> None:
-    data = pd.read_csv(ARTIFACTS / "error_budget.csv")
+    data = pd.read_csv(ANALYSIS / "error_budget.csv")
     sources = [("real", "实测曲线", "#444444"), ("hybrid", "混合生成", "#4C72B0"), ("grey", "灰盒生成", "#009E73")]
     figure, axes = plt.subplots(1, 3, figsize=(9.0, 3.0), sharey=True)
     for ax, gas in zip(axes, GASES):
@@ -341,9 +341,9 @@ def figure_budget() -> None:
 def main() -> None:
     _style()
     experiments = load_experiments()
-    model = HybridArrayModel.load(ARTIFACTS / "hybrid.json")
+    model = HybridArrayModel.load(MODELS / "hybrid.json")
     estimate = None
-    path = ARTIFACTS / "estimates.csv"
+    path = ANALYSIS / "estimates.csv"
     if path.exists():
         estimate = pd.read_csv(path)
     figure_hybrid(experiments, model)
@@ -352,11 +352,11 @@ def main() -> None:
     if estimate is not None:
         figure_error_map(estimate, experiments)
         figure_early_error(estimate)
-        figure_coverage(pd.read_csv(ARTIFACTS / "conformal.csv"))
-        figure_stopping(pd.read_csv(ARTIFACTS / "stopping.csv"))
-    if (ARTIFACTS / "degradation.csv").exists():
+        figure_coverage(pd.read_csv(ANALYSIS / "conformal.csv"))
+        figure_stopping(pd.read_csv(ANALYSIS / "stopping.csv"))
+    if (ANALYSIS / "degradation.csv").exists():
         figure_degradation()
-    if (ARTIFACTS / "error_budget.csv").exists():
+    if (ANALYSIS / "error_budget.csv").exists():
         figure_budget()
 
 

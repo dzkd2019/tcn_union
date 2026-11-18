@@ -227,33 +227,69 @@ NO$_2$ 接近。TCN 没有超过直接岭回归，且 62 折训练约 18 min（�
 
 ## 7. 下一步
 
-- **缩小灰盒与岭回归的 0.9 个百分点差距**：在灰盒残差上拟合一个低秩时空修正
-  （如 3–5 个时间基函数 × 浓度二次项），保留 $A_j,\tau_j$ 的解释，同时逼近
-  direct_ridge 的插值精度；若只关心设计域内插值，也可以直接用 direct_ridge 出数，
-  灰盒负责外推与机理分析。
-- 在现有 62 条上做外推压力测试：留一浓度水平（如整档 NH$_3$=10）训练/测试，
-  量化模型在未见浓度水平上的退化；这能暴露参数化外推的边界，但不能消除设计混淆。
-- 用本正模型生成合成曲线，增强逆问题 TCN 的训练集（handoff 中 PCA-VAE 的替代/补充），
-  并做"合成预训练 + 真实微调"的对照。
-- 用增益/时间常数的浓度依赖做阵列可观测性分析：哪些浓度组合在 5 s/10 s 内最难区分，
-  指导采样时刻与传感器选型。
+后续优化路线（残差诊断、分层/混合效应模型、结构化残差、偏差感知估计、公平 B）
+见 [`docs/roadmap.md`](docs/roadmap.md)。短期原则：
+
+- 只在现有 62 条上做建模、验证与仿真，不补测、不补采、不重新采集；
+- 不先换更大的黑盒；每个新结构必须通过 62 折 LOGO、留一浓度水平、留一文件块；
+- 曲线误差与下游浓度误差同时报告，避免“曲线更好、浓度更差”。
 
 ## 8. 代码与运行
 
 ```
 sensor_array/
-  data.py            读取 CSV、相对响应、设计表
-  model.py           一阶+延迟灰盒、逐实验形状拟合、存取 model.json
-  baselines.py       均值曲线、两阶段、直接岭回归、TCN
-  evaluate.py        LOGO 与曲线指标
-  run_experiments.py 跑全部对照、写 artifacts/
-  figures.py         生成 figures/*.png 与 *.svg
-  artifacts/         model.json、LOGO 指标与预测
+  paths.py                 统一路径常量
+  core/
+    data.py                读取 CSV、相对响应、设计表
+    grey_box.py            一阶+延迟灰盒、逐实验形状拟合
+    hybrid.py              灰盒 + 低秩 B 样条残差
+    baselines.py           均值曲线、两阶段、直接岭回归、TCN
+    metrics.py             LOGO 与曲线指标
+  analysis/
+    identifiability.py     FIM/CRLB、噪声估计
+    estimation.py          MAP、Laplace、CV+、自适应停止、误差预算
+    degradation.py         逐路屏蔽传感器
+  experiments/
+    logo.py                六模型 LOGO 对比
+    inverse_augmentation.py B：合成数据/循环一致性增强逆 TCN
+  plotting/
+    style.py               字体、配色、PNG+SVG 保存
+    response.py            fig01–07
+    chapter.py             fig08–16
+  docs/
+    roadmap.md             后续优化路线图
+    chapter_plan.md        章节方案
+    chapter_results.md     结果汇总
+    learning_guide.md      从零学习文档
+  artifacts/
+    models/                model.json、hybrid.json
+    logo/                  LOGO 指标/预测/汇总
+    analysis/              可辨识性、估计、降级、误差预算
+    augmentation/          B 结果
+  figures/                 fig01–16（PNG+SVG）
 ```
 
 ```bash
-.venv/bin/python -m sensor_array.run_experiments   # 约 30 min（TCN 约 18 min）
-.venv/bin/python -m sensor_array.figures
+# 六模型 LOGO（约 30 min，TCN 占大部分）
+.venv/bin/python -m sensor_array.experiments.logo
+.venv/bin/python -m sensor_array.experiments.logo --combine
+
+# 混合模型 K 敏感性
+.venv/bin/python -m sensor_array.core.hybrid
+
+# 可辨识性 / 早期估计 / 降级
+.venv/bin/python -m sensor_array.analysis.identifiability
+.venv/bin/python -m sensor_array.analysis.estimation
+.venv/bin/python -m sensor_array.analysis.degradation
+
+# B：三种子
+for s in 0 1 2; do
+  B_SEED=$s .venv/bin/python -m sensor_array.experiments.inverse_augmentation
+done
+
+# 图
+.venv/bin/python -m sensor_array.plotting.response
+.venv/bin/python -m sensor_array.plotting.chapter
 ```
 
 单条曲线的使用：
@@ -261,7 +297,7 @@ sensor_array/
 ```python
 from sensor_array import FirstOrderArrayModel, load_experiments
 
-model = FirstOrderArrayModel.load("sensor_array/artifacts/model.json")
+model = FirstOrderArrayModel.load("sensor_array/artifacts/models/model.json")
 experiment = load_experiments()[0]
 relative = model.predict_relative(experiment.concentration[None], experiment.time)[0]
 absolute = model.predict_response(experiment.concentration[None], experiment.time, experiment.initial[None])[0]
@@ -272,10 +308,10 @@ absolute = model.predict_response(experiment.concentration[None], experiment.tim
 
 本节是在 v1 灰盒基础上的硕士论文章节扩展，代码与结果都在同一目录。
 
-- `hybrid.py`：灰盒 + 低秩 B 样条残差；K=5，62 折宏 nRMSE 3.02%。
-- `identifiability.py`：二阶差分噪声估计、FIM/CRLB、条件数；5 s CRLB 中位 0.026/0.015/0.033%。
-- `estimate.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算。
-- `degradation.py`：逐路屏蔽传感器的降级实验。
-- `inverse_augmentation.py`：B 实验（正模型合成 / 循环一致性 → 逆 TCN）。3 个种子 × 5 折：仅真实 5.86% MAPE（3.62% NMAE）、+循环 5.69%（p=0.37）、+合成 5.61%（p=0.46）、+合成+循环 5.48%（p=0.24）、合成预训练+微调 4.75%（p=0.001）；预训练式合成增强有稳定收益，1:1 混合与循环约束未证明显著，见 `docs/chapter_results.md` §8。
-- `chapter_figures.py`：fig08–fig16；`docs/chapter_results.md` 是结果汇总，
+- `core/hybrid.py`：灰盒 + 低秩 B 样条残差；K=5，62 折宏 nRMSE 3.02%。
+- `analysis/identifiability.py`：二阶差分噪声估计、FIM/CRLB、条件数；5 s CRLB 中位 0.026/0.015/0.033%。
+- `analysis/estimation.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算。
+- `analysis/degradation.py`：逐路屏蔽传感器的降级实验。
+- `experiments/inverse_augmentation.py`：B 实验（正模型合成 / 循环一致性 → 逆 TCN）。3 个种子 × 5 折：仅真实 5.86% MAPE（3.62% NMAE）、+循环 5.69%（p=0.37）、+合成 5.61%（p=0.46）、+合成+循环 5.48%（p=0.24）、合成预训练+微调 4.75%（p=0.001）；预训练式合成增强有稳定收益，1:1 混合与循环约束未证明显著，见 `docs/chapter_results.md` §8。
+- `plotting/chapter.py`：fig08–fig16；后续优化路线见 `docs/roadmap.md`；`docs/chapter_results.md` 是结果汇总，
   `docs/learning_guide.md` 是从零开始的学习文档。

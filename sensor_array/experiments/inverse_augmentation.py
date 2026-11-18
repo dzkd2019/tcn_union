@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
 
 import os
 
@@ -18,11 +17,11 @@ torch.set_num_threads(2)
 from tcn_union.cli.split import FOLDS, TEST_IDS
 from tcn_union.core.model import GasTCN
 
-from .data import GASES, load_experiments
-from .hybrid import HybridArrayModel
-from .model import fit_experiment_shapes
+from ..core.data import GASES, load_experiments
+from ..core.hybrid import HybridArrayModel
+from ..core.grey_box import fit_experiment_shapes
+from ..paths import AUGMENTATION, ensure
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 TIME = np.arange(0.0, 10.0 + 0.2, 0.2)
 SYNTHETIC = 800
 EPOCHS = 150
@@ -238,9 +237,10 @@ def main() -> None:
             )
         print(f"fold {fold} done", flush=True)
     frame = pd.DataFrame(rows)
-    frame.to_csv(ARTIFACTS / f"inverse_augmentation_seed{SEED}.csv", index=False, encoding="utf-8")
+    ensure()
+    frame.to_csv(AUGMENTATION / f"inverse_augmentation_seed{SEED}.csv", index=False, encoding="utf-8")
     if SEED == 0:
-        frame.to_csv(ARTIFACTS / "inverse_augmentation.csv", index=False, encoding="utf-8")
+        frame.to_csv(AUGMENTATION / "inverse_augmentation.csv", index=False, encoding="utf-8")
     columns = ["mape_macro", "nmae_macro", "mape_H2", "mape_NH3", "mape_NO2"]
     print(frame.groupby("arm")[columns].agg(["mean", "std"]))
 

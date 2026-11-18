@@ -456,31 +456,31 @@ L_{\text{cycle}}=\left\|\frac{f_{\text{forward}}(\hat c)-y}{\sigma_y}\right\|^2.
 
 | 文件 | 作用 |
 |---|---|
-| `sensor_array/data.py` | 读 62 个 CSV，构造 `Experiment`，相对响应 |
-| `sensor_array/model.py` | 一阶灰盒 `FirstOrderArrayModel`，逐条形状拟合 |
-| `sensor_array/hybrid.py` | 混合模型 `HybridArrayModel`（B 样条残差） |
-| `sensor_array/baselines.py` | 均值曲线、两阶段、直接岭回归、TCN |
-| `sensor_array/evaluate.py` | 曲线指标、LOGO |
-| `sensor_array/run_experiments.py` | 六模型 LOGO + combine |
-| `sensor_array/identifiability.py` | 噪声、FIM、CRLB、可辨识性 CSV |
-| `sensor_array/estimate.py` | MAP、Laplace、CV+、自适应停止、误差预算 |
-| `sensor_array/degradation.py` | 传感器降级实验 |
-| `sensor_array/inverse_augmentation.py` | B：合成数据增强逆模型 |
-| `sensor_array/figures.py` | fig01–fig07（数据、设计、形状、模型对比） |
-| `sensor_array/chapter_figures.py` | fig08–fig16（混合、CRLB、误差、覆盖率、停止、降级、预算） |
+| `sensor_array/core/data.py` | 读 62 个 CSV，构造 `Experiment`，相对响应 |
+| `sensor_array/core/grey_box.py` | 一阶灰盒 `FirstOrderArrayModel`，逐条形状拟合 |
+| `sensor_array/core/hybrid.py` | 混合模型 `HybridArrayModel`（B 样条残差） |
+| `sensor_array/core/baselines.py` | 均值曲线、两阶段、直接岭回归、TCN |
+| `sensor_array/core/metrics.py` | 曲线指标、LOGO |
+| `sensor_array/experiments/logo.py` | 六模型 LOGO + combine |
+| `sensor_array/analysis/identifiability.py` | 噪声、FIM、CRLB、可辨识性 CSV |
+| `sensor_array/analysis/estimation.py` | MAP、Laplace、CV+、自适应停止、误差预算 |
+| `sensor_array/analysis/degradation.py` | 传感器降级实验 |
+| `sensor_array/experiments/inverse_augmentation.py` | B：合成数据增强逆模型 |
+| `sensor_array/plotting/response.py` | fig01–fig07（数据、设计、形状、模型对比） |
+| `sensor_array/plotting/chapter.py` | fig08–fig16（混合、CRLB、误差、覆盖率、停止、降级、预算） |
 
 运行顺序：
 
 ```bash
-.venv/bin/python -m sensor_array.run_experiments      # 六模型 LOGO
-.venv/bin/python -m sensor_array.run_experiments --combine
-.venv/bin/python -m sensor_array.hybrid               # K 敏感性
-.venv/bin/python -m sensor_array.identifiability      # CRLB
-.venv/bin/python -m sensor_array.estimate             # 估计器 + 误差预算
-.venv/bin/python -m sensor_array.degradation          # 降级
-.venv/bin/python -m sensor_array.inverse_augmentation # B
-.venv/bin/python -m sensor_array.figures
-.venv/bin/python -m sensor_array.chapter_figures
+.venv/bin/python -m sensor_array.experiments.logo      # 六模型 LOGO
+.venv/bin/python -m sensor_array.experiments.logo --combine
+.venv/bin/python -m sensor_array.core.hybrid               # K 敏感性
+.venv/bin/python -m sensor_array.analysis.identifiability      # CRLB
+.venv/bin/python -m sensor_array.analysis.estimation             # 估计器 + 误差预算
+.venv/bin/python -m sensor_array.analysis.degradation          # 降级
+.venv/bin/python -m sensor_array.experiments.inverse_augmentation # B
+.venv/bin/python -m sensor_array.plotting.response
+.venv/bin/python -m sensor_array.plotting.chapter
 ```
 
 ---

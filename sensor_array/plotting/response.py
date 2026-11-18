@@ -1,10 +1,8 @@
 """生成报告用图（PNG + SVG）。
 
-运行：``.venv/bin/python -m sensor_array.figures``
+运行：``.venv/bin/python -m sensor_array.plotting.response``
 """
 from __future__ import annotations
-
-from pathlib import Path
 
 import matplotlib
 
@@ -13,63 +11,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .data import GASES, RESPONSE_SIGNS, Experiment, load_experiments
-from .model import FirstOrderArrayModel, fit_experiment_shapes
+from ..core.data import GASES, RESPONSE_SIGNS, Experiment, load_experiments
+from ..core.grey_box import FirstOrderArrayModel, fit_experiment_shapes
+from ..paths import LOGO, MODELS
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
-FIGURES = Path(__file__).resolve().parent / "figures"
-
-GAS_LABEL = {"H2": "H$_2$", "NH3": "NH$_3$", "NO2": "NO$_2$"}
-GAS_COLORS = {"H2": "#C0392B", "NH3": "#E69F00", "NO2": "#0072B2"}
-MODEL_COLORS = {
-    "mean_curve": "#8C8C8C",
-    "direct_ridge": "#E69F00",
-    "two_stage": "#CC79A7",
-    "tcn": "#6A4C93",
-    "grey_box": "#009E73",
-    "hybrid": "#4C72B0",
-}
-MODEL_LABELS = {
-    "mean_curve": "均值曲线",
-    "direct_ridge": "直接岭回归",
-    "two_stage": "两阶段回归",
-    "tcn": "TCN",
-    "grey_box": "灰盒",
-    "hybrid": "混合（本文）",
-}
-MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box", "hybrid"]
-
-
-def _style() -> None:
-    plt.rcParams.update(
-        {
-            "font.family": "serif",
-            "font.serif": ["Noto Serif CJK SC"],
-            "axes.unicode_minus": False,
-            "mathtext.fontset": "stix",
-            "font.size": 8.5,
-            "axes.labelsize": 9,
-            "axes.titlesize": 9.5,
-            "legend.fontsize": 7.5,
-            "xtick.labelsize": 8,
-            "ytick.labelsize": 8,
-            "axes.linewidth": 0.8,
-            "savefig.bbox": "tight",
-            "figure.dpi": 120,
-        }
-    )
-
-
-def _save(figure: plt.Figure, name: str) -> None:
-    FIGURES.mkdir(exist_ok=True)
-    figure.savefig(FIGURES / f"{name}.png", dpi=300)
-    figure.savefig(FIGURES / f"{name}.svg")
-    plt.close(figure)
-    print("saved", FIGURES / f"{name}.png")
-
-
-def _letter(ax: plt.Axes, text: str) -> None:
-    ax.set_title(text, loc="left", fontsize=9.5)
+from .style import (
+    GAS_COLORS,
+    GAS_LABEL,
+    MODEL_COLORS,
+    MODEL_LABELS,
+    MODEL_ORDER,
+    _letter,
+    _save,
+    _style,
+)
 
 
 def figure_data_overview(experiments: list[Experiment]) -> None:
@@ -303,7 +258,7 @@ def figure_prediction_examples(experiments: list[Experiment], metrics: pd.DataFr
 
 def figure_absolute(experiments: list[Experiment], model: FirstOrderArrayModel) -> None:
     time = experiments[0].time
-    metrics = pd.read_csv(ARTIFACTS / "logo_metrics.csv")
+    metrics = pd.read_csv(LOGO / "logo_metrics.csv")
     scores = metrics.loc[metrics["model"] == "grey_box", "nrmse_macro"].to_numpy()
     index = int(np.argsort(scores)[len(scores) // 2])
     experiment = experiments[index]
@@ -332,9 +287,9 @@ def main() -> None:
     _style()
     experiments = load_experiments()
     shapes = fit_experiment_shapes(experiments)
-    model = FirstOrderArrayModel.load(ARTIFACTS / "model.json")
-    metrics = pd.read_csv(ARTIFACTS / "logo_metrics.csv")
-    predictions = {key: value for key, value in np.load(ARTIFACTS / "logo_predictions.npz").items()}
+    model = FirstOrderArrayModel.load(MODELS / "model.json")
+    metrics = pd.read_csv(LOGO / "logo_metrics.csv")
+    predictions = {key: value for key, value in np.load(LOGO / "logo_predictions.npz").items()}
     figure_data_overview(experiments)
     figure_design_coverage(experiments)
     figure_shape_fit(experiments, shapes)

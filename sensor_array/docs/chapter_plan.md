@@ -1,7 +1,7 @@
 # 传感器阵列动态响应建模：章节级工作方案
 
-> 状态：草案，待与导师/用户确认范围后执行。
-> 已完成首版可辨识性分析（`sensor_array/identifiability.py`，620 行 CSV），
+> 状态：已确认并执行（A+B）；当前目录结构与后续路线见 `README.md` §8 与 `roadmap.md`。
+> 已完成首版可辨识性分析（`sensor_array/analysis/identifiability.py`，620 行 CSV），
 > 混合模型与估计器待确认后实现。
 > 现有代码与结果见 `sensor_array/README.md`；本文件只讨论“如何把这一部分做成
 > 一章硕士毕业论文”，不重复已有实验细节。
@@ -242,29 +242,30 @@ $\psi_{jk}(\mathbf c)$ 是 $\ln(\mathbf c/\mathbf c^{\text{ref}})$ 的二次多�
 
 ## 9. 代码与产物规划
 
-保留现有 `sensor_array/` 结构，新增：
+当前结构（详见 `README.md` §8）：
 
 ```
 sensor_array/
-  hybrid.py           低秩残差混合模型（拟合、预测、LOGO）
-  identifiability.py  FIM/CRLB、剖面似然、时间窗、降级分析
-  estimate.py         MAP/Laplace、conformal、自适应停止
-  chapter_figures.py  fig08–16（PNG+SVG）
+  core/hybrid.py            低秩残差混合模型（拟合、预测、LOGO）
+  analysis/identifiability.py  FIM/CRLB、剖面似然、时间窗、降级分析
+  analysis/estimation.py     MAP/Laplace、conformal、自适应停止
+  plotting/chapter.py        fig08–16（PNG+SVG）
   docs/chapter_plan.md
-  artifacts/          hybrid_model.json、identifiability.csv、estimate_logo.csv
+  artifacts/models/          hybrid.json、model.json
+  artifacts/analysis/        identifiability.csv、estimates.csv 等
 ```
 
 命令（草案）：
 
 ```bash
-.venv/bin/python -m sensor_array.hybrid            # 拟合 + LOGO
-.venv/bin/python -m sensor_array.identifiability   # 写 CSV + 图
-.venv/bin/python -m sensor_array.estimate          # 早期估计 + 校准
-.venv/bin/python -m sensor_array.chapter_figures
+.venv/bin/python -m sensor_array.core.hybrid            # 拟合 + LOGO
+.venv/bin/python -m sensor_array.analysis.identifiability   # 写 CSV + 图
+.venv/bin/python -m sensor_array.analysis.estimation          # 早期估计 + 校准
+.venv/bin/python -m sensor_array.plotting.chapter
 ```
 
-现有 `run_experiments.py` 与 `figures.py` 不改协议；新模块复用
-`data.py`、`model.py`、`evaluate.py`。
+现有 `experiments/logo.py` 与 `plotting/response.py` 不改协议；新模块复用
+`core/data.py`、`core/grey_box.py`、`core/metrics.py`。
 
 ## 10. 需要确认的问题
 

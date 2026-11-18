@@ -9,18 +9,16 @@ CRLB 为 F^{-1} 对角线的平方根，近似等于相对浓度的标准差。�
 相关系数和最弱特征向量用来判断哪些方向不可辨识。
 
 用法：
-    .venv/bin/python -m sensor_array.identifiability
+    .venv/bin/python -m sensor_array.analysis.identifiability
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
-from .data import Experiment, load_experiments
-from .model import FirstOrderArrayModel
+from ..core.data import Experiment, load_experiments
+from ..core.grey_box import FirstOrderArrayModel
+from ..paths import ANALYSIS, MODELS, ensure
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 WINDOWS = (2.0, 5.0, 10.0, 20.0, 60.0)
 # H2 通道在数据中几乎无逐点噪声（二阶差分 MAD 接近 0），直接用会使 FIM 奇异。
 # 取 1e-5 的相对噪声下限，相当于把“该通道被平滑过”当作未知噪声处理。
@@ -129,12 +127,12 @@ def analyze(
 
 def main() -> None:
     experiments = load_experiments()
-    model = FirstOrderArrayModel.load(ARTIFACTS / "model.json")
+    model = FirstOrderArrayModel.load(MODELS / "model.json")
     noise_rel = estimate_noise(experiments)
     print("相对噪声（H2, NH3, NO2）:", np.array2string(noise_rel, precision=2))
     frame = analyze(experiments, model)
-    ARTIFACTS.mkdir(exist_ok=True)
-    frame.to_csv(ARTIFACTS / "identifiability.csv", index=False, encoding="utf-8")
+    ensure()
+    frame.to_csv(ANALYSIS / "identifiability.csv", index=False, encoding="utf-8")
 
     summary = (
         frame.groupby(["mode", "tmax"])[["crlb_h2", "crlb_nh3", "crlb_no2", "cond"]]
@@ -142,7 +140,7 @@ def main() -> None:
         .reset_index()
     )
     print(summary.to_string(index=False, float_format=lambda value: f"{value:.3f}"))
-    print(f"\n写入 {ARTIFACTS / 'identifiability.csv'}（{len(frame)} 行）")
+    print(f"\n写入 {ANALYSIS / 'identifiability.csv'}（{len(frame)} 行）")
 
 
 if __name__ == "__main__":
