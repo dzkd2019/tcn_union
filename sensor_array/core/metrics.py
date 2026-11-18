@@ -58,6 +58,73 @@ def logo(
     return frame
 
 
+def level_folds(experiments: list[Experiment]) -> list[tuple[str, np.ndarray]]:
+    """留一浓度水平：每次整档留出某气体的一个浓度值。"""
+    concentration = np.stack([experiment.concentration for experiment in experiments])
+    folds = []
+    for index, gas in enumerate(GASES):
+        for value in np.unique(concentration[:, index]):
+            folds.append(
+                (f"{gas}={value:g}", np.where(concentration[:, index] == value)[0])
+            )
+    return folds
+
+
+def block_folds(
+    experiments: list[Experiment], size: int = 8
+) -> list[tuple[str, np.ndarray]]:
+    """留一采集块：按文件顺序留出连续 size 条实验。"""
+    folds = []
+    for start in range(0, len(experiments), size):
+        indices = np.arange(start, min(start + size, len(experiments)))
+        label = f"{experiments[indices[0]].file_id}-{experiments[indices[-1]].file_id}"
+        folds.append((label, indices))
+    return folds
+
+
+def cross_validate(
+    experiments: list[Experiment],
+    fit_predict,
+    name: str,
+    folds: list[tuple[str, np.ndarray]],
+) -> pd.DataFrame:
+    """按给定折分组交叉验证，每组只在训练折上拟合一次。
+
+    与 :func:logo 使用同一套 curve_metrics；scale 同样取自训练折，
+    因此不同折之间的 nRMSE 可比。返回的 frame 多一列 fold（折标签）。
+    """
+    rows = []
+    for label, test_indices in folds:
+        test_set = {int(index) for index in test_indices}
+        train = [
+            experiment
+            for index, experiment in enumerate(experiments)
+            if index not in test_set
+        ]
+        scale = np.sqrt(
+            np.mean(np.stack([item.relative for item in train]) ** 2, axis=(0, 1))
+        )
+        for index in test_indices:
+            test = experiments[int(index)]
+            prediction = fit_predict(train, test)
+            row = {"fold": label, "file": test.file_id, "model": name}
+            row.update(curve_metrics(prediction, test.relative, scale))
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def leave_one_level_out(experiments: list[Experiment], fit_predict, name: str) -> pd.DataFrame:
+    """留一浓度水平交叉验证。"""
+    return cross_validate(experiments, fit_predict, name, level_folds(experiments))
+
+
+def leave_one_block_out(
+    experiments: list[Experiment], fit_predict, name: str, size: int = 8
+) -> pd.DataFrame:
+    """留一连续采集块交叉验证。"""
+    return cross_validate(experiments, fit_predict, name, block_folds(experiments, size))
+
+
 def summarize(results: pd.DataFrame) -> pd.DataFrame:
     """按模型与气体汇总 nRMSE：均值、标准差、中位数与 90 分位。"""
     records = []

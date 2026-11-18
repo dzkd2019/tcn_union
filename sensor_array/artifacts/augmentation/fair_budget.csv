@@ -1,0 +1,4 @@
+arm,real_per_batch,synthetic_per_batch,pretrain_epochs,finetune_epochs,real_samples,synthetic_samples,real_updates,synthetic_updates,optimizer_updates
+real,8,0,0,150,12000,0,1500,0,1500
+real+synthetic-equal,8,8,0,150,12000,12000,1500,1500,1500
+pretrain+finetune-equal,8,8,100,150,12000,8000,1500,1000,2500

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from ..paths import FIGURES
 
-GAS_LABEL = {"H2": "H$_2$", "NH3": "NH$_3$", "NO2": "NO$_2$"}
+GAS_LABEL = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}
 GAS_COLORS = {"H2": "#C0392B", "NH3": "#E69F00", "NO2": "#0072B2"}
 MODEL_COLORS = {
     "mean_curve": "#8C8C8C",
@@ -32,8 +32,7 @@ MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box", "hy
 def _style() -> None:
     plt.rcParams.update(
         {
-            "font.family": "serif",
-            "font.serif": ["Noto Serif CJK SC"],
+            "font.family": ["Noto Serif CJK SC", "Noto Serif", "SimSun"],
             "axes.unicode_minus": False,
             "mathtext.fontset": "stix",
             "font.size": 8.5,

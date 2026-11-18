@@ -77,13 +77,22 @@ class DirectRidgeModel:
         features = _monomial_features(u, 2)
         targets = np.stack([item.relative for item in experiments]).reshape(len(experiments), -1)
         self.regression_ = Ridge(alpha=self.alpha).fit(features, targets)
+        self.time_ = np.asarray(experiments[0].time, dtype=float)
         return self
 
     def predict_relative(self, concentration: np.ndarray, time: np.ndarray) -> np.ndarray:
         u = np.log(np.atleast_2d(concentration) / REFERENCE_CONCENTRATION)
         features = _monomial_features(u, 2)
-        prediction = self.regression_.predict(features)
-        return prediction.reshape(len(features), len(time), 3)
+        prediction = self.regression_.predict(features).reshape(len(features), len(self.time_), 3)
+        time = np.asarray(time, dtype=float)
+        if time.shape == self.time_.shape and np.allclose(time, self.time_):
+            return prediction
+        return np.stack(
+            [
+                np.stack([np.interp(time, self.time_, prediction[index, :, gas]) for gas in range(3)], axis=-1)
+                for index in range(len(features))
+            ]
+        )
 
 
 class _CausalBlock(nn.Module):

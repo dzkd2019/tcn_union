@@ -54,6 +54,38 @@ def bspline_basis(
     return BSpline.design_matrix(clipped, knots, degree).toarray()[:, 1:]
 
 
+def structured_basis(time: np.ndarray, t_max: float) -> np.ndarray:
+    """按物理时段切分的 5 条固定基：2 早期瞬态 + 2 中期形状 + 1 缓慢漂移。
+
+    与自由 B 样条不同，每条基只在指定时段有主要支撑，且都在 t=0 为零：
+
+    - phi1: 1-exp(-t/1.5)，快速上升后保持，描述起始段增益偏差；
+    - phi2: (t/4)exp(1-t/4)，约 4 s 达峰的瞬态脉冲；
+    - phi3: 约 15 s 为中心的中期鼓包；
+    - phi4: 约 30 s 为中心的中晚期鼓包；
+    - phi5: 25 s 后单调上升的缓慢漂移。
+
+    每条基在 [0, t_max] 上按最大值归一化。归一化只依赖 t_max，因此用短窗
+    预测时基的尺度与训练时一致。
+    """
+    t = np.clip(np.asarray(time, dtype=float), 0.0, t_max)
+
+    def columns(x: np.ndarray) -> np.ndarray:
+        transient = 1.0 - np.exp(-x / 1.5)
+        return np.column_stack(
+            [
+                transient,
+                (x / 4.0) * np.exp(1.0 - x / 4.0),
+                transient * np.exp(-(((x - 15.0) / 7.0) ** 2)),
+                transient * np.exp(-(((x - 30.0) / 9.0) ** 2)),
+                np.clip((x - 25.0) / 35.0, 0.0, None) ** 2,
+            ]
+        )
+
+    scale = columns(np.linspace(0.0, t_max, 1001)).max(axis=0)
+    return columns(t) / scale
+
+
 def _ridge_solve(features: np.ndarray, target: np.ndarray, ridge: float) -> np.ndarray:
     """解带岭惩罚的最小二乘；所有列都惩罚（时间基已约束了形状）。"""
     penalty = np.sqrt(ridge) * np.eye(features.shape[1])
@@ -72,10 +104,16 @@ class HybridArrayModel:
         n_basis: int = 5,
         concentration_degree: int = 2,
         ridge: float = 1e-2,
+        basis: str = "spline",
     ) -> None:
+        if basis not in ("spline", "structured"):
+            raise ValueError(f"未知的时间基类型: {basis}")
+        if basis == "structured" and n_basis != 5:
+            raise ValueError("structured 基固定为 5 条，n_basis 必须为 5")
         self.n_basis = n_basis
         self.concentration_degree = concentration_degree
         self.ridge = ridge
+        self.basis = basis
         self.spline_degree = min(2, n_basis)
         self.reference = REFERENCE_CONCENTRATION
         self.t_max: float | None = None
@@ -85,6 +123,8 @@ class HybridArrayModel:
     def _basis(self, time: np.ndarray) -> np.ndarray:
         if self.t_max is None:
             raise RuntimeError("模型尚未拟合")
+        if self.basis == "structured":
+            return structured_basis(time, self.t_max)
         return bspline_basis(time, self.n_basis, self.spline_degree, self.t_max)
 
     def _features(self, concentration: np.ndarray, time: np.ndarray) -> np.ndarray:
@@ -166,6 +206,7 @@ class HybridArrayModel:
             "n_basis": self.n_basis,
             "concentration_degree": self.concentration_degree,
             "ridge": self.ridge,
+            "basis": self.basis,
             "t_max": self.t_max,
             "beta": self.beta.tolist(),
             "grey": self.grey.to_dict(),
@@ -180,6 +221,7 @@ class HybridArrayModel:
             n_basis=payload["n_basis"],
             concentration_degree=payload["concentration_degree"],
             ridge=payload["ridge"],
+            basis=payload.get("basis", "spline"),
         )
         model.t_max = payload["t_max"]
         model.beta = np.array(payload["beta"])

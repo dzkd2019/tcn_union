@@ -59,26 +59,26 @@ def figure_design_coverage(experiments: list[Experiment]) -> None:
     ax = axes[0, 0]
     ax.plot(files, concentration[:, 1], "o", ms=3.5, color=GAS_COLORS["NH3"])
     ax.set_xlabel("实验序号")
-    ax.set_ylabel("NH$_3$ 浓度")
-    _letter(ax, "(a) 采集顺序与 NH$_3$ 档位完全对应")
+    ax.set_ylabel("NH₃ 浓度")
+    _letter(ax, "(a) 采集顺序与 NH₃ 档位完全对应")
 
     scatter = axes[0, 1].scatter(concentration[:, 0], concentration[:, 2], c=concentration[:, 1], cmap="viridis", s=26, edgecolor="white", linewidth=0.4)
-    axes[0, 1].set_xlabel("H$_2$ 浓度")
-    axes[0, 1].set_ylabel("NO$_2$ 浓度")
-    figure.colorbar(scatter, ax=axes[0, 1], label="NH$_3$")
-    _letter(axes[0, 1], "(b) H$_2$–NO$_2$ 平面")
+    axes[0, 1].set_xlabel("H₂ 浓度")
+    axes[0, 1].set_ylabel("NO₂ 浓度")
+    figure.colorbar(scatter, ax=axes[0, 1], label="NH₃")
+    _letter(axes[0, 1], "(b) H₂–NO₂ 平面")
 
     scatter = axes[1, 0].scatter(concentration[:, 0], concentration[:, 1], c=concentration[:, 2], cmap="plasma", s=26, edgecolor="white", linewidth=0.4)
-    axes[1, 0].set_xlabel("H$_2$ 浓度")
-    axes[1, 0].set_ylabel("NH$_3$ 浓度")
-    figure.colorbar(scatter, ax=axes[1, 0], label="NO$_2$")
-    _letter(axes[1, 0], "(c) H$_2$–NH$_3$ 平面")
+    axes[1, 0].set_xlabel("H₂ 浓度")
+    axes[1, 0].set_ylabel("NH₃ 浓度")
+    figure.colorbar(scatter, ax=axes[1, 0], label="NO₂")
+    _letter(axes[1, 0], "(c) H₂–NH₃ 平面")
 
     scatter = axes[1, 1].scatter(concentration[:, 1], concentration[:, 2], c=concentration[:, 0], cmap="magma", s=26, edgecolor="white", linewidth=0.4)
-    axes[1, 1].set_xlabel("NH$_3$ 浓度")
-    axes[1, 1].set_ylabel("NO$_2$ 浓度")
-    figure.colorbar(scatter, ax=axes[1, 1], label="H$_2$")
-    _letter(axes[1, 1], "(d) NH$_3$–NO$_2$ 平面")
+    axes[1, 1].set_xlabel("NH₃ 浓度")
+    axes[1, 1].set_ylabel("NO₂ 浓度")
+    figure.colorbar(scatter, ax=axes[1, 1], label="H₂")
+    _letter(axes[1, 1], "(d) NH₃–NO₂ 平面")
     figure.tight_layout()
     _save(figure, "fig02_design_coverage")
 
@@ -199,26 +199,26 @@ def figure_gain_tau(experiments: list[Experiment], shapes, model: FirstOrderArra
     h2_grid = np.array([8000.0, 16000.0, 24000.0, 32000.0])
     for no2 in [2.0, 6.0, 10.0]:
         grid = np.column_stack([h2_grid, np.full(4, 30.0), np.full(4, no2)])
-        ax.plot(h2_grid, model.gain(grid)[:, 0] * 100.0, "-o", ms=3, lw=1.2, label=f"NO$_2$={int(no2)}")
+        ax.plot(h2_grid, model.gain(grid)[:, 0] * 100.0, "-o", ms=3, lw=1.2, label=f"NO₂={int(no2)}")
         mask = (concentration[:, 0] >= 8000) & (concentration[:, 1] == 30) & (concentration[:, 2] == no2)
         ax.plot(concentration[mask, 0], np.abs(amplitude[mask, 0]) * 100.0, "s", ms=3.5, mfc="none", color="#333333")
     ax.set_xscale("log")
-    ax.set_xlabel("H$_2$ 浓度")
-    ax.set_ylabel("H$_2$ 增益 / %")
+    ax.set_xlabel("H₂ 浓度")
+    ax.set_ylabel("H₂ 增益 / %")
     ax.legend(frameon=False)
-    _letter(ax, "(c) H$_2$ 增益受 NO$_2$ 抑制（NH$_3$=30）")
+    _letter(ax, "(c) H₂ 增益受 NO₂ 抑制（NH₃=30）")
 
     ax = axes[1, 1]
     nh3_grid = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
     for h2 in [8000.0, 16000.0, 24000.0]:
         grid = np.column_stack([np.full(5, h2), nh3_grid, np.full(5, 6.0)])
-        ax.plot(nh3_grid, model.gain(grid)[:, 1] * 100.0, "-o", ms=3, lw=1.2, label=f"H$_2$={int(h2)}")
+        ax.plot(nh3_grid, model.gain(grid)[:, 1] * 100.0, "-o", ms=3, lw=1.2, label=f"H₂={int(h2)}")
         mask = (concentration[:, 0] == h2) & (concentration[:, 2] == 6)
         ax.plot(concentration[mask, 1], np.abs(amplitude[mask, 1]) * 100.0, "s", ms=3.5, mfc="none", color="#333333")
-    ax.set_xlabel("NH$_3$ 浓度")
-    ax.set_ylabel("NH$_3$ 增益 / %")
+    ax.set_xlabel("NH₃ 浓度")
+    ax.set_ylabel("NH₃ 增益 / %")
     ax.legend(frameon=False)
-    _letter(ax, "(d) NH$_3$ 增益的浓度与 H$_2$ 交叉影响（NO$_2$=6）")
+    _letter(ax, "(d) NH₃ 增益的浓度与 H₂ 交叉影响（NO₂=6）")
     figure.tight_layout()
     _save(figure, "fig05_gain_tau")
 
@@ -245,7 +245,7 @@ def figure_prediction_examples(experiments: list[Experiment], metrics: pd.DataFr
             if column == 0:
                 ax.set_ylabel(
                     f"{row_labels[row]}\n文件 {files[index]} · {scores[index] * 100:.1f}%\n"
-                    f"H$_2$={h2:.0f}, NH$_3$={nh3:.0f}, NO$_2$={no2:.0f}",
+                    f"H₂={h2:.0f}, NH₃={nh3:.0f}, NO₂={no2:.0f}",
                     fontsize=7.0,
                 )
             if row == 2:
@@ -275,8 +275,8 @@ def figure_absolute(experiments: list[Experiment], model: FirstOrderArrayModel) 
         ax.legend(frameon=False)
     figure.suptitle(
         f"由浓度与初始基线重建绝对输出（文件 {experiment.file_id}："
-        f"H$_2$={experiment.concentration[0]:.0f}, NH$_3$={experiment.concentration[1]:.0f}, "
-        f"NO$_2$={experiment.concentration[2]:.0f}）",
+        f"H₂={experiment.concentration[0]:.0f}, NH₃={experiment.concentration[1]:.0f}, "
+        f"NO₂={experiment.concentration[2]:.0f}）",
         fontsize=10.5,
     )
     figure.tight_layout()

@@ -80,6 +80,8 @@ def _train(
     seed: int,
     epochs: int = EPOCHS,
     lr: float = 3e-3,
+    batch_size: int = BATCH,
+    model: GasTCN | None = None,
     cycle: HybridForward | None = None,
     cycle_weight: float = 0.0,
     target_mean: np.ndarray | None = None,
@@ -89,7 +91,7 @@ def _train(
 ) -> GasTCN:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
-    model = GasTCN(in_channels=3, per_gas_head=True)
+    model = GasTCN(in_channels=3, per_gas_head=True) if model is None else model
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     loss_function = nn.MSELoss()
     real_count = len(train_real)
@@ -101,11 +103,11 @@ def _train(
         model.train()
         for _ in range(STEPS_PER_EPOCH):
             if synthetic is None:
-                real_indices = rng.integers(0, real_count, BATCH)
+                real_indices = rng.integers(0, real_count, batch_size)
                 batch_x = torch.from_numpy(train_real[real_indices])
                 batch_y = torch.from_numpy(train_targets[real_indices])
             else:
-                half = BATCH // 2
+                half = batch_size // 2
                 real_indices = rng.integers(0, real_count, half)
                 synthetic_indices = rng.choice(synthetic_count, half, replace=False)
                 batch_x = torch.from_numpy(np.concatenate([train_real[real_indices], synthetic[synthetic_indices]]))

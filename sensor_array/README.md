@@ -22,7 +22,34 @@
   62 折宏 nRMSE 从 3.47% 降到 **3.02%**；再以该模型做恒浓度 MAP + Laplace + CV+ 的
   早期浓度估计，10 s 中位误差约 3–8%，误差预算证明模型偏差是主因（噪声 CRLB <0.1%）。
   完整结果见 `docs/chapter_results.md`，从零讲解见 `docs/learning_guide.md`，
-  图 `figures/fig08`–`fig16`。
+  概念双解（严谨 + 通俗 + 边界）见 `docs/beginner_guide.md`，
+  图 `figures/fig08`–`fig27`（fig21 留给暂缓的 P2，未创建）。
+- **更严格验证（2026-11-18）**：留一档位把 hybrid 宏 nRMSE 从 3.02% 推到 6.33%，
+  留一采集块只有 3.14%；下游 10 s 浓度误差 direct_ridge 为 3.69/2.81/4.60%，优于
+  hybrid 的 4.89/2.95/7.53%。原始 Laplace 90% 区间折外覆盖率只有 11–60%，必须用
+  CV+/共形校准。混合模型的价值在结构、可辨识性与误差归因，不是当前指标下的最优精度。
+- **结构化残差（2026-11-18，P3）**：把 5 条自由 B 样条换成按物理时段切分的固定基
+  （早期瞬态 / 中期形状 / 缓慢漂移），LOGO 宏 nRMSE 3.02→2.90%、留一档位 6.33→6.28%、
+  留一区块 3.14→3.05%；改善集中在 NO$_2$（3.06→2.70%），NH$_3$/H$_2$ 基本不变。
+  残差与 file 序号的相关幅度下降，但留一档位仍是短板；默认仍用自由样条，结构化模型
+  作为可选模型（`artifacts/models/hybrid_structured.json`），详见 `docs/chapter_results.md` §12。
+- **偏差感知估计（2026-11-18，P4）**：残差协方差 MAP 把 10 s 中位浓度误差从
+  4.89/2.95/7.53% 降到 **3.12/2.14/5.00%**（H2/NH3/NO2），达到路线图点误差目标；
+  嵌套协方差版为 3.59/1.97/5.16%，仍达标但 H2/NO2 余量收窄，主结果略乐观。
+  代价是 Laplace `se` 放大 2–12 倍、覆盖率升到 92–100%，区间明显偏保守。分组共形
+  总体覆盖 87.1–91.9%，但中位宽度没有下降；决策停止在 10 s 内判定 40/52/48 条，
+  H2 误判 4/40（10.0%）。损失规则（r=3、容忍度 0.10）10 s 判定 44/52/51 条，但 H2
+  误判升到 10 条；剖面似然覆盖率只有 21.0/38.7/29.0%，说明区间失效来自模型偏差。
+  旧 10% 宽度目标仍只有 14/62，详见 `docs/chapter_results.md` §13。
+- **公平 B（2026-11-18，P5）**：5 seed × 5 折、5/10 s 各训前缀模型。10 s 宏 MAPE
+  仅真实 5.71%，等曝光 4.98%（p=0.0017），等真实预算 4.50%（p<0.0001）；5 s 同向。
+  改善集中在 NH$_3$/NO$_2$；等曝光臂 H$_2$ 从 3.24% 退化到 4.20%（p=0.006），
+  预训练臂 H$_2$ 基本不变但总更新 2500 vs 1500。中位 ARE 上等曝光臂不显著。
+  详见 `docs/chapter_results.md` §8 与 fig27。
+- **P6 收尾（2026-11-18）**：26 PNG + 26 SVG、无 PDF，fig21 留给暂缓的 P2；
+  `MANIFEST.md` 与 `SHA256SUMS`（120 行）记录 artifacts/figures 快照。仓库 67 项
+  tcn_union 测试、sensor_array py_compile、绘图与 P4 端到端通过（本目录无独立单测）；
+  六模型 LOGO/TCN 与 P5 训练未重跑。
 - 主要限制：NH$_3$ 浓度与采集顺序完全混淆（相关系数 0.976），H$_2$=32000 只有 4 条
   且都在 NO$_2$=2，62/100 个浓度组合、无重复。这些限制写在 §6，不能靠模型弥补。
 
@@ -228,7 +255,7 @@ NO$_2$ 接近。TCN 没有超过直接岭回归，且 62 折训练约 18 min（�
 ## 7. 下一步
 
 后续优化路线（残差诊断、分层/混合效应模型、结构化残差、偏差感知估计、公平 B）
-见 [`docs/roadmap.md`](docs/roadmap.md)。短期原则：
+见 [`docs/roadmap.md`](docs/roadmap.md)；P0–P6 已完成，P2 暂缓（证据不支持 + 可解释性风险 + 预期收益不达验收）。短期原则：
 
 - 只在现有 62 条上做建模、验证与仿真，不补测、不补采、不重新采集；
 - 不先换更大的黑盒；每个新结构必须通过 62 折 LOGO、留一浓度水平、留一文件块；
@@ -247,7 +274,7 @@ sensor_array/
     metrics.py             LOGO 与曲线指标
   analysis/
     identifiability.py     FIM/CRLB、噪声估计
-    estimation.py          MAP、Laplace、CV+、自适应停止、误差预算
+    estimation.py          MAP、Laplace、CV+、停止、误差预算、P4 协方差/分组/损失停止/剖面
     degradation.py         逐路屏蔽传感器
   experiments/
     logo.py                六模型 LOGO 对比
@@ -255,18 +282,21 @@ sensor_array/
   plotting/
     style.py               字体、配色、PNG+SVG 保存
     response.py            fig01–07
-    chapter.py             fig08–16
+    chapter.py             fig08–27
   docs/
     roadmap.md             后续优化路线图
     chapter_plan.md        章节方案
     chapter_results.md     结果汇总
     learning_guide.md      从零学习文档
+    beginner_guide.md      概念双解手册（新手）
   artifacts/
     models/                model.json、hybrid.json
     logo/                  LOGO 指标/预测/汇总
-    analysis/              可辨识性、估计、降级、误差预算
+    analysis/              可辨识性、估计、降级、误差预算、P4 偏差/共形/停止/剖面
     augmentation/          B 结果
-  figures/                 fig01–16（PNG+SVG）
+  figures/                 fig01–20、fig22–27（PNG+SVG）
+  MANIFEST.md               P6 快照说明
+  SHA256SUMS                artifacts + figures 的 SHA-256
 ```
 
 ```bash
@@ -310,8 +340,10 @@ absolute = model.predict_response(experiment.concentration[None], experiment.tim
 
 - `core/hybrid.py`：灰盒 + 低秩 B 样条残差；K=5，62 折宏 nRMSE 3.02%。
 - `analysis/identifiability.py`：二阶差分噪声估计、FIM/CRLB、条件数；5 s CRLB 中位 0.026/0.015/0.033%。
-- `analysis/estimation.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算。
+- `analysis/estimation.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算；P4 增加协方差 MAP、分组共形、几何/损失停止、剖面似然（`--part p4`）。
 - `analysis/degradation.py`：逐路屏蔽传感器的降级实验。
-- `experiments/inverse_augmentation.py`：B 实验（正模型合成 / 循环一致性 → 逆 TCN）。3 个种子 × 5 折：仅真实 5.86% MAPE（3.62% NMAE）、+循环 5.69%（p=0.37）、+合成 5.61%（p=0.46）、+合成+循环 5.48%（p=0.24）、合成预训练+微调 4.75%（p=0.001）；预训练式合成增强有稳定收益，1:1 混合与循环约束未证明显著，见 `docs/chapter_results.md` §8。
-- `plotting/chapter.py`：fig08–fig16；后续优化路线见 `docs/roadmap.md`；`docs/chapter_results.md` 是结果汇总，
-  `docs/learning_guide.md` 是从零开始的学习文档。
+- `experiments/inverse_augmentation.py`：旧 B 实验（3 seed × 5 折，15 对）：仅真实 5.86% MAPE、+循环 5.69%（p=0.37）、+合成 5.61%（p=0.46）、合成预训练+微调 4.75%（p=0.001）；该协议的混合臂真实曝光减半。
+- `experiments/fair_augmentation.py`：P5 公平 B（5 seed × 5 折，5/10 s）：10 s 仅真实 5.71%，等曝光 4.98%（p=0.0017），等真实预算 4.50%（p<0.0001）；H₂ 在等曝光臂退化，详见 `docs/chapter_results.md` §8 与 fig27。
+- `plotting/chapter.py`：fig08–fig27（fig21 未生成，编号留给暂缓的 P2）；后续优化路线见 `docs/roadmap.md`；`docs/chapter_results.md` 是结果汇总，
+  `docs/learning_guide.md` 是从零开始的学习文档，`docs/beginner_guide.md` 是逐概念“严谨 + 通俗 + 边界”的双解手册。
+- `MANIFEST.md` / `SHA256SUMS`：P6 快照，记录 68 个 artifacts 文件与 52 个图件的 SHA-256；`cd sensor_array && sha256sum -c SHA256SUMS` 校验。

@@ -249,7 +249,7 @@ sensor_array/
   core/hybrid.py            低秩残差混合模型（拟合、预测、LOGO）
   analysis/identifiability.py  FIM/CRLB、剖面似然、时间窗、降级分析
   analysis/estimation.py     MAP/Laplace、conformal、自适应停止
-  plotting/chapter.py        fig08–16（PNG+SVG）
+  plotting/chapter.py        fig08–27（PNG+SVG；fig17–20 为 P1 诊断，fig21 留给暂缓的 P2，fig22–23 为 P3 结构化残差，fig24–26 为 P4 偏差估计/分组覆盖/决策停止，fig27 为 P5 公平 B）
   docs/chapter_plan.md
   artifacts/models/          hybrid.json、model.json
   artifacts/analysis/        identifiability.csv、estimates.csv 等

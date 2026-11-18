@@ -14,10 +14,11 @@ MODELS = ARTIFACTS / "models"
 LOGO = ARTIFACTS / "logo"
 ANALYSIS = ARTIFACTS / "analysis"
 AUGMENTATION = ARTIFACTS / "augmentation"
+VALIDATION = ARTIFACTS / "validation"
 FIGURES = ROOT / "figures"
 
 
 def ensure() -> None:
     """创建所有输出目录；写文件前调用。"""
-    for path in (MODELS, LOGO, ANALYSIS, AUGMENTATION, FIGURES):
+    for path in (MODELS, LOGO, ANALYSIS, AUGMENTATION, VALIDATION, FIGURES):
         path.mkdir(parents=True, exist_ok=True)

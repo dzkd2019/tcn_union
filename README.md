@@ -2,7 +2,7 @@
 
 本项目使用 H2、NH3、NO2 三路传感器响应的早期前缀，预测一次实验的三种浓度标签。当前实现包含数据校验、实验级固定划分、因果 TCN、Ridge 对照、锁定测试评估、预测 CLI 和结果绘图。
 
-正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)：一阶惯性 + 纯延迟灰盒（45 参数，62 折宏 nRMSE 3.5%），章节扩展的混合模型（3.0%）与早期浓度估计见 [`docs/chapter_results.md`](sensor_array/docs/chapter_results.md)、[`docs/learning_guide.md`](sensor_array/docs/learning_guide.md)；后续优化路线见 [`docs/roadmap.md`](sensor_array/docs/roadmap.md)。
+正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)：一阶惯性 + 纯延迟灰盒（45 参数，62 折宏 nRMSE 3.5%），章节扩展的混合模型（3.0%）与早期浓度估计见 [`docs/chapter_results.md`](sensor_array/docs/chapter_results.md)、[`docs/learning_guide.md`](sensor_array/docs/learning_guide.md)；P4 的偏差协方差 MAP 把 10 s 中位误差降到 3.12 / 2.14 / 5.00%（嵌套协方差 3.59 / 1.97 / 5.16%，仍达标但余量收窄），区间仍偏保守，剖面覆盖率仅 21–39%（§13）；P5 公平 B 把 10 s 宏 MAPE 从 5.71% 降到 4.98%（等曝光）或 4.50%（等真实预算），但等曝光臂的 H₂ 变差（§8）；P6 已冻结 artifacts/figures 快照（[`MANIFEST.md`](sensor_array/MANIFEST.md)）。P2 暂缓；后续优化路线见 [`docs/roadmap.md`](sensor_array/docs/roadmap.md)。
 
 ## 当前结论
 

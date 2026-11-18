@@ -1,6 +1,6 @@
 # 传感器阵列正模型：后续优化路线图
 
-> 状态：P0 已完成（2026-11-18）；后续按 P1–P6 推进。
+> 状态：P0/P1/P3/P4/P5/P6 已完成（2026-11-18）；P2 暂缓（证据不支持 + 可解释性风险 + 预期收益不达验收，见 P2 节），fig21 留空。P4 的点误差与分组覆盖达标，旧 10% 宽度停止未达；P5 在公平协议下宏平均改善但 H₂ 有代价。
 > 适用范围：`sensor_array/` 的正向动态响应模型、可辨识性分析、早期浓度估计与合成数据实验。
 > 硬约束：现有 62 条实验不可扩充（传感器已损坏）；不提出、不依赖补测/补采/重新采集；不重复使用逆问题的 12 条锁定测试做调参。
 
@@ -132,6 +132,16 @@
 
 **止损**：如果残差与文件序号/NH3 档位相关很弱，说明主要问题不是漂移，P2 的优先级下调。
 
+**完成情况（2026-11-18）**：
+
+- 代码：新增 `analysis/residuals.py`（PCA/增益-形状分解/相关/区域/块内趋势/阶跃扫描）、`experiments/validation.py`（三协议曲线 + 下游浓度）；`core/metrics.py` 增加 `level_folds`、`block_folds`、`cross_validate`、`leave_one_level_out`、`leave_one_block_out`；`analysis/degradation.py` 扩到 2/5/10/20/60 s。
+- 产物：`artifacts/analysis/residual_*.csv`、`artifacts/validation/{level_out,block_out,curve_summary,estimates,estimate_summary}.csv`；图 fig17–fig20；结果写入 `docs/chapter_results.md` §11。
+- 关键数字：宏 nRMSE（LOGO / 留一档位 / 留一区块）hybrid = 3.02 / 6.33 / 3.14%，direct_ridge = 2.59 / 4.23 / 2.89%，grey_box = 3.47 / 6.01 / 3.62%，TCN = 3.60 / 4.92 / 3.47%。留一区块与 LOGO 几乎相同，留一档位翻倍。最差档位折：hybrid H2=32000 15.86%、NO2=2 16.41%；direct_ridge 对应 6.00%、8.36%。
+- 残差：H2 92.5% 方差为近平台模式（增益），H2=32000 的 4 条占 H2 残差能量 45.5%；NO2 的 PC2（30.2%）与幅度 rho=-0.95、tau rho=+0.89；NH3 无显著设计变量相关。file 序号、NH3 档位、R0_H2 三者共线（rho(file,NH3)=0.977，file 与 R0_H2 同秩），块内趋势方向随档位翻转，不能解释为单调漂移。file 59/60/61 存在 0.028–0.042 的孤立采集阶跃，占 NH3 残差能量 37.6%。
+- 下游 10 s：hybrid LOGO 4.89 / 2.95 / 7.53%、留一档位 10.19 / 5.05 / 11.08%；direct_ridge LOGO 3.69 / 2.81 / 4.60%、留一档位 6.14 / 4.37 / 7.80%。曲线更好的混合模型没有转化为更准的浓度反演。原始 Laplace 90% 覆盖率仅 11–60%（LOGO hybrid H2 16.1%、NH3 59.7%、NO2 32.3%），折外严重欠覆盖，区间必须改用 CV+/分组共形校准。
+- 止损判定：相关不是“很弱”，但不可归因于漂移；真正的短板是**留一浓度档位外推**（尤其 H2=32000、NO2=2 边角）。因此 P2 的优先级下调，先做 P3（结构化残差/外推）与 P4（偏差感知估计）；P4 还应包含区间校准，而不只是点估计。
+- 图号：fig17–fig20 已被 P1 占用，后续新图从 **fig21** 起。
+
 ---
 
 ### P2：分层/混合效应正模型（2–3 周）
@@ -174,7 +184,7 @@ s_j A_j(c_i)(1+\eta_{ij})
 
 - `core/hierarchical.py`；
 - `artifacts/models/hierarchical.json`；
-- 方差成分表、对比图（fig17）。
+- 方差成分表、对比图（fig21）。
 
 **验收**：
 
@@ -187,6 +197,14 @@ s_j A_j(c_i)(1+\eta_{ij})
 - 62 条、每条一个随机效应，可能估计不稳；
 - 随机效应会吸收 NH3/time 混淆，不能把它解释成“NH3 效应”；
 - 若随机效应与浓度特征共线，固定效应会漂移。
+
+**暂缓原因（2026-11-18）**：
+
+- **证据不支持“漂移是主因”**：P1 的留一文件块宏 nRMSE 为 3.14%，与 LOGO 的 3.02% 几乎相同；真正翻倍的是留一浓度档位（6.33%）。file 序号、NH3 档位、R0_H2 高度共线（rho(file,NH3)=0.977），块内趋势方向随档位翻转，不能解释为单调漂移。H2 残差 92.5% 是近平台增益模式，H2=32000 的 4 条实验占 H2 残差能量 45.5%；NH3 没有显著的设计变量相关。P3 只把留一档位从 6.33% 降到 6.28%，说明残差时间基也不是外推瓶颈。
+- **可解释性风险**：62 条实验、每条一个随机效应，方差成分本身估计不稳；随机效应会吸收 NH3/time 的共线结构，无法把“实验间差异”与“浓度设计差异”分开。即使拟合出很大的方差成分，也不能作因果或浓度效应解释。
+- **预期收益不达验收**：验收要求 LOGO 至少再降 0.2 pp，或留一文件块明显更稳。现有证据显示块间差异已经很小（3.14%），而档位外推（6.33%）不是随机漂移能修的；加随机效应更可能只重排已有误差，达不到验收，还会增加一个难以解释的层级。P4 的嵌套协方差只检验了加权协方差，没有显示随机效应方差成分是主因。
+- **重启条件**：只有在外部已有的独立数据上验证（当前 62 条不可扩充，不补采、不重测），或残差诊断给出“块内随机斜率/增益方差显著且与浓度不共线”的预先注册证据，并且分层模型在留一档位/留一区块上至少改善 0.2 pp，才重新启动。重启时先写评估协议，不允许用 12 条锁定测试挑模型。
+- **结论**：P2 暂缓是“证据不支持 + 可解释性风险 + 预期收益不达验收”，不是实现复杂或工作量不足；不创建 `hierarchical.py`，fig21 继续留空。
 
 ---
 
@@ -210,7 +228,7 @@ s_j A_j(c_i)(1+\eta_{ij})
 **产出**：
 
 - `core/hybrid.py` 增加 `basis="structured"` 选项（不新建模块）；
-- fig17/fig18：残差基对比、残差-文件序号相关。
+- fig22/fig23：残差基对比、残差-文件序号相关。
 
 **验收**：
 
@@ -219,6 +237,15 @@ s_j A_j(c_i)(1+\eta_{ij})
 - A/τ 的可解释性保持。
 
 **止损**：若结构化后精度明显变差，保留自由 B 样条，但在论文中说明“残差可能吸收漂移”。
+
+**完成情况（2026-11-18）**：
+
+- 代码：core/hybrid.py 增加 structured_basis 与 HybridArrayModel(basis="structured")；默认仍为 "spline"，旧 JSON 兼容。experiments/structured.py 对每个协议折只拟合一次灰盒，再分别拟两种残差；图22/23 在 plotting/chapter.py。
+- 产物：artifacts/validation/{structured_curves,structured_summary,structured_correlations}.csv、structured_logo_predictions.npz；artifacts/analysis/structured_basis.csv；artifacts/models/hybrid_structured.json；fig22/fig23。
+- 三协议宏 nRMSE（自由 B 样条 → 结构化）：LOGO 3.02→2.90%、留一档位 6.33→6.28%、留一区块 3.14→3.05%。改善集中在 NO2（LOGO 3.06→2.70%），H2/NH3 基本不变。
+- 残差与 file 序号相关幅度均下降：H2 −0.566→−0.561、NH3 +0.213→+0.172（p=0.181）、NO2 −0.291→−0.183（p=0.154）；NO2 与设计变量的相关也不再显著。
+- 验收：精度没有变差（反而改善 0.05–0.12 pp），file 相关没有上升；A/τ 参数化未改，但没有重跑可辨识性，不能声称可辨识性改善。
+- 取舍：留一档位仍 6.28%，说明残差时间基不是外推瓶颈；默认仍用自由 B 样条以保持全章结果可比，结构化基作为可选模型/消融保留。P4 应把 direct_ridge 作为精度基线、hybrid 作为结构对照。P2 暂缓，因此“结构化 + 分层随机漂移”的比较没有做。
 
 ---
 
@@ -246,9 +273,9 @@ s_j A_j(c_i)(1+\eta_{ij})
 
 **产出**：
 
-- `analysis/estimation.py` 扩展（协方差、分组校准、决策停止）；
-- `artifacts/analysis/coverage_by_group.csv`、`stopping_decision.csv`；
-- fig19–fig21。
+- `analysis/estimation.py` 扩展（协方差、分组校准、决策停止、损失停止、剖面似然）；
+- `artifacts/analysis/{bias_estimates,bias_summary,coverage_by_group,stopping_decision,stopping_decision_summary,stopping_loss,stopping_loss_summary,profile_likelihood,profile_likelihood_summary,bias_nested_estimates,bias_nested_summary}.csv`；
+- fig24–fig26。
 
 **验收**：
 
@@ -256,42 +283,72 @@ s_j A_j(c_i)(1+\eta_{ij})
 - 分组覆盖率 85–92%（名义 90%）；
 - 10% 停止目标 ≥20/62，且误判率可接受；
 - 若协方差版没有改善，保留标量版并说明原因。
+- **P1 基线提醒**：10 s 窗 direct_ridge 已达 3.69/2.81/4.60%，hybrid 为 4.89/2.95/7.53%；H2/NO2 目标对 ridge 已基本达到，NH3 仍差 0.3 pp。P4 若只改估计器、不改正模型，hybrid 很难单靠区间校准达到该目标；应把 ridge 作为精度基线、hybrid 作为结构对照；P3 已验证残差基不是档位外推瓶颈，P4 不能再指望换基解决。
+
+**完成情况（2026-11-18）**：
+
+- **点误差**：协方差 MAP 把 10 s 中位绝对相对误差降到 3.12 / 2.14 / 5.00%（H2/NH3/NO2），三条都达到验收目标；但逐文件只有 129/186 个改善，NO2 的 5.00% 仍高于 direct_ridge 的 4.60%。逐文件最大改善 22.4 / 39.0 / 36.3 pp，最大变差 20.6 / 31.0 / 28.8 pp。嵌套协方差版为 3.59 / 1.97 / 5.16%，仍达标但 H2/NO2 余量收窄（见下条）。
+- **区间**：协方差 Laplace 的 90% 覆盖率为 98.4 / 91.9 / 95.2%，中位 `se` 是标量版的 12.2 / 2.0 / 3.7 倍；点误差下降的代价是区间明显变宽，不能当作更紧的不确定度。
+- **分组共形**：总体覆盖为 91.9 / 91.9 / 87.1%（全局 / NH3 档位 / 采集块），在 85–92% 内；NH3 档位各组 85.7–92.9%，采集块各组 83.3–87.5%；采集块最小分组 83.3% 低于 85%，NH3 档位最低 85.7%。中位宽度没有下降（NH3 分档 15.5 / 7.3 / 19.1%，采集块 14.0 / 5.7 / 18.6%），因此只作诊断，不作默认区间。
+- **嵌套协方差验证**：外层 62 折 LOGO 的训练集内再切 5 折，嵌套版 10 s 中位误差 3.59 / 1.97 / 5.16%，仍全部达标，但 H2、NO2 相对主结果变差 0.47 / 0.16 pp；嵌套相对主协方差只有 79/186 个 file 更好，均值差 +0.93 pp（聚类 bootstrap 95% CI +0.18–+1.82），说明主协方差略乐观。覆盖率 100.0 / 95.2 / 96.8%，中位 `se` 再大 1.18–1.36 倍，区间更保守。
+- **决策停止**：以 62 条中位浓度为阈值（H2=16000、NH3=30、NO2=6，原始浓度单位），10 s 内决定 40 / 52 / 48 条，误判 4 / 2 / 3 条（10.0 / 3.85 / 6.25%）；全时段决定 43 / 53 / 52 条，未决 19 / 9 / 10 条。决策口径达到“≥20/62”，但**旧 10% 宽度目标仍是 14/62，没有因此达成**；停止时中位宽度仍有 18.1 / 16.7 / 47.9%。
+- **损失停止**：把 90% CV+ 半宽近似为 lognormal，按 C_FP=1、C_FN=r 计算超阈/未超阈的期望损失，阈值仍用 62 条中位。r=3、容忍度 0.05 时 10 s 决定 37 / 48 / 48 条（H2 误判 4，10.8%）；r=3、容忍度 0.10 时 44 / 52 / 51 条（H2 误判 10，22.7%）。所有情景 false_negative=0，放宽容忍度是用误报换决定数；H2 的代价最高，不能声称损失规则全面优于几何规则。
+- **剖面似然**：62 折 × 3 气体全部收敛（标量权重，ΔSSR=3.84）。名义 90% 剖面覆盖仅 21.0 / 38.7 / 29.0%（H2/NH3/NO2），中位宽度 4.97 / 4.13 / 7.53%，真值处中位 ΔSSR 18.23 / 7.49 / 10.18，远大于 3.84；NH3 的剖面比 Laplace 更窄（0.83 倍），但仍有 61% 的 file 排除真值。说明区间失效来自模型偏差，不是宽度校准；剖面只作诊断。
+- **产物**：`analysis/estimation.py` 的 `residual_covariance`、`covariance_cholesky`、协方差版 `map_estimate`、`group_conformal`、`decision_stopping`、`loss_stopping`、`profile_likelihood`、`run_p4`、`run_nested_bias_validation`；`artifacts/analysis/{bias_estimates,bias_summary,coverage_by_group,stopping_decision,stopping_decision_summary,stopping_loss,stopping_loss_summary,profile_likelihood,profile_likelihood_summary,bias_nested_estimates,bias_nested_summary}.csv`；fig24–26；`docs/chapter_results.md` §13。
+- **验收结论**：点误差三条在主协方差与嵌套协方差下都达标；分组总体覆盖 85–92% 达标；决策停止达到新的决策口径；损失停止与剖面似然补齐 P4 的方法学检查；旧 10% 宽度停止未达标；协方差版有点误差收益但区间偏保守，剖面进一步证明区间不可解释。**P4 完成**。报告时应并列主结果 3.12 / 2.14 / 5.00% 与嵌套协方差 3.59 / 1.97 / 5.16%，不能只报前者。
+- **限制**：嵌套协方差已做（§13.6），但内层协方差只用 48–49 条训练、外层点估计用 61 条，训练集大小不匹配；分组共形与剖面都是同一批折外数据上的构造，不是独立盲测；决策阈值、代价比与容忍度都是描述性设定，真实报警阈值应替换；剖面用标量权重、条件于 MAP，没有做协方差白化版。
+
 
 ---
 
-### P5：公平的 B 实验（1–2 周，可选）
+### P5：公平的 B 实验（已完成 2026-11-18）
 
 **目标**：把“合成数据有没有用”做成公平比较，而不是预算不对称的比较。
 
 **做法**：
 
 1. 等曝光：8 真实 + 8 合成（batch 16），或混合臂步数加倍；
-2. 等预算：预训练 100 epoch + 微调 150 epoch，与真实臂 150 epoch 对齐；
+2. 等真实预算：预训练 100 epoch + 微调 150 epoch，与真实臂 150 epoch 对齐；
 3. 5 个 seed × 5 折，报告均值、标准差、配对差；
 4. 用 P1 的下游指标（5/10 s 浓度误差），不只 MAPE；
 5. 若仍无显著收益，明确写“在现有 62 条上，合成数据不是有效的信息来源”。
 
-**产出**：
+**完成情况（2026-11-18）**：
 
-- `artifacts/augmentation/fair_comparison.csv`；
-- `docs/chapter_results.md` §8 更新；
-- 一张 fig22：等曝光/等预算下的臂对比。
+- 50 条开发实验、固定五折、5 seed × 5 折 = 25 对；5 s 与 10 s 各训练 26/51 点前缀模型，避免 5 s 前缀落入 10 s 模型的训练分布外。
+- 10 s 宏 MAPE：仅真实 5.71 ± 1.10%；等曝光 4.98 ± 1.06%（Δ−0.73，p=0.0017）；等真实预算 4.50 ± 1.07%（Δ−1.20，p<0.0001）。5 s：6.47% → 5.66% / 5.72%（p=0.0145 / 0.0090）。
+- 收益不是三气体均匀：等曝光臂 H₂ 在 10 s 从 3.24% 退化到 4.20%（p=0.006，7/25 对改善），NH₃ 6.13→3.89%、NO₂ 7.75→6.84%；预训练臂 H₂ 3.18%（p=0.77），NH₃ 4.20%、NO₂ 6.13%。
+- 中位 ARE 上，等曝光臂 10 s 仅 −0.26（p=0.36，不显著）；预训练臂 −0.61（p=0.023）。预训练臂总更新 2500 vs 1500，不能解释为每单位计算更优。
+- 预算可核对：仅真实/等曝光均 12000 真实样本、1500 次更新；等曝光另含 12000 合成样本；预训练 12000 真实 + 8000 合成、2500 次更新。
+- 产物：`artifacts/augmentation/fair_comparison.csv`、`fair_summary.csv`、`fair_budget.csv`、`fair_comparison_seed{0..4}.csv`；代码 `experiments/fair_augmentation.py`；fig27。
+- 验收：预算表可核对；结论与 95% CI 一致；H₂ 的代价与预训练的计算代价都已写明；没有按 seed 挑结果。**P5 完成，但结论是条件性的**：宏平均改善不等于三气体都不退化。
 
-**验收**：
+**限制**：
 
-- 每个臂的真实曝光和总步数可核对；
-- 结论与置信区间一致；
-- 不显著就写不显著，不挑 seed。
+- 25 个 (seed, fold) 对共享实验与折，p 值只作描述性汇总；
+- “等曝光”对齐真实样本而非真实梯度权重，H₂ 退化可能来自真实梯度被稀释；
+- 5 s / 10 s 是两个模型，部署需两个模型或变长处理；
+- 循环一致性未在 P5 重测，旧 p=0.37 仍是“未证明显著”。
 
 ---
 
-### P6：论文与复现收尾（1 周）
+### P6：论文与复现收尾（已完成 2026-11-18）
 
 - 更新 `docs/chapter_results.md` 的表格与图号；
 - 更新 `docs/learning_guide.md` 的“下一步”；
 - 更新 `handoff_20261117.md`；
 - 冻结 `artifacts/` 与 `figures/` 的版本；
 - 跑一遍完整复现命令（可分组）。
+
+**完成情况（2026-11-18）**：
+
+- **章节**：`docs/chapter_results.md` 的 P4 部分已补齐 13.4.1 损失停止、13.7 剖面似然、13.8 结论，表 13.4–13.6；复现仍在 13.5，嵌套协方差在 13.6，原 13.7 结论顺延为 13.8。§9/§10 的 P4 表述同步，图范围改为 fig01–fig27，§14 复现命令加入 P4 损失/剖面与 P5 5 seed。所有数字逐项对照 `artifacts/analysis/` 与 `artifacts/augmentation/` 下的 CSV。
+- **图件**：`sensor_array/figures/` 共 26 个 PNG + 26 个 SVG + 0 个 PDF；覆盖 fig01–fig20、fig22–fig27，fig21 留给暂缓的 P2。全部由 `python -m sensor_array.plotting.chapter` 重渲染，退出 0。
+- **冻结**：新增 `sensor_array/MANIFEST.md` 与 `sensor_array/SHA256SUMS`。后者 120 行（68 个 artifacts 文件 + 52 个图件），用 `sha256sum -c SHA256SUMS` 校验；只记录当前工作树，不是 git tag。
+- **文档**：`handoff_20261117.md` 已同步 P4 损失/剖面、P6 完成、P2 暂缓；根 `README.md`、`sensor_array/README.md`、`docs/learning_guide.md`、`docs/chapter_plan.md` 的图号、结果与下一步同步。
+- **验证**：仓库 67 项 tcn_union 单元测试通过；`sensor_array` 没有独立自动化测试，用 `py_compile` 与端到端复跑代替；P4 端到端（62 折、损失、剖面）226 s 退出 0；绘图退出 0；`git diff --check -- '*.py' '*.md'` 干净。
+- **复现边界**：六模型 LOGO/TCN（约 30 min）与 P5 五 seed 训练没有在 P6 重跑，沿用已冻结的 artifacts 与 CSV；P6 只重跑分析、绘图和测试，避免覆盖已校验的预测与图件。因此 P6 证明的是“文档—产物—命令—图件”一致，不是一次从零开始的独立盲测。
+- **结论**：P6 完成；改动仍未 commit、未 push。
 
 ---
 
@@ -301,12 +358,12 @@ s_j A_j(c_i)(1+\eta_{ij})
 |---:|---|---|
 | 1 | P0 目录/基线 + P1 残差诊断 | 新目录、残差诊断表 |
 | 2 | P1 验证协议（留一档位/文件块） | 新验证表、图 |
-| 3–4 | P2 分层模型原型 | `hierarchical.py`、方差成分 |
-| 5 | P2 评估与取舍 | 对比表、是否保留 |
-| 6 | P3 结构化残差 | 基函数对比、残差相关 |
-| 7–8 | P4 偏差感知估计 | 协方差版、分组覆盖率、决策停止 |
-| 9 | P5 公平 B（可选） | 等曝光/等预算表 |
-| 10 | P6 文档与复现 | 最终结果、handoff |
+| 3–4 | P2 分层模型原型（暂缓 2026-11-18） | 未创建 `hierarchical.py`；理由见 P2 节 |
+| 5 | P2 评估与取舍（暂缓 2026-11-18） | 暂缓理由、重启条件；fig21 留空 |
+| 6 | P3 结构化残差（已完成 2026-11-18） | 基函数对比、残差相关、fig22–23 |
+| 7–8 | P4 偏差感知估计（已完成 2026-11-18） | 协方差版、分组覆盖率、几何/损失停止、剖面似然、fig24–26 |
+| 9 | P5 公平 B（已完成 2026-11-18） | 等曝光/等真实预算表、fig27 |
+| 10 | P6 文档与复现（已完成 2026-11-18） | 最终结果、handoff、冻结清单 |
 
 > 如果 P2/P3 没有稳定收益，直接跳到 P4；不要为了“模型更复杂”而保留无效结构。
 
@@ -337,21 +394,21 @@ sensor_array/
 │   ├── data.py                  # 数据读取/校验
 │   ├── grey_box.py              # 一阶灰盒
 │   ├── hybrid.py                # 灰盒 + 低秩残差
-│   ├── hierarchical.py          # P2 新增
 │   ├── baselines.py             # 均值/两阶段/岭回归/TCN
 │   └── metrics.py               # nRMSE、LOGO、留一档位/块
 ├── analysis/
 │   ├── identifiability.py       # FIM/CRLB
-│   ├── estimation.py            # MAP/Laplace/CV+/停止
+│   ├── estimation.py            # MAP/Laplace/CV+/停止/协方差/剖面
 │   ├── degradation.py           # 传感器降级
 │   └── residuals.py             # P1 新增
 ├── experiments/
 │   ├── logo.py                  # 六模型 LOGO 对比
+│   ├── validation.py            # P1 三协议 + 下游浓度
 │   └── inverse_augmentation.py  # B
 ├── plotting/
 │   ├── style.py                 # 字体、颜色、保存
 │   ├── response.py              # fig01–07
-│   └── chapter.py               # fig08–16
+│   └── chapter.py               # fig08–27
 ├── docs/
 │   ├── roadmap.md               # 本文件
 │   ├── chapter_plan.md
@@ -360,10 +417,13 @@ sensor_array/
 ├── artifacts/
 │   ├── models/                  # model.json、hybrid.json
 │   ├── logo/                    # LOGO 指标/预测/汇总
-│   ├── analysis/                # 可辨识性、估计、降级、残差
-│   └── augmentation/            # B 结果
-└── figures/                     # fig01–16 PNG+SVG
+│   ├── analysis/                # 可辨识性、估计、降级、残差、P4 偏差/共形/停止
+│   ├── validation/              # P1 三协议与下游浓度
+│   └── augmentation/            # B 与 P5 公平对照结果
+└── figures/                     # fig01–20、fig22–27 PNG+SVG
 ```
+
+> P2 暂缓，`core/hierarchical.py` 未创建、`fig21` 继续留空；目录树不列未实现文件。
 
 **新增文件放哪里**：
 
@@ -392,6 +452,12 @@ sensor_array/
 # 早期估计 + 校准 + 停止 + 误差预算（约 12 min）
 .venv/bin/python -m sensor_array.analysis.estimation
 
+# P4：协方差 MAP + 分组共形 + 决策停止（约 91 s，依赖 P1 的 residual_matrix.npz）
+.venv/bin/python -m sensor_array.analysis.estimation --part p4
+
+# P4 补充：嵌套协方差验证（约 8 min）
+.venv/bin/python -m sensor_array.analysis.estimation --part p4-nested
+
 # 传感器降级（约 3–5 min）
 .venv/bin/python -m sensor_array.analysis.degradation
 
@@ -399,6 +465,12 @@ sensor_array/
 for s in 0 1 2; do
   B_SEED=$s .venv/bin/python -m sensor_array.experiments.inverse_augmentation
 done
+
+# P5：公平 B（5 seed × 5 折，5/10 s；每个 seed 约 5–10 min）
+for s in 0 1 2 3 4; do
+  .venv/bin/python -m sensor_array.experiments.fair_augmentation --seed $s
+done
+.venv/bin/python -m sensor_array.experiments.fair_augmentation --combine
 
 # 图
 .venv/bin/python -m sensor_array.plotting.response

@@ -41,24 +41,28 @@ def _subset_init(experiments, shape_by_file):
     )
 
 
+def fit_model(name: str, train, shape_init=None):
+    """按名称构造并拟合一个模型，供 LOGO 与分组验证协议共用。"""
+    if name == "mean_curve":
+        return MeanCurveModel().fit(train)
+    if name == "two_stage":
+        return TwoStageModel().fit(train, shape_init=shape_init)
+    if name == "grey_box":
+        return FirstOrderArrayModel().fit(train, shape_init=shape_init)
+    if name == "hybrid":
+        return HybridArrayModel().fit(train, shape_init=shape_init)
+    if name == "direct_ridge":
+        return DirectRidgeModel().fit(train)
+    if name == "tcn":
+        return TCNModel().fit(train)
+    raise ValueError(f"未知模型：{name}")
+
+
 def run_one(name: str, experiments, shapes) -> pd.DataFrame:
     shape_by_file = _shape_by_file(experiments, shapes)
 
     def fit(train, test):
-        if name == "mean_curve":
-            model = MeanCurveModel().fit(train)
-        elif name == "two_stage":
-            model = TwoStageModel().fit(train, shape_init=_subset_init(train, shape_by_file))
-        elif name == "grey_box":
-            model = FirstOrderArrayModel().fit(train, shape_init=_subset_init(train, shape_by_file))
-        elif name == "hybrid":
-            model = HybridArrayModel().fit(train, shape_init=_subset_init(train, shape_by_file))
-        elif name == "direct_ridge":
-            model = DirectRidgeModel().fit(train)
-        elif name == "tcn":
-            model = TCNModel().fit(train)
-        else:
-            raise ValueError(f"未知模型：{name}")
+        model = fit_model(name, train, _subset_init(train, shape_by_file))
         return model.predict_relative(test.concentration[None], test.time)[0]
 
     print(f"running LOGO: {name}", flush=True)
