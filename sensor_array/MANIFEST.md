@@ -1,25 +1,46 @@
-# 结果与图件快照（P6，2026-11-18）
+# 结果与图件快照（当前分支，2026-11-19）
 
-本文件记录 P6 收尾时的 `artifacts/` 与 `figures/` 内容。仓库尚未提交，因此“冻结”指记录当前工作树中的文件清单与 SHA-256，不是 git tag。
+本文件记录当前分支 `experiment/mlp-double-exponential` 的 `artifacts/` 与
+`figures/model/` 内容。旧模型（一阶骨架、低秩残差、共享 MLP）的代码、artifacts、
+图件与 P6 快照已从本分支删除，不在本清单中。
 
 ## 范围
 
 | 目录 | 文件数 | 说明 |
 |---|---:|---|
-| `artifacts/analysis/` | 26 | LOGO 估计、共形、残差诊断、P4 协方差/分组/停止/剖面 |
-| `artifacts/augmentation/` | 13 | 旧逆模型增强与 P5 公平 B（含 5 个 seed） |
-| `artifacts/logo/` | 17 | 六模型 62 折预测、指标与设计表 |
-| `artifacts/models/` | 3 | 默认混合模型、结构化残差模型、旧模型 |
-| `artifacts/validation/` | 9 | 留一档位/区块、结构化残差、曲线汇总 |
-| `figures/` | 52 | 26 个 PNG + 26 个 SVG，无 PDF |
+| `artifacts/evaluation/` | 5 | 双指数骨架与三路独立 MLP 的曲线、下游、汇总与预测 |
+| `artifacts/models/` | 2 | 三路独立（推荐）、双指数骨架（对照） |
+| `artifacts/calibration/` | 3 | P4 区间校准的逐条区间、汇总与分组复核 |
+| `figures/model/` | 10 | 5 组 PNG + 同名 SVG，300 dpi，无 PDF |
+| **合计** | **20** | `SHA256SUMS` 共 20 行 |
 
-图件编号覆盖 `fig01`–`fig20` 与 `fig22`–`fig27`，共 26 组；`fig21` 留给暂缓的 P2（分层模型未创建），因此没有文件。所有图均为 300 dpi PNG + 同名 SVG。
+图件编号为 `fig01`–`fig05`：数据设计与示例曲线、曲线示例、留一曲线误差、
+下游浓度误差、P4 区间校准。所有图均同时有 PNG 与 SVG。
+
+## 内容
+
+- `artifacts/evaluation/curve_metrics.csv`：逐文件、逐模型的曲线 nRMSE；
+- `artifacts/evaluation/curve_summary.csv`：曲线均值/中位/p90；
+- `artifacts/evaluation/downstream.csv`：5 s / 10 s 逐文件浓度估计与标准误；
+- `artifacts/evaluation/downstream_summary.csv`：下游中位/p90；
+- `artifacts/evaluation/predictions.npz`：62 折曲线预测；
+- `artifacts/models/mlp_per_gas.json`：双指数 + 三路独立 MLP，**推荐模型**；
+- `artifacts/models/double.json`：纯双指数骨架，对照模型；
+- `artifacts/calibration/intervals.csv`：逐条区间与覆盖标记；
+- `artifacts/calibration/summary.csv`：按方法/数据划分/窗口/气体汇总；
+- `artifacts/calibration/by_group.csv`：NH₃ 档位与采集块分组覆盖率；
+- `figures/model/fig01_design_and_data.png/.svg`；
+- `figures/model/fig02_curve_examples.png/.svg`；
+- `figures/model/fig03_curve_error.png/.svg`；
+- `figures/model/fig04_downstream.png/.svg`；
+- `figures/model/fig05_interval_calibration.png/.svg`。
 
 ## 校验
 
-```bash
+~~~bash
 cd sensor_array
 sha256sum -c SHA256SUMS
-```
+~~~
 
-`SHA256SUMS` 共 120 行（68 个 artifacts 文件 + 52 个图件）。重新运行分析或绘图会改变文件字节，届时需重新生成校验和；本快照不替代独立盲测，也不改变 12 条锁定测试未被使用的约定。
+重新运行评估、校准或绘图会改变文件字节，届时需重新生成本清单与校验和。
+本快照不替代独立盲测，也不改变 12 条锁定测试只作描述性复核的约定。

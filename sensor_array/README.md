@@ -1,349 +1,209 @@
-# 传感器阵列动态响应建模
+# 传感器阵列动态响应建模（双指数骨架 + 三路独立 MLP 残差）
 
-给定 H$_2$、NH$_3$、NO$_2$ 的浓度组合，预测三路传感器在 0–60 s 内的完整响应曲线。
-这是 handoff 中逆问题（响应前缀 → 浓度）的正向问题，也是后续用合成数据增强逆模型、
-做阵列设计与可观测性分析的基础。
+给定 H₂、NH₃、NO₂ 的浓度组合，预测三路传感器在 0–60 s 内的完整相对响应曲线。
+当前分支的正式模型是 **双指数响应骨架 + 三路独立 MLP 残差**；纯双指数骨架作为对照。
+62 折留一评估中，组合把曲线宏 nRMSE 从骨架的 3.30% 降到 **1.48%**，10 s 下游
+三气体宏中位绝对相对误差从 4.99% 降到 **2.14%**，5 s 从 7.42% 降到 **2.96%**。
+默认推荐 <code>artifacts/models/mlp_per_gas.json</code>。
+
+P4 区间校准已在同一批折外估计上重做：10 s 原始 Laplace 90% 区间的开发集覆盖只有
+32.0% / 30.0% / 6.0%（H₂ / NH₃ / NO₂）；用开发集 50 条拟合全局共形后为 92.0%，
+中位宽度 3.5% / 3.4% / 8.7%，锁定 12 条覆盖 91.7%–100%。12 条锁定测试不参与校准。
+旧的一阶灰盒、低秩 B 样条残差、直接岭回归与 TCN 代码均已从本分支删除；旧文档只保留在
+<code>docs/archive/</code> 作历史归档。
 
 ## 1. 结论
 
-- 数据只有 **三种气体**（H$_2$、NH$_3$、NO$_2$），没有第四种气体的浓度列；`data/` 的 62 个
-  CSV 表头与 `响应曲线.pdf` 图题都只含这三种气体。本工作的模型、实验与结论都只针对
-  这三种气体，不对第四种气体做任何声称。
-- 基础模型采用 **一阶惯性 + 纯延迟的灰盒模型**：每路传感器 3 个形状参数（增益、时间常数、
-  延迟），增益与时间常数用对数浓度的低阶多项式参数化，共 45 个参数。
-- 建模目标是 **相对响应** $y_j(t)=(R_j(t)-R_j(0))/R_j(0)$。初始基线 $R_j(0)$ 随实验序号
-  漂移（NH$_3$ 通道达 9.5 倍），且与浓度设计混淆，不能由浓度唯一确定；因此把 $R_j(0)$
-  作为显式输入，绝对输出为 $R_j(t)=R_j(0)[1+y_j(t)]$。
-- 62 折留一实验（LOGO）下，灰盒模型的曲线 nRMSE 为 H$_2$ 5.3%、NH$_3$ 1.7%、NO$_2$ 3.4%
-  （宏平均 3.5%）。同协议的 TCN 宏平均 3.6%，与灰盒相当；直接岭回归 2.6%，是三者中
-  插值最准的，但它没有动态参数、只能在测量时间点上取值。灰盒仍是主模型：45 个参数、
-  任意 $t$ 连续可算、增益/时间常数可解释，代价是比岭回归高约 0.9 个百分点。
-- **章节扩展（2026-11）**：在灰盒骨架上加 5 个 B 样条残差基（每传感器 10 个浓度系数），
-  62 折宏 nRMSE 从 3.47% 降到 **3.02%**；再以该模型做恒浓度 MAP + Laplace + CV+ 的
-  早期浓度估计，10 s 中位误差约 3–8%，误差预算证明模型偏差是主因（噪声 CRLB <0.1%）。
-  完整结果见 `docs/chapter_results.md`，从零讲解见 `docs/learning_guide.md`，
-  概念双解（严谨 + 通俗 + 边界）见 `docs/beginner_guide.md`，
-  图 `figures/fig08`–`fig27`（fig21 留给暂缓的 P2，未创建）。
-- **更严格验证（2026-11-18）**：留一档位把 hybrid 宏 nRMSE 从 3.02% 推到 6.33%，
-  留一采集块只有 3.14%；下游 10 s 浓度误差 direct_ridge 为 3.69/2.81/4.60%，优于
-  hybrid 的 4.89/2.95/7.53%。原始 Laplace 90% 区间折外覆盖率只有 11–60%，必须用
-  CV+/共形校准。混合模型的价值在结构、可辨识性与误差归因，不是当前指标下的最优精度。
-- **结构化残差（2026-11-18，P3）**：把 5 条自由 B 样条换成按物理时段切分的固定基
-  （早期瞬态 / 中期形状 / 缓慢漂移），LOGO 宏 nRMSE 3.02→2.90%、留一档位 6.33→6.28%、
-  留一区块 3.14→3.05%；改善集中在 NO$_2$（3.06→2.70%），NH$_3$/H$_2$ 基本不变。
-  残差与 file 序号的相关幅度下降，但留一档位仍是短板；默认仍用自由样条，结构化模型
-  作为可选模型（`artifacts/models/hybrid_structured.json`），详见 `docs/chapter_results.md` §12。
-- **偏差感知估计（2026-11-18，P4）**：残差协方差 MAP 把 10 s 中位浓度误差从
-  4.89/2.95/7.53% 降到 **3.12/2.14/5.00%**（H2/NH3/NO2），达到路线图点误差目标；
-  嵌套协方差版为 3.59/1.97/5.16%，仍达标但 H2/NO2 余量收窄，主结果略乐观。
-  代价是 Laplace `se` 放大 2–12 倍、覆盖率升到 92–100%，区间明显偏保守。分组共形
-  总体覆盖 87.1–91.9%，但中位宽度没有下降；决策停止在 10 s 内判定 40/52/48 条，
-  H2 误判 4/40（10.0%）。损失规则（r=3、容忍度 0.10）10 s 判定 44/52/51 条，但 H2
-  误判升到 10 条；剖面似然覆盖率只有 21.0/38.7/29.0%，说明区间失效来自模型偏差。
-  旧 10% 宽度目标仍只有 14/62，详见 `docs/chapter_results.md` §13。
-- **公平 B（2026-11-18，P5）**：5 seed × 5 折、5/10 s 各训前缀模型。10 s 宏 MAPE
-  仅真实 5.71%，等曝光 4.98%（p=0.0017），等真实预算 4.50%（p<0.0001）；5 s 同向。
-  改善集中在 NH$_3$/NO$_2$；等曝光臂 H$_2$ 从 3.24% 退化到 4.20%（p=0.006），
-  预训练臂 H$_2$ 基本不变但总更新 2500 vs 1500。中位 ARE 上等曝光臂不显著。
-  详见 `docs/chapter_results.md` §8 与 fig27。
-- **P6 收尾（2026-11-18）**：26 PNG + 26 SVG、无 PDF，fig21 留给暂缓的 P2；
-  `MANIFEST.md` 与 `SHA256SUMS`（120 行）记录 artifacts/figures 快照。仓库 67 项
-  tcn_union 测试、sensor_array py_compile、绘图与 P4 端到端通过（本目录无独立单测）；
-  六模型 LOGO/TCN 与 P5 训练未重跑。
-- 主要限制：NH$_3$ 浓度与采集顺序完全混淆（相关系数 0.976），H$_2$=32000 只有 4 条
-  且都在 NO$_2$=2，62/100 个浓度组合、无重复。这些限制写在 §6，不能靠模型弥补。
+- 数据只有三种气体（H₂、NH₃、NO₂）；模型、实验与结论都只针对这三种气体。
+- 建模目标是相对响应 \(y_j(t)=(R_j(t)-R_j(0))/R_j(0)\)。基线 \(R_j(0)\) 随实验漂移，
+  不能由浓度唯一确定，因此作为显式输入；绝对响应为 \(R_j(t)=R_j(0)[1+y_j(t)]\)。
+- 双指数骨架每通道 23 个参数（增益二次 10、快时间常数一次 4、慢快差一次 4、
+  混合权重一次 4、延迟 1），三通道共 69 个。三路独立残差是三个
+  \(7\to64\to64\to1\) 网络，每路 4,737 参数，合计 14,211；输入为三个对数浓度、
+  归一化时间与骨架的三路预测，不使用文件编号。
+- 62 折留一实验（LOGO）下，曲线宏 nRMSE：双指数骨架 **3.30%**、三路独立组合
+  **1.48%**；10 s 下游三气体宏中位绝对相对误差分别为 **4.99% / 2.14%**，
+  5 s 为 **7.42% / 2.96%**。
+- 三路独立相对骨架：曲线宏 **59/62** 折改善（中位 −1.80 百分点），10 s 下游宏
+  **47/62**（中位 −2.14），5 s 宏 **45/62**（中位 −3.14）。开发集 50 条与
+  锁定测试 12 条方向一致，锁定只作描述性复核。
+- P4 区间校准：10 s 原始 Laplace 90% 的开发覆盖只有 32.0% / 30.0% / 6.0%；
+  全局共形为 92.0%，中位宽度 3.5% / 3.4% / 8.7%。NH₃ 档位共形没有更窄
+  （3.9% / 5.4% / 9.6%），采集块共形的开发覆盖只有 84.0%。因此全局共形作默认，
+  分组共形只作诊断；区间不改变点估计。
+- 限制：单 seed、三路独立固定 600 轮且无早停、下游似然使用训练集自报残差尺度、
+  区间只用开发 50 条校准；三路独立同时改变了容量与训练方式，不能把全部收益
+  单独归因于“三路独立”。
+- 62 条实验、每个浓度组合 1 条、无重复；NH₃ 浓度与采集顺序高度混淆；
+  H₂=32000 只有 4 条且都在 NO₂=2；这些限制不能靠模型弥补。
 
 ## 2. 数据事实
 
 | 项目 | 数值 |
 |---|---|
-| 实验数 | 62（`data/0.csv`–`data/61.csv`） |
+| 实验数 | 62（<code>data/0.csv</code>–<code>data/61.csv</code>） |
 | 采样 | 0–59.6 s，299 点，5 Hz |
-| 输入 | H$_2$ ∈ {8000, 16000, 24000, 32000}；NH$_3$ ∈ {10,20,30,40,50}；NO$_2$ ∈ {2,4,6,8,10} |
-| 覆盖 | 62/100 个组合，每个组合 1 条，无重复 |
-| 输出 | 三路传感器响应 `H2,NH3,NO2`（列名是传感器通道，不是只对同名气体敏感） |
+| 输入浓度 | H₂ ∈ {8000, 16000, 24000, 32000}；NH₃ ∈ {10,20,30,40,50}；NO₂ ∈ {2,4,6,8,10} |
+| 覆盖 | 62/100 个浓度组合，每个组合 1 条，无重复 |
+| 输出 | 三路传感器响应 H2、NH3、NO2（列名是通道名，不是只对同名气体敏感） |
 
-浓度组合的覆盖并不均匀：H$_2$=8000/16000/24000/32000 分别有 22/23/13/4 条；NH$_3$ 五档
-分别有 7/14/14/14/13 条；NO$_2$ 五档分别有 16/12/14/11/9 条。**NH$_3$ 按档位分块、顺序采集**
-（文件 0–6 为 10，7–20 为 20，……，49–61 为 50），NH$_3$ 浓度与文件序号的
-相关系数为 0.976；H$_2$、NO$_2$ 与序号的相关性只有 −0.110、0.129。
+浓度单位未注明，本文统一写“原始单位”，不写 ppm。浓度组合覆盖不均：
+H₂ 四档分别 22/23/13/4 条；NH₃ 五档 7/14/14/14/13 条；NO₂ 五档 16/12/14/11/9 条。
+NH₃ 按档位分块顺序采集，与文件序号相关系数约 0.976；H₂、NO₂ 与序号的相关性只有
+−0.110、0.129。
 
-### 2.1 基线漂移
-
-三路初始读数 $R_j(0)$ 随实验序号的变化：
-
-| 通道 | 范围 | 末/首 | 与文件序号相关系数 |
-|---|---|---|---|
-| H2 | 1924–2008 | 1.043 | 0.993 |
-| NH3 | 786–7437 | 9.46 | 0.989 |
-| NO2 | 140.1–149.0 | 0.973 | 0.223 |
-
-NH$_3$ 通道的基线漂移接近一个数量级，且与采集顺序高度相关。把绝对增量 $\Delta R$ 对
-$\ln R(0)$ 做回归时，NH$_3$ 的系数为 0.849（增量几乎正比于基线）；对相对量
-$\Delta R/R(0)$ 回归时系数只有 −0.151。因此 **相对化是去掉乘性基线漂移的正确做法**，
-$R(0)$ 保留为绝对输出的输入，而不是模型的待预测量。
-
-### 2.2 响应形状
-
-三路响应在 60 s 内都单调：H$_2$、NH$_3$ 上升，NO$_2$ 下降。相对变化范围：
-
-| 通道 | 相对变化 | 中位时间常数 $\tau$ | 中位延迟 $d$ |
-|---|---|---|---|
-| H2 | +0.08% ~ +2.59% | 3.11 s | 0.30 s |
-| NH3 | +22.3% ~ +58.2% | 21.05 s | 0.27 s |
-| NO2 | −3.17% ~ −14.59% | 10.64 s | 0.00 s |
-
-NH$_3$ 在 60 s 末的斜率仍有初始斜率的约 7.4%，尚未完全进入稳态；因此模型里的
-$A_{\mathrm{NH_3}}$ 是外推的稳态幅度，60 s 内的曲线预测不受影响，但"稳态增益"的解释要谨慎。
-
-逐实验比较了几种形状函数（误差为占该实验全幅值的 nRMSE 均值）：
-
-| 形状 | 总体 | H2 | NH3 | NO2 |
-|---|---|---|---|---|
-| 一阶+纯延迟 | 1.31% | 1.53% | 0.47% | 1.92% |
-| stretched 指数 | 1.10% | 1.39% | 0.45% | 1.47% |
-| 双指数 | 1.15% | — | — | — |
-| 一阶+线性漂移 | 1.03% | — | — | — |
-| 二阶 | 3.95% | — | — | — |
-
-stretched 指数只把误差从 1.31% 降到 1.10%，却多一个非线性参数；二阶明显更差。
-**一阶+纯延迟** 已能解释 98% 以上的形状变化，是精度与参数量的合理折中。一阶模型在
-NO$_2$ 起始 2–4 s 有约 −2~−3%（占幅值）的系统偏差，10–20 s 约为 +1%，属于可接受的
-模型偏差。
+三路初始基线 \(R_j(0)\) 随实验序号漂移（NH₃ 通道可达 9.5 倍），相对化去掉乘性基线，
+但去不掉与浓度同步的缓慢漂移。三路响应在 60 s 内单调：H₂、NH₃ 上升，NO₂ 下降；
+NH₃ 在 60 s 末仍有初始斜率的约 7.4%，尚未完全进入稳态。
 
 ## 3. 模型
 
-对第 $j$ 路传感器（$j=1,2,3$），恒定浓度阶跃下的相对响应写成
+### 3.1 双指数骨架
 
 $$
-y_j(t)=s_j\,A_j(\mathbf c)\left[1-\exp\left(-\frac{(t-d_j)_+}{\tau_j(\mathbf c)}\right)\right],
-\qquad
-R_j(t)=R_j(0)\left[1+y_j(t)\right],
+y_j(t)=s_j A_j(\mathbf c)\left[
+f_j(\mathbf c)\left(1-e^{-(t-d_j)_+/\tau^{\mathrm{fast}}_j(\mathbf c)}\right)
++(1-f_j(\mathbf c))\left(1-e^{-(t-d_j)_+/\tau^{\mathrm{slow}}_j(\mathbf c)}\right)
+\right],
 $$
 
-其中 $s_j=(+1,+1,-1)$ 是由全部实验的响应方向固定的符号（不作为参数），
-$A_j>0$ 是稳态相对幅度，$\tau_j>0$ 是时间常数，$d_j\in[0,2]$ s 是纯延迟。
-等价地，每路是一个带死区的一阶惯性环节（$t>d_j$ 时）
+\(s=(+1,+1,-1)\)，\(d_j\in[0,2]\) s，\(0<\tau^{\mathrm{fast}}<\tau^{\mathrm{slow}}\)，
+\(f_j\in(0,1)\)。\(\ln A_j\) 是 \(\ln(c/c^{\mathrm{ref}})\) 的二次多项式，
+\(\ln\tau^{\mathrm{fast}}_j\)、\(\ln(\tau^{\mathrm{slow}}_j-\tau^{\mathrm{fast}}_j)\) 与
+\(\operatorname{logit} f_j\) 是一次多项式；参考浓度 \(c^{\mathrm{ref}}=(16000,30,6)\)。
+完整公式、参数计数、初值与优化见 [<code>docs/model.md</code>](docs/model.md)。
 
-$$
-\tau_j(\mathbf c)\,\dot y_j(t)=s_j\,A_j(\mathbf c)-y_j(t),
-\qquad y_j(t)=0\ \ (t\le d_j),
-$$
+### 3.2 三路独立 MLP 残差
 
-这就是"动态响应"的具体含义：浓度决定稳态幅度与时间常数，微分方程决定曲线如何趋近稳态。
-浓度依赖用对数浓度的多项式参数化：
+每个气体通道各自学习骨架残差 \(r_j=y_j-\hat y^{\mathrm{skel}}_j\)，输入为三个对数浓度、
+归一化时间以及骨架在当前点的三路预测，共 7 维；\(t_{\max}\) 固定为训练曲线的 60 s，
+推断 5 s / 10 s 前缀时也沿用同一个 \(t_{\max}\)。三路网络之间不共享任何权重，
+最终预测为骨架加残差。
 
-$$
-\ln A_j(\mathbf c)=\sum_{|\alpha|\le 2}\beta_{j\alpha}\prod_k u_k^{\alpha_k},
-\qquad
-\ln\tau_j(\mathbf c)=\sum_{|\alpha|\le 1}\gamma_{j\alpha}\prod_k u_k^{\alpha_k},
-\qquad
-u_k=\ln\frac{c_k}{c_k^{\mathrm{ref}}},
-$$
+每路 \(7\to64\to64\to1\)，<code>tanh</code> 激活、Adam、权重衰减 \(10^{-4}\)，
+PyTorch GPU 全批 600 轮、无早停；训练结束后权重拷回 NumPy，推理与下游 MAP 在 CPU
+完成。加入骨架输出是为了让残差网络知道当前点落在骨架的哪一段。逐文件配对、
+诊断与限制见 [<code>docs/evaluation.md</code>](docs/evaluation.md)。
 
-参考浓度 $c^{\mathrm{ref}}=(16000,30,6)$。二次增益每路 10 个系数（含三种气体的主效应、
-两两交互与平方项），线性时间常数每路 4 个系数，加 3 个延迟，共
-$3\times(10+4)+3=45$ 个参数。
-
-设计理由：
-
-1. **灰盒而非黑盒。** 一次实验内浓度恒定，输入只有 $(c,t)$；直接训练 $(c,t)\to R$ 的网络
-   没有真实时序输入，时间卷积退化为黑盒函数拟合。62 条曲线对 45 个参数并不宽裕，
-   黑盒也没有表现出更好的泛化：同协议 TCN 的 LOGO 宏平均 3.6%，与灰盒的 3.5% 基本
-   持平（§5.3）。
-2. **对数参数化。** 保证 $A_j,\tau_j>0$；浓度效应在实验区间内近似幂律，对数线性项是
-   一阶近似，二次项补交叉敏感；外推时不会出现负增益。
-3. **每路独立系数。** 交叉敏感通过每路增益对三种浓度的依赖体现，不额外建交叉项网络。
-4. **延迟全局常数。** 延迟是气流输运时间，随浓度变化不大；逐实验估计的中位数在
-   0–0.3 s，接近采样周期 0.2 s，逐浓度建模没有意义。
-5. **相对响应。** 见 §2.1；绝对输出通过 $R(0)$ 还原，$R(0)$ 由实验开始时的读数给出。
-
-### 3.1 拟合
-
-- 初值：逐实验对每条曲线拟合一阶+延迟，得到 $(A,\tau,d)$；再用岭回归（$\lambda=10^{-3}$）
-  把 $\ln A$、$\ln\tau$ 回归到浓度特征，延迟取逐实验中位数。
-- 联合优化：`scipy.optimize.least_squares`（TRF），同时优化 45 个参数，残差按通道
-  加权 $w_j=1/\overline{y_j^2}$（归一化后均值 1），使三路的 nRMSE$^2$ 等权；非截距系数
-  加 $\sqrt{\lambda}$ 的岭惩罚。延迟界 $[0,2]$ s，$\tau$ 界 $[0.1,120]$ s。
-- 全量拟合约 7 s（单核），可重复。
-
-## 4. 验证协议
+## 4. 评估协议
 
 - **留一实验（LOGO）**：每次留出 1 条完整曲线，用其余 61 条训练，预测留出曲线；62 折。
   不能随机拆时间点，否则同一条曲线的信息会泄漏。
-- 本任务与逆问题的 50/12 锁定划分无关：正模型用全部 62 条做 LOGO，最终模型也用全部
-  62 条拟合。逆问题那 12 条"锁定测试"的约束仍然有效，本文没有用它调逆模型。
-- **指标**：对每路通道，$\mathrm{nRMSE}=\mathrm{RMSE}/\mathrm{RMS}_{\text{训练}}$，其中
-  RMS 是训练集该通道相对响应的均方根；宏平均为三路 nRMSE 的算术平均。另报告逐曲线
-  $R^2$ 的中位数与末点相对误差。
-- **对照**：
-  - `mean_curve`：忽略浓度，输出训练集平均曲线；
-  - `direct_ridge`：逐时间点的浓度二次响应面——每个 $(t,\text{传感器})$ 输出都用 10 个
-    $\ln(c/c^{\mathrm{ref}})$ 的二次单项式做岭回归（不用动态结构）；
-  - `two_stage`：先逐实验拟合形状参数、再回归浓度（与联合拟合同形式，检验联合优化）；
-  - `tcn`：条件 TCN，输入三路 $\ln(c/c^{\mathrm{ref}})$、归一化时间及其平方，3 个残差因果块
-    （dilation 1/2/4，hidden 24），输出三路响应；各通道按训练 RMS 标准化后做无权 MSE。
+- 每折先拟合双指数骨架，再用同一训练集拟合三路独立 MLP；两个模型使用完全相同的训练折。
+- 曲线指标：逐通道
+  \(\mathrm{nRMSE}=\mathrm{RMSE}/\mathrm{RMS}_{\text{训练折}}\)，宏平均为三路算术平均。
+- 下游指标：在 5 s、10 s 前缀上用同一套 MAP 估计浓度。MAP 残差为数据加权误差 +
+  对数正态先验 + 边界软墙；每个模型使用训练折 in-sample 残差尺度
+  \(\sigma_{\mathrm{eff}}=\sqrt{\sigma_{\mathrm{noise}}^2+\sigma_{\mathrm{model}}^2}\)。
+- 主判断使用全部 62 折；开发集 50 条与锁定测试 12 条只作描述性复核，不用于选型。
+  锁定测试是 <code>{2,7,15,20,23,27,31,38,41,46,55,60}</code>。
+- 区间校准只用开发集 50 条拟合共形分位数；12 条锁定测试不参与分位数拟合，
+  只报告覆盖与宽度。
 
-## 5. 结果
+完整结果表、逐文件配对统计、开发/锁定拆分、P4 区间校准与限制见
+[<code>docs/evaluation.md</code>](docs/evaluation.md)。
 
-### 5.1 留一实验误差
+## 5. 复现
 
-62 折 LOGO 的曲线 nRMSE（%，对训练折 RMS 归一化），宏平均为三路算术平均：
+~~~bash
+# 62 折评估（三路独立 MLP，GPU 训练；单线程 BLAS 避免 CPU 被占满）
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.evaluate \
+  --folds 62 --max-iter 600
 
-| 模型 | H$_2$ | NH$_3$ | NO$_2$ | 宏平均 |
-|---|---:|---:|---:|---:|
-| 均值曲线 | 45.6 | 20.8 | 29.4 | 31.9 |
-| 两阶段 | 10.6 | 2.3 | 4.1 | 5.7 |
-| **灰盒（主模型）** | **5.3** | **1.7** | **3.4** | **3.5** |
-| TCN | 4.1 | 3.1 | 3.6 | 3.6 |
-| 直接岭回归 | 4.2 | 1.4 | 2.2 | 2.6 |
+# P4 区间校准（只读评估 CSV，不重新训练）
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.analysis.calibration
 
-逐折比较：直接岭回归在 44/62 折的宏平均上优于灰盒，TCN 为 26/62，两阶段为 14/62。
-灰盒的逐折中位宏误差 3.3%，90 分位 4.8%；最差折是文件 0（H$_2$=32000、NO$_2$=2、
-NH$_3$=10，11.6%）和文件 5/3（NH$_3$=10 边界，8.2%/5.4%）。图
-`fig04_logo_comparison` 给出四路逐折分布。
+# 只跑前 3 折做冒烟
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.evaluate --folds 3 --max-iter 50
 
-### 5.2 灰盒与岭回归的差距来自哪里
+# 图（PNG + SVG）
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 
-灰盒的全量拟合误差（H$_2$ 4.8%、NH$_3$ 1.8%、NO$_2$ 3.5%）与 LOGO 几乎相同，说明
-差距不是过拟合，而是**参数化太紧**：真实曲线的形状随浓度系统变化（起始段略快、
-后段还有缓慢漂移），"一阶惯性 + 对数浓度二次增益 + 对数线性时间常数"只能部分跟上。
-直接岭回归对每个时间点单独回归 10 个浓度特征，等价于让整条曲线随浓度自由变形，
-因此插值更准。
+# 新模型单元测试
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m unittest discover -s sensor_array/tests -v
+~~~
 
-代价也很明确：岭回归没有 $(A,\tau,d)$ 这类动态参数，只能在 299 个测量时刻上取值，
-不能在任意 $t$ 上连续求值；浓度响应是二次多项式，离开 62 个组合的凸包后不可控。
-灰盒的 45 个参数都有物理含义，任意 $t$ 可算，对数参数化保证 $A,\tau>0$，更适合做
-增益/时间常数的机理分析、阵列可观测性分析与合成数据生成。两者定位不同：灰盒是
-主模型，岭回归是"设计域内插值精度"的参照上界。
+完整 62 折评估本次约 766 s（12.8 min）；若同时有其他负载，时间会变长。
+模型保存到 <code>artifacts/models/double.json</code> 与
+<code>mlp_per_gas.json</code>。评估 CSV 在 <code>artifacts/evaluation/</code>，
+区间 CSV 在 <code>artifacts/calibration/</code>，图在 <code>figures/model/</code>。
 
-### 5.3 TCN 对照
+推荐模型（三路独立 MLP + 双指数）：
 
-TCN 的宏平均 3.6%，与灰盒的 3.5% 基本持平，但结构不同：H$_2$ 上 TCN 更好
-（4.1% vs 5.3%，33/62 折胜出），NH$_3$ 上明显更差（3.1% vs 1.7%，仅 10/62 折胜出），
-NO$_2$ 接近。TCN 没有超过直接岭回归，且 62 折训练约 18 min（灰盒全量 7 s）。
-结论：可以沿用 TCN 架构做 $(c,t)\to R$ 的对照，但在 62 条曲线的规模上，它没有
-提供优于参数化模型的精度；它的价值更可能在"正模型生成合成数据 → 增强逆问题 TCN"
-这条下游路线上。
+~~~python
+from sensor_array import PerGasMLPDoubleExponentialModel, load_experiments
 
-### 5.4 图
-
-- `fig04_logo_comparison`：五个模型的逐折 nRMSE 箱线图（对数纵轴）；
-- `fig05_gain_tau`：全量灰盒的增益/时间常数一致性，以及 H$_2$ 增益受 NO$_2$ 抑制、
-  NH$_3$ 增益的 H$_2$ 交叉影响；
-- `fig06_prediction_examples`：灰盒在最好/中等/最差折的预测曲线；
-- `fig07_absolute_response`：由浓度与 $R(0)$ 重建的绝对输出。
-
-## 6. 局限
-
-1. **NH$_3$ 与采集顺序完全混淆。** NH$_3$ 浓度按块递增，相关系数 0.976；任何随时间的
-   漂移（基线、灵敏度、环境）都会被 NH$_3$ 的增益吸收。相对化只能去掉乘性基线漂移，
-   去不掉与浓度同步的缓慢漂移。因此 NH$_3$ 的增益只能解释为"该采集顺序下的等效增益"，
-   不能外推为纯浓度效应。
-2. **H$_2$ 高端覆盖极差。** H$_2$=32000 只有 4 条，且都在 NO$_2$=2；H$_2$ 与
-   NO$_2$ 的交互在该角点没有数据支撑，模型在该区域的外推不可信。
-3. **无重复、无纯噪声估计。** 62 个组合各 1 条，无法把实验间差异与模型误差分开；
-   文中的 LOGO 误差包含实验间漂移，是"对未见实验"的保守估计。
-4. **NH$_3$ 未到稳态。** 60 s 内只完成约 94% 的幅值，$A_{\mathrm{NH_3}}$ 是外推量；
-   对 60 s 内插值没有影响，但不宜把 $A$ 当作真实的饱和增益。
-5. **绝对输出需要 $R(0)$。** 同一浓度组合没有重复，$R(0)$ 不能被浓度唯一确定；
-   模型输出的是"浓度引起的相对变化"，$R(0)$ 必须由实验起点给出。若要做纯浓度驱动的
-   仿真，需要另建基线漂移模型（以时间/环境为输入），这不属于本任务。
-6. **三气体范围。** 当前数据只有三路浓度标签，本文的模型、实验与结论都限定在这三种
-   气体；三路传感器对更多组分的问题是欠定的，本文不对四组分情形做任何声称。
-
-## 7. 下一步
-
-后续优化路线（残差诊断、分层/混合效应模型、结构化残差、偏差感知估计、公平 B）
-见 [`docs/roadmap.md`](docs/roadmap.md)；P0–P6 已完成，P2 暂缓（证据不支持 + 可解释性风险 + 预期收益不达验收）。短期原则：
-
-- 只在现有 62 条上做建模、验证与仿真，不补测、不补采、不重新采集；
-- 不先换更大的黑盒；每个新结构必须通过 62 折 LOGO、留一浓度水平、留一文件块；
-- 曲线误差与下游浓度误差同时报告，避免“曲线更好、浓度更差”。
-
-## 8. 代码与运行
-
-```
-sensor_array/
-  paths.py                 统一路径常量
-  core/
-    data.py                读取 CSV、相对响应、设计表
-    grey_box.py            一阶+延迟灰盒、逐实验形状拟合
-    hybrid.py              灰盒 + 低秩 B 样条残差
-    baselines.py           均值曲线、两阶段、直接岭回归、TCN
-    metrics.py             LOGO 与曲线指标
-  analysis/
-    identifiability.py     FIM/CRLB、噪声估计
-    estimation.py          MAP、Laplace、CV+、停止、误差预算、P4 协方差/分组/损失停止/剖面
-    degradation.py         逐路屏蔽传感器
-  experiments/
-    logo.py                六模型 LOGO 对比
-    inverse_augmentation.py B：合成数据/循环一致性增强逆 TCN
-  plotting/
-    style.py               字体、配色、PNG+SVG 保存
-    response.py            fig01–07
-    chapter.py             fig08–27
-  docs/
-    roadmap.md             后续优化路线图
-    chapter_plan.md        章节方案
-    chapter_results.md     结果汇总
-    learning_guide.md      从零学习文档
-    beginner_guide.md      概念双解手册（新手）
-  artifacts/
-    models/                model.json、hybrid.json
-    logo/                  LOGO 指标/预测/汇总
-    analysis/              可辨识性、估计、降级、误差预算、P4 偏差/共形/停止/剖面
-    augmentation/          B 结果
-  figures/                 fig01–20、fig22–27（PNG+SVG）
-  MANIFEST.md               P6 快照说明
-  SHA256SUMS                artifacts + figures 的 SHA-256
-```
-
-```bash
-# 六模型 LOGO（约 30 min，TCN 占大部分）
-.venv/bin/python -m sensor_array.experiments.logo
-.venv/bin/python -m sensor_array.experiments.logo --combine
-
-# 混合模型 K 敏感性
-.venv/bin/python -m sensor_array.core.hybrid
-
-# 可辨识性 / 早期估计 / 降级
-.venv/bin/python -m sensor_array.analysis.identifiability
-.venv/bin/python -m sensor_array.analysis.estimation
-.venv/bin/python -m sensor_array.analysis.degradation
-
-# B：三种子
-for s in 0 1 2; do
-  B_SEED=$s .venv/bin/python -m sensor_array.experiments.inverse_augmentation
-done
-
-# 图
-.venv/bin/python -m sensor_array.plotting.response
-.venv/bin/python -m sensor_array.plotting.chapter
-```
-
-单条曲线的使用：
-
-```python
-from sensor_array import FirstOrderArrayModel, load_experiments
-
-model = FirstOrderArrayModel.load("sensor_array/artifacts/models/model.json")
+model = PerGasMLPDoubleExponentialModel.load(
+    "sensor_array/artifacts/models/mlp_per_gas.json"
+)
 experiment = load_experiments()[0]
 relative = model.predict_relative(experiment.concentration[None], experiment.time)[0]
-absolute = model.predict_response(experiment.concentration[None], experiment.time, experiment.initial[None])[0]
-```
+absolute = model.predict_response(
+    experiment.concentration[None], experiment.time, experiment.initial[None]
+)[0]
+~~~
 
+对照模型（骨架）：
 
-## 9. 章节扩展：混合模型、可辨识性与早期估计
+~~~python
+from sensor_array import DoubleExponentialArrayModel, load_experiments
 
-本节是在 v1 灰盒基础上的硕士论文章节扩展，代码与结果都在同一目录。
+model = DoubleExponentialArrayModel.load("sensor_array/artifacts/models/double.json")
+experiment = load_experiments()[0]
+relative = model.predict_relative(experiment.concentration[None], experiment.time)[0]
+~~~
 
-- `core/hybrid.py`：灰盒 + 低秩 B 样条残差；K=5，62 折宏 nRMSE 3.02%。
-- `analysis/identifiability.py`：二阶差分噪声估计、FIM/CRLB、条件数；5 s CRLB 中位 0.026/0.015/0.033%。
-- `analysis/estimation.py`：恒浓度 MAP（软墙）、Laplace、CV+、自适应停止、误差预算；P4 增加协方差 MAP、分组共形、几何/损失停止、剖面似然（`--part p4`）。
-- `analysis/degradation.py`：逐路屏蔽传感器的降级实验。
-- `experiments/inverse_augmentation.py`：旧 B 实验（3 seed × 5 折，15 对）：仅真实 5.86% MAPE、+循环 5.69%（p=0.37）、+合成 5.61%（p=0.46）、合成预训练+微调 4.75%（p=0.001）；该协议的混合臂真实曝光减半。
-- `experiments/fair_augmentation.py`：P5 公平 B（5 seed × 5 折，5/10 s）：10 s 仅真实 5.71%，等曝光 4.98%（p=0.0017），等真实预算 4.50%（p<0.0001）；H₂ 在等曝光臂退化，详见 `docs/chapter_results.md` §8 与 fig27。
-- `plotting/chapter.py`：fig08–fig27（fig21 未生成，编号留给暂缓的 P2）；后续优化路线见 `docs/roadmap.md`；`docs/chapter_results.md` 是结果汇总，
-  `docs/learning_guide.md` 是从零开始的学习文档，`docs/beginner_guide.md` 是逐概念“严谨 + 通俗 + 边界”的双解手册。
-- `MANIFEST.md` / `SHA256SUMS`：P6 快照，记录 68 个 artifacts 文件与 52 个图件的 SHA-256；`cd sensor_array && sha256sum -c SHA256SUMS` 校验。
+## 6. 代码结构
+
+~~~
+sensor_array/
+  core/
+    data.py                 读取 CSV、相对响应、设计表
+    shapes.py               逐实验形状初值、岭回归、浓度特征
+    double_exponential.py   双指数骨架（69 参数）
+    mlp_per_gas.py          双指数骨架 + 三路独立 MLP 残差（PyTorch GPU）
+    metrics.py              曲线 nRMSE
+  analysis/
+    estimation.py           噪声估计、MAP + Laplace、浓度边界与起点
+    calibration.py          P4 区间校准（Laplace、全局/分组共形）
+  experiments/
+    evaluate.py             62 折 LOGO、5/10 s 下游、模型保存
+  plotting/
+    style.py                字体、配色、PNG+SVG 保存
+    model.py                fig01–fig05
+  tests/
+    test_model.py           形状、双指数、per-gas MLP、保存/加载、MAP
+  docs/
+    model.md                模型公式、参数、接口
+    evaluation.md           评估结果、P4 校准与限制
+    plotting_guide.md       逐图脚本与函数索引
+    archive/                旧模型历史文档（代码已删除）
+  artifacts/
+    models/                 double.json、mlp_per_gas.json
+    evaluation/             curve_*、downstream_*、predictions.npz
+    calibration/            intervals.csv、summary.csv、by_group.csv
+  figures/
+    model/                  fig01–fig05，PNG + SVG
+  MANIFEST.md / SHA256SUMS  当前快照
+~~~
+
+## 7. 限制
+
+1. **单 seed、无早停**：MLP 结果的随机性没有被多种子平均；固定 600 轮，轮数没有按折选择。
+2. **下游似然尺度自报**：<code>sigma_model</code> 是训练折 in-sample 残差，可能偏乐观；
+   这会同时影响两个模型，但不能解释为纯结构差异。
+3. **区间校准仍有限**：分位数只用开发集 50 条，分组样本最少只有 6–7 条；锁定 12 条
+   只作描述。停止策略、剖面似然与嵌套协方差没有在本模型上重做。
+4. **非严格嵌套**：浓度边界、噪声估计与 MAP 起点使用全部 62 条，属于共享 nuisance；
+   留一折只保证模型拟合不使用留出文件。
+5. **NH₃ 混淆与 H₂ 高端稀疏**：见第 2 节；模型不能弥补设计缺陷。
+6. **三气体限定**：不对第四种气体做任何声称；不补测、不补采。
+
+## 8. 相关文档
+
+- [模型细节](docs/model.md)
+- [评估结果与 P4 校准](docs/evaluation.md)
+- [逐图索引](docs/plotting_guide.md)
+- [快照说明](MANIFEST.md)
+- [历史归档](docs/archive/)

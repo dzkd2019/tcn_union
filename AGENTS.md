@@ -75,3 +75,11 @@ Do not introduce complexity merely to demonstrate good software architecture.
 - PNG 用于 PPT、网页和快速预览，SVG 用于论文/报告的矢量插图；
 - 文件名保持一致，仅扩展名不同，例如 `fig_name.png` 与 `fig_name.svg`。
 - 如果旧脚本仍输出 PDF，修改该脚本时一并改为 PNG + SVG。
+
+## 9. 绘图文档维护（sensor_array）
+
+- `sensor_array/docs/plotting_guide.md` 是 sensor_array 项目的逐图索引，必须与绘图代码同步维护。
+- 每张图必须登记：图号、输出文件名、绘图脚本、绘图函数、数据源、版式与保存目录。
+- 新增图件，或修改绘图脚本、绘图函数、数据源、版式、输出路径时，必须在同一次改动中更新该文档。
+- 不同方案的图件按方案分目录存放，不把不同方案的图混在同一目录；具体目录约定见该文档。
+- 图件格式仍遵守第 8 节：PNG 300 dpi + 同名 SVG，不输出 PDF。

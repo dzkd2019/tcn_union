@@ -1,5 +1,11 @@
 # Handoff — 2026-11-19 — 学习文档、两阶段总结与直观图
 
+> **接手状态（2026-11-19）**：下方“未提交/未跟踪”清单已由提交 c571640 全部纳入 git；工作区实际为 /home/mrawa/code/deep-learning/tcn_union，HEAD 为 c571640。fig28–fig29 已纳入讲解图，MANIFEST / SHA256SUMS 同步为 28 组、56 个图件（124 行）。
+>
+> **模型分支变更（2026-11-19 晚）**：当前分支 `experiment/mlp-double-exponential` 已改为双指数骨架 + 三路独立 MLP 残差（默认推荐三路独立组合，纯骨架作对照）；旧模型代码、artifacts、figures 与 MANIFEST/SHA 记录均已清理，本文件描述的图表与路径只作历史参考。当前模型见 [`sensor_array/docs/model.md`](../../sensor_array/docs/model.md) 与 [`evaluation.md`](../../sensor_array/docs/evaluation.md)。
+>
+> **最新交接**：[`handoff_20261119_mlp_per_gas.md`](handoff_20261119_mlp_per_gas.md)。本文件只保留历史图表会话记录。
+
 ## 0. 会话状态
 
 - 工作区：`/home/mrawa/code/graduate/tcn_union`
@@ -18,10 +24,10 @@
  M sensor_array/docs/learning_guide.md
  M sensor_array/plotting/chapter.py
 ?? docs/硕士课题总结_响应加速与阵列建模.md
-?? sensor_array/figures/fig28_forward_error_visual.png
-?? sensor_array/figures/fig28_forward_error_visual.svg
-?? sensor_array/figures/fig29_estimator_scatter.png
-?? sensor_array/figures/fig29_estimator_scatter.svg
+?? sensor_array/figures/archive/fig28_forward_error_visual.png
+?? sensor_array/figures/archive/fig28_forward_error_visual.svg
+?? sensor_array/figures/archive/fig29_estimator_scatter.png
+?? sensor_array/figures/archive/fig29_estimator_scatter.svg
 ```
 
 本 handoff 文件本身也会是 untracked。
@@ -83,8 +89,8 @@
 
 文件：
 
-- `sensor_array/figures/fig28_forward_error_visual.{png,svg}`
-- `sensor_array/figures/fig29_estimator_scatter.{png,svg}`
+- `sensor_array/figures/archive/fig28_forward_error_visual.{png,svg}`
+- `sensor_array/figures/archive/fig29_estimator_scatter.{png,svg}`
 
 实现：`sensor_array/plotting/chapter.py` 新增
 

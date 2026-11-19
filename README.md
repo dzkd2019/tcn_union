@@ -1,14 +1,17 @@
 # 三气体早期响应浓度预测
 
-本项目使用 H2、NH3、NO2 三路传感器响应的早期前缀，预测一次实验的三种浓度标签。当前实现包含数据校验、实验级固定划分、因果 TCN、Ridge 对照、锁定测试评估、预测 CLI 和结果绘图。
+仓库根目录保留旧的 TCN 逆问题实现：使用 H2、NH3、NO2 三路传感器响应的早期前缀，预测一次实验的三种浓度标签，包含数据校验、实验级固定划分、因果 TCN、Ridge 对照、锁定测试评估、预测 CLI 和结果绘图。该实现属于历史主线；当前分支的传感器阵列正问题见下段与 `sensor_array/README.md`。
 
-正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)：一阶惯性 + 纯延迟灰盒（45 参数，62 折宏 nRMSE 3.5%），章节扩展的混合模型（3.0%）与早期浓度估计见 [`docs/chapter_results.md`](sensor_array/docs/chapter_results.md)、[`docs/learning_guide.md`](sensor_array/docs/learning_guide.md)；P4 的偏差协方差 MAP 把 10 s 中位误差降到 3.12 / 2.14 / 5.00%（嵌套协方差 3.59 / 1.97 / 5.16%，仍达标但余量收窄），区间仍偏保守，剖面覆盖率仅 21–39%（§13）；P5 公平 B 把 10 s 宏 MAPE 从 5.71% 降到 4.98%（等曝光）或 4.50%（等真实预算），但等曝光臂的 H₂ 变差（§8）；P6 已冻结 artifacts/figures 快照（[`MANIFEST.md`](sensor_array/MANIFEST.md)）。P2 暂缓；后续优化路线见 [`docs/roadmap.md`](sensor_array/docs/roadmap.md)。
+> 说明：下方 TCN 章节属于仓库旧主线，当前 sensor_array 分支已删除其旧模型代码与产物；
+> 传感器阵列正问题以本段和 `sensor_array/README.md` 为准。
 
-## 当前结论
+正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)：本分支实现了双指数骨架 + 三路独立 MLP 残差，纯双指数骨架作对照。62 折留一评估中，骨架 / 三路独立的曲线宏 nRMSE 为 3.30% / **1.48%**，10 s 下游三气体宏中位绝对相对误差为 4.99% / **2.14%**，5 s 为 7.42% / **2.96%**；因此**默认推荐三路独立组合**。P4 区间校准也已在同一批折外估计上重做：10 s 原始 Laplace 90% 的开发覆盖只有 32.0% / 30.0% / 6.0%，全局共形为 92.0%，中位宽度 3.5% / 3.4% / 8.7%。模型细节、完整评估与限制见 [`model.md`](sensor_array/docs/model.md) 与 [`evaluation.md`](sensor_array/docs/evaluation.md)。旧一阶灰盒、低秩残差、直接岭回归、TCN 与旧对照实验代码已从本分支删除；历史文档只保留在 `sensor_array/docs/archive/` 作归档。模型、实验与结论都只针对 H₂、NH₃、NO₂ 三种气体；不补测、不补采。
+
+## 旧 TCN 方案（历史）
 
 在预先锁定的 12 个测试实验上，5 秒 TCN 的主种子 macro-NMAE 为 **0.02627**，早期特征 Ridge 为 **0.03422**；10 秒 TCN 为 **0.03072**，略高于 10 秒早期 Ridge 的 **0.03003**。因此，旧方案的结果支持继续验证 5 秒方案，但尚不足以证明外部泛化或满足应用误差要求。数据文件未注明传感器响应与浓度物理单位，本文均保留原始单位，不将浓度标为 ppm。
 
-> **当前分支 `feature/gan-augmentation`**：已回退 cutout（老师指出其违背传感器物理规律），改用条件 GAN 在训练折内扩充 10 秒响应，并重新评估 5 秒辅助监督。新方案的动机、GAN 约束、消融矩阵和验收标准见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。cutout 的历史实现保留在 `dev`/旧提交中，本分支不再使用。
+> **GAN 增强分支 `feature/gan-augmentation`**：已回退 cutout（老师指出其违背传感器物理规律），改用条件 GAN 在训练折内扩充 10 秒响应，并重新评估 5 秒辅助监督。新方案的动机、GAN 约束、消融矩阵和验收标准见 [`docs/gan_augmentation_plan.md`](docs/gan_augmentation_plan.md)。cutout 的历史实现保留在 `dev`/旧提交中，本分支不再使用。
 
 ## 数据与校验
 
@@ -144,7 +147,7 @@ Ridge 的输入与标签均按训练折 z-score，带未惩罚截距；正则化
 | t=0 Ridge | 0.14907 | 0.14907 | 28.56 | 28.56 |
 | 早期特征 Ridge | 0.03422 | 0.03003 | 7.09 | 6.17 |
 | TCN 主种子 | **0.02627** | 0.03072 | **5.06** | **6.04** |
- 
+
 MAPE 用于补充比较，不参与模型选型。5 秒下 TCN 的 macro-MAPE 低于早期 Ridge；10 秒下 TCN 也略低，但与 macro-NMAE 的排序不同，反映两种指标对误差和目标值的加权方式不同。
 
 TCN 三种子 macro-NMAE：5 秒 `0.02627 / 0.02476 / 0.02261`；10 秒 `0.03072 / 0.02831 / 0.03188`。5 秒 TCN 相对早期特征 Ridge 的配对差值（TCN−Ridge）为 `−0.00795`，95% 区间 `[−0.01445, −0.00076]`；10 秒为 `+0.00069`，区间 `[−0.00976, +0.01039]`。测试样本少，区间及差值应谨慎解释。

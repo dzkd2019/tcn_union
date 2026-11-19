@@ -1,38 +1,36 @@
 """绘图样式、配色与保存（PNG + SVG）。"""
 from __future__ import annotations
 
+from pathlib import Path
+
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from ..paths import FIGURES
+from ..paths import FIGURES_MODEL
 
 GAS_LABEL = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}
 GAS_COLORS = {"H2": "#C0392B", "NH3": "#E69F00", "NO2": "#0072B2"}
 MODEL_COLORS = {
-    "mean_curve": "#8C8C8C",
-    "direct_ridge": "#E69F00",
-    "two_stage": "#CC79A7",
-    "tcn": "#6A4C93",
-    "grey_box": "#009E73",
-    "hybrid": "#4C72B0",
+    "double": "#4C72B0",
+    "mlp_per_gas": "#009E73",
 }
 MODEL_LABELS = {
-    "mean_curve": "均值曲线",
-    "direct_ridge": "直接岭回归",
-    "two_stage": "两阶段回归",
-    "tcn": "TCN",
-    "grey_box": "灰盒",
-    "hybrid": "混合（本文）",
+    "double": "双指数骨架",
+    "mlp_per_gas": "三路独立 MLP + 双指数",
 }
-MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box", "hybrid"]
+MODEL_ORDER = ["double", "mlp_per_gas"]
+
+# Noto Serif 覆盖拉丁字母与 H₂ 等下标，Source Han Sans CN 覆盖中文；
+# 单用 SimSun 在多面板图里会丢部分 CJK 字形。
+FONT_FAMILY = ["Noto Serif", "Source Han Sans CN"]
 
 
 def _style() -> None:
     plt.rcParams.update(
         {
-            "font.family": ["Noto Serif CJK SC", "Noto Serif", "SimSun"],
+            "font.family": FONT_FAMILY,
             "axes.unicode_minus": False,
             "mathtext.fontset": "stix",
             "font.size": 8.5,
@@ -48,13 +46,10 @@ def _style() -> None:
     )
 
 
-def _save(figure: plt.Figure, name: str) -> None:
-    FIGURES.mkdir(exist_ok=True)
-    figure.savefig(FIGURES / f"{name}.png", dpi=300)
-    figure.savefig(FIGURES / f"{name}.svg")
+def _save(figure: plt.Figure, name: str, directory: Path = FIGURES_MODEL) -> None:
+    """保存 PNG 300 dpi + SVG；默认写入当前模型的图目录。"""
+    directory.mkdir(parents=True, exist_ok=True)
+    figure.savefig(directory / f"{name}.png", dpi=300)
+    figure.savefig(directory / f"{name}.svg")
     plt.close(figure)
-    print("saved", FIGURES / f"{name}.png")
-
-
-def _letter(ax: plt.Axes, text: str) -> None:
-    ax.set_title(text, loc="left", fontsize=9.5)
+    print("saved", directory / f"{name}.png")
