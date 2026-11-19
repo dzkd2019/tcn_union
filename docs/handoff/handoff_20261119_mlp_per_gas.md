@@ -8,8 +8,9 @@
 
 - 仓库根：`/home/mrawa/code/deep-learning/tcn_union`；工位路径不同时，以 `git rev-parse --show-toplevel` 为准。
 - 分支：`experiment/mlp-double-exponential`
-- HEAD：`c571640 docs: 更新学习文档`
-- 工作区：**有大量未提交改动**（旧模型删除、新模型/文档/产物未跟踪）；**未 commit、未 push**。
+- HEAD：`121eb05 feat(sensor-array): switch to double-exponential + per-gas MLP residual`
+- 工作区：已提交并推送到 `origin/experiment/mlp-double-exponential`；本次新增
+  `fig06` 与对应文档修改尚未提交（以 `git status` 为准）。
 - 后台任务：无。
 - 环境：`.venv/bin/python`（CPython 3.14.10）；绘图前设 `MPLCONFIGDIR=/tmp/mpl`。
 - GPU：AMD Radeon RX 7800 XT 16 GB，ROCm 7.2；`.venv` 中 torch 2.14.1+rocm7.2。
@@ -47,7 +48,7 @@ P4 区间校准（10 s，90%）：
 - 5 s 趋势相同：Laplace 34.0 / 46.0 / 32.0%，全局共形 92.0%，宽度 6.5 / 9.5 / 13.7%。
 - 未重做：停止策略、剖面似然、嵌套协方差。
 
-## 2. 今晚新增的三项文档改动
+## 2. 今晚新增的文档与图件改动
 
 1. `sensor_array/docs/learning_guide.md` §7.3 已扩写为
    **“TCN 加速与当前 MAP：两种逆模型”**，写入同口径比较、三层加速意义、两者互补关系和严格对照方案。
@@ -55,6 +56,10 @@ P4 区间校准（10 s，90%）：
    `sensor_array/docs/plotting_guide.md` 必须逐图登记图号、输出文件、绘图脚本、绘图函数、数据源、版式与目录；
    新增图或改绘图脚本/数据源/版式/输出路径时，同一次改动必须更新该文档；不同方案图件分目录。
 3. 本 handoff 新建于 `docs/handoff/`，不再把根目录旧 handoff 当最新入口。
+4. 新增 `fig06_representative_curves`：当前模型最优（file 31）、中位（file 27）、
+   最差（file 0）、NH₃ 低端（file 4）与 NH₃/NO₂ 高端（file 61）五个案例，每行三路气体，
+   同时画实测、纯骨架与三路独立组合；`plotting_guide.md`、`evaluation.md`、
+   `README.md` 已同步。
 
 ## 3. 与 TCN 的关系（今天讨论的结论）
 
@@ -93,7 +98,7 @@ P4 区间校准（10 s，90%）：
 - `sensor_array/analysis/estimation.py`：噪声估计、浓度边界、MAP + Laplace。
 - `sensor_array/analysis/calibration.py`：P4 区间校准（Laplace / 全局 / NH₃ 档位 / 采集块共形）。
 - `sensor_array/experiments/evaluate.py`：62 折 LOGO、曲线与 5/10 s 下游评估。
-- `sensor_array/plotting/model.py`：fig01–fig05。
+- `sensor_array/plotting/model.py`：fig01–fig06。
 - 已删除：`core/hybrid.py`、`core/grey_box.py`、`core/baselines.py`、`core/mlp_double.py`、
   `analysis/identifiability.py`、`analysis/residuals.py`、`analysis/degradation.py`、
   `experiments/logo.py`、`experiments/validation.py`、`experiments/structured.py`、
@@ -108,10 +113,11 @@ P4 区间校准（10 s，90%）：
 - 模型：`sensor_array/artifacts/models/double.json`、`mlp_per_gas.json`；
 - 校准：`sensor_array/artifacts/calibration/{intervals,summary,by_group}.csv`；
 - 图：`sensor_array/figures/model/fig01_design_and_data`、`fig02_curve_examples`、
-  `fig03_curve_error`、`fig04_downstream`、`fig05_interval_calibration`，各 PNG + SVG；
+  `fig03_curve_error`、`fig04_downstream`、`fig05_interval_calibration`、
+  `fig06_representative_curves`，各 PNG + SVG；
 - 文档：`sensor_array/docs/model.md`、`evaluation.md`、`plotting_guide.md`、
   `learning_guide.md`、`beginner_guide.md`、`AGENTS.md`；
-- 快照：`sensor_array/MANIFEST.md`、`sensor_array/SHA256SUMS`（10 个 artifacts + 10 个图件 = 20 行）。
+- 快照：`sensor_array/MANIFEST.md`、`sensor_array/SHA256SUMS`（10 个 artifacts + 12 个图件 = 22 行）。
 
 ## 6. 明天开工先做这 5 件事
 
@@ -123,7 +129,7 @@ git log -1 --oneline
 .venv/bin/python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-1. 确认仍在 `experiment/mlp-double-exponential`，HEAD 仍是 `c571640`；若路径/分支不同，先不要改代码。
+1. 确认仍在 `experiment/mlp-double-exponential`，HEAD 为 `121eb05`；若路径/分支不同，先不要改代码。
 2. 读 `docs/handoff/handoff_20261119_mlp_per_gas.md`（本文件）、`learning_guide.md` §7.3、
    `AGENTS.md` §8–§9、`sensor_array/docs/plotting_guide.md`。
 3. 确认 GPU：`torch.cuda.is_available()` 应为 True；无 GPU 会自动回退 CPU，但 62 折会明显变慢。
@@ -137,7 +143,7 @@ git log -1 --oneline
    这是回答“当前 MAP 是否真的超过 TCN”的唯一干净协议。
 2. **3–5 seed 复验**：确认 1.48% / 2.14% / 2.96% 不是单 seed 偶然；若稳定，再把固定 600 轮改成按折早停。
 3. **P4 收尾**：在当前模型上重做停止策略与剖面似然；协方差校准若要恢复，先做嵌套验证。
-4. **论文/答辩**：主模型用三路独立组合，纯骨架作对照；图统一 fig01–fig05，按 `plotting_guide.md` 复现。
+4. **论文/答辩**：主模型用三路独立组合，纯骨架作对照；图统一 fig01–fig06，按 `plotting_guide.md` 复现。
 5. **提交前**：审 `git status` 与 `git diff --stat`；不要把旧 archive、根 `artifacts/` 或 mock 图带进来。
 
 ## 8. 复现命令
@@ -164,7 +170,7 @@ cd sensor_array && sha256sum -c SHA256SUMS
 
 已验证（2026-11-19）：62 折评估 exit 0（766 s）；校准 exit 0；67 项根测试 OK（1 skipped）；
 6 项 sensor_array 测试 OK；compileall、模型 save/load、`git diff --check` 通过；
-图件 10 个（5 组 PNG+SVG），0 PDF；SHA256SUMS 20 行全部成功。
+图件 12 个（6 组 PNG+SVG），0 PDF；SHA256SUMS 22 行全部成功。
 
 ## 9. 不可违反的约定
 

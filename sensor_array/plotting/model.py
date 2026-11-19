@@ -1,4 +1,4 @@
-"""当前模型的评估图：数据设计、曲线示例、留一误差、下游浓度误差与区间校准。
+"""当前模型的评估图：数据设计、曲线示例、代表性曲线、留一误差、下游浓度误差与区间校准。
 
 所有图写入 sensor_array/figures/model/，同时输出 PNG（300 dpi）与 SVG。
 """
@@ -44,6 +44,69 @@ def _curve_examples(experiments, curve: pd.DataFrame, predictions: dict) -> None
     handles, labels = axes[0, 0].get_legend_handles_labels()
     figure.legend(handles, labels, loc="outside lower center", ncol=3, frameon=False)
     _save(figure, "fig02_curve_examples")
+
+
+def _representative_curves(experiments, curve: pd.DataFrame, predictions: dict) -> None:
+    """五个代表实验的实测曲线与两个正模型生成曲线。
+
+    三个案例按当前模型的宏 nRMSE 取最优、中位、最差；另外两个是设计边界：
+    file 4（NH3 最低档、H2/NO2 居中）与 file 61（NH3/NO2 同时最高）。
+    """
+    macro = curve[curve["model"] == "mlp_per_gas"].set_index("file")["nrmse_macro"]
+    best_file = int(macro.idxmin())
+    median_file = int(macro.sub(macro.median()).abs().idxmin())
+    worst_file = int(macro.idxmax())
+    cases = [
+        (best_file, "最优"),
+        (median_file, "中位"),
+        (4, "NH₃ 低端"),
+        (61, "NH₃/NO₂ 高端"),
+        (worst_file, "最差"),
+    ]
+    figure = plt.figure(figsize=(11.4, 8.8), layout="constrained")
+    grid = figure.add_gridspec(len(cases), 4, width_ratios=[0.62, 1, 1, 1])
+    axes = np.empty((len(cases), len(GASES)), dtype=object)
+    first_axis = None
+    for row, (file_id, tag) in enumerate(cases):
+        experiment = next(item for item in experiments if item.file_id == file_id)
+        header = figure.add_subplot(grid[row, 0])
+        header.axis("off")
+        header.text(
+            0.95,
+            0.5,
+            f"file {file_id}\n{tag} · 宏 {100.0 * macro[file_id]:.2f}%\n"
+            f"H₂ {experiment.concentration[0]:.0f}\n"
+            f"NH₃ {experiment.concentration[1]:.0f} · NO₂ {experiment.concentration[2]:.0f}",
+            ha="right",
+            va="center",
+            fontsize=7.8,
+            linespacing=1.45,
+        )
+        for column, gas in enumerate(GASES):
+            ax = figure.add_subplot(grid[row, column + 1], sharex=first_axis)
+            if first_axis is None:
+                first_axis = ax
+            axes[row, column] = ax
+            ax.plot(experiment.time, experiment.relative[:, column], color="#333333", lw=1.05, label="实测")
+            for model in MODEL_ORDER:
+                prediction = predictions[f"{file_id}_{model}"]
+                ax.plot(
+                    experiment.time,
+                    prediction[:, column],
+                    color=MODEL_COLORS[model],
+                    lw=0.85,
+                    label=MODEL_LABELS[model],
+                )
+            ax.grid(axis="y", alpha=0.15, lw=0.4)
+            ax.set_xlim(experiment.time[0], experiment.time[-1])
+            if row == 0:
+                ax.set_title(f"({chr(97 + column)}) {GAS_LABEL[gas]}")
+            if row == len(cases) - 1:
+                ax.set_xlabel("时间 / s")
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    figure.legend(handles, labels, loc="outside lower center", ncol=3, frameon=False)
+    figure.suptitle("正模型生成曲线与实测对比：五个代表实验", fontsize=10.5)
+    _save(figure, "fig06_representative_curves")
 
 
 def _curve_error(curve: pd.DataFrame) -> None:
@@ -213,6 +276,7 @@ def main() -> None:
     downstream = pd.read_csv(EVALUATION / "downstream_summary.csv")
     predictions = dict(np.load(EVALUATION / "predictions.npz"))
     _curve_examples(experiments, curve, predictions)
+    _representative_curves(experiments, curve, predictions)
     _curve_error(curve)
     _downstream(downstream)
     calibration = CALIBRATION / "summary.csv"

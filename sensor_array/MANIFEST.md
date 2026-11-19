@@ -11,11 +11,11 @@
 | `artifacts/evaluation/` | 5 | 双指数骨架与三路独立 MLP 的曲线、下游、汇总与预测 |
 | `artifacts/models/` | 2 | 三路独立（推荐）、双指数骨架（对照） |
 | `artifacts/calibration/` | 3 | P4 区间校准的逐条区间、汇总与分组复核 |
-| `figures/model/` | 10 | 5 组 PNG + 同名 SVG，300 dpi，无 PDF |
-| **合计** | **20** | `SHA256SUMS` 共 20 行 |
+| `figures/model/` | 12 | 6 组 PNG + 同名 SVG，300 dpi，无 PDF |
+| **合计** | **22** | `SHA256SUMS` 共 22 行 |
 
-图件编号为 `fig01`–`fig05`：数据设计与示例曲线、曲线示例、留一曲线误差、
-下游浓度误差、P4 区间校准。所有图均同时有 PNG 与 SVG。
+图件编号为 `fig01`–`fig06`：数据设计与示例曲线、曲线示例、留一曲线误差、
+下游浓度误差、P4 区间校准、五个代表实验的生成曲线。所有图均同时有 PNG 与 SVG。
 
 ## 内容
 
@@ -33,7 +33,8 @@
 - `figures/model/fig02_curve_examples.png/.svg`；
 - `figures/model/fig03_curve_error.png/.svg`；
 - `figures/model/fig04_downstream.png/.svg`；
-- `figures/model/fig05_interval_calibration.png/.svg`。
+- `figures/model/fig05_interval_calibration.png/.svg`；
+- `figures/model/fig06_representative_curves.png/.svg`。
 
 ## 校验
 

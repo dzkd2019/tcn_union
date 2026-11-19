@@ -31,6 +31,8 @@ P4 区间校准已在同一批折外估计上重做：10 s 原始 Laplace 90% �
   全局共形为 92.0%，中位宽度 3.5% / 3.4% / 8.7%。NH₃ 档位共形没有更窄
   （3.9% / 5.4% / 9.6%），采集块共形的开发覆盖只有 84.0%。因此全局共形作默认，
   分组共形只作诊断；区间不改变点估计。
+- 代表案例：图 fig06 选出当前模型宏误差的最优、中位、最差三条，以及 NH₃ 低端
+  与 NH₃/NO₂ 高端两个设计边界；每行三路气体同时画实测、骨架与组合模型。
 - 限制：单 seed、三路独立固定 600 轮且无早停、下游似然使用训练集自报残差尺度、
   区间只用开发 50 条校准；三路独立同时改变了容量与训练方式，不能把全部收益
   单独归因于“三路独立”。
@@ -171,7 +173,7 @@ sensor_array/
     evaluate.py             62 折 LOGO、5/10 s 下游、模型保存
   plotting/
     style.py                字体、配色、PNG+SVG 保存
-    model.py                fig01–fig05
+    model.py                fig01–fig06
   tests/
     test_model.py           形状、双指数、per-gas MLP、保存/加载、MAP
   docs/
@@ -184,7 +186,7 @@ sensor_array/
     evaluation/             curve_*、downstream_*、predictions.npz
     calibration/            intervals.csv、summary.csv、by_group.csv
   figures/
-    model/                  fig01–fig05，PNG + SVG
+    model/                  fig01–fig06，PNG + SVG
   MANIFEST.md / SHA256SUMS  当前快照
 ~~~
 

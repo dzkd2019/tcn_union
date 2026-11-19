@@ -371,6 +371,8 @@ x=\left(\log\frac{c_{\mathrm H_2}}{c^{\mathrm{ref}}_{\mathrm H_2}},
 - NO₂ 的下游改善最大（5.76% → 3.79%），但仍是三种气体中最高的；
 - NH₃ 的曲线改善最小（1.69% → 1.01%），下游 10 s 也只有 41/62 折改善、p=0.004，说明 NH₃ 的残差更接近不可约；
 - H₂ 的曲线与下游都改善，但 10 s 下游仍有 7 折变差，不能声称“H₂ 全面更好”。
+- 图 fig06 把五个代表案例按三路气体展开：最优（file 31）、中位（file 27）、最差（file 0），
+  以及 NH₃ 低端（file 4）与 NH₃/NO₂ 高端（file 61）；可直接看骨架与组合模型在哪些段贴近实测。
 
 ---
 
@@ -565,7 +567,7 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 3. **嵌套校准**：把内层折外残差用于区间尺度，检查共形覆盖是否仍成立。
 4. **停止策略**：在当前模型上重做决策/损失停止，而不是沿用旧 P4 数字。
 5. **P5 重跑**：用当前正模型生成合成数据，检验下游逆模型是否仍受益。
-6. **论文图件**：统一用 fig01–fig05，按 [plotting_guide.md](plotting_guide.md) 复现。
+6. **论文图件**：统一用 fig01–fig06，按 [plotting_guide.md](plotting_guide.md) 复现。
 
 ---
 
@@ -598,7 +600,7 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 | sensor_array/analysis/estimation.py | 噪声、MAP、Laplace 标准误 |
 | sensor_array/analysis/calibration.py | 开发集共形校准，区间/覆盖/宽度 |
 | sensor_array/experiments/evaluate.py | 62 折 LOGO、曲线/下游指标、模型保存 |
-| sensor_array/plotting/model.py | fig01–fig05 |
+| sensor_array/plotting/model.py | fig01–fig06 |
 | sensor_array/plotting/style.py | 颜色、字体、保存（PNG 300 dpi + SVG） |
 | sensor_array/tests/test_model.py | 前向一致性、残差、save/load、MAP 冒烟 |
 
@@ -607,7 +609,7 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 - artifacts/evaluation/curve_metrics.csv、curve_summary.csv、downstream.csv、downstream_summary.csv、predictions.npz；
 - artifacts/models/double.json、mlp_per_gas.json；
 - artifacts/calibration/intervals.csv、summary.csv、by_group.csv；
-- figures/model/fig01–fig05（PNG + SVG）。
+- figures/model/fig01–fig06（PNG + SVG）。
 
 ---
 

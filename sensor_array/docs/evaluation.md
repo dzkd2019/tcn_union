@@ -55,6 +55,11 @@
 三路独立组合在三路气体上都低于骨架。62 折中仍有 3 折没有改善：file 1 高
 0.69 百分点、file 12 高 0.19、file 34 高 0.03；最好折 file 0 低 4.59 百分点。
 
+图 fig06 给出五个代表案例：当前模型宏误差的最优（file 31）、中位（file 27）、
+最差（file 0），以及 NH₃ 低端（file 4）和 NH₃/NO₂ 高端（file 61）。每行三路气体，
+同时画实测、纯骨架和三路独立组合；file 61 的 NH₃ 在约 35 s 有采集跳变，两个
+正模型都无法跟随。该图只作展示，不参与选型或调参。
+
 表 3.2 逐文件配对差：三路独立减双指数（百分点）
 
 | 指标 | 改善折数 | 中位差 | 均值差 | 95% CI | Wilcoxon p |
@@ -238,6 +243,9 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 - [fig04_downstream](../figures/model/fig04_downstream.png)：5 s / 10 s 下游中位误差
   与 10 s p90；
 - [fig05_interval_calibration](../figures/model/fig05_interval_calibration.png)：
-  Laplace 与三种共形区间的开发/锁定覆盖率与宽度。
+  Laplace 与三种共形区间的开发/锁定覆盖率与宽度；
+- [fig06_representative_curves](../figures/model/fig06_representative_curves.png)：
+  五个代表实验（最优、中位、最差、NH₃ 低端、NH₃/NO₂ 高端）的实测曲线与两个
+  正模型的生成曲线，每行三路气体。
 
 图件同时提供 SVG；绘图入口与函数见 [plotting_guide.md](plotting_guide.md)。

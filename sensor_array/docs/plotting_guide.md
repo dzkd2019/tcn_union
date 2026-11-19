@@ -37,6 +37,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 | fig03 | <code>figures/model/fig03_curve_error.png/.svg</code> | <code>plotting/model.py</code> | <code>_curve_error(curve)</code> | <code>artifacts/evaluation/curve_metrics.csv</code> | 1×2 |
 | fig04 | <code>figures/model/fig04_downstream.png/.svg</code> | <code>plotting/model.py</code> | <code>_downstream(downstream)</code> | <code>artifacts/evaluation/downstream_summary.csv</code> | 1×3 |
 | fig05 | <code>figures/model/fig05_interval_calibration.png/.svg</code> | <code>plotting/model.py</code> | <code>_interval_calibration(summary)</code> | <code>artifacts/calibration/summary.csv</code> | 1×3 |
+| fig06 | <code>figures/model/fig06_representative_curves.png/.svg</code> | <code>plotting/model.py</code> | <code>_representative_curves(experiments, curve, predictions)</code> | <code>artifacts/evaluation/curve_metrics.csv</code>、<code>predictions.npz</code>、原始 CSV | 5×3（左侧案例标签） |
 
 ## 4. 逐图说明
 
@@ -50,7 +51,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 ### fig02 曲线示例
 
 - 选两条实验：双指数骨架宏 nRMSE 最差的一条与中位的一条（按 <code>curve_metrics.csv</code> 的
-  <code>nrmse_macro</code> 选取）。
+  <code>nrmse_macro</code> 选取）；当前主模型的分层代表案例见 fig06。
 - 两行三列：行为实验、列为 H₂/NH₃/NO₂；黑线实测，蓝线双指数骨架，绿线三路独立 MLP + 双指数。
 - 调整入口：<code>_curve_examples()</code>；改选折逻辑在函数开头 <code>median_file</code>/<code>worst_file</code>，
   改线宽在 <code>lw</code>。
@@ -80,6 +81,20 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
   锁定 12 条只作描述性复核，不参与分位数拟合。
 - 调整入口：<code>_interval_calibration()</code>；方法列表在 <code>methods</code>，
   图例标签在 <code>labels</code>，标题在 <code>figure.suptitle</code>。
+
+### fig06 代表性生成曲线
+
+- 五个案例：当前模型宏 nRMSE 的最优（file 31，0.38%）、中位（file 27，1.16%）、
+  最差（file 0，7.03%），以及两个设计边界——NH₃ 最低档且 H₂/NO₂ 居中的 file 4
+  （1.35%）、NH₃ 与 NO₂ 同时最高的 file 61（2.66%）。
+- 版式 5×3：每行一条实验，列为 H₂/NH₃/NO₂；左侧标签给出文件号、案例类型、
+  宏 nRMSE 与三路浓度；黑线实测，蓝线双指数骨架，绿线三路独立 MLP + 双指数。
+- file 31 的 H₂ 通道展示骨架的过冲/平台误差被 MLP 修正；file 0 的 H₂ 展示
+  H₂=32000 边角上实测仍在缓慢上升而两个模型都提前压平；file 61 的 NH₃ 在约 35 s
+  有一次采集跳变，模型无法跟随，这是采集伪影而不是模型输出错误。
+- 这五条只作展示，不参与选型或调参；选择规则写死在函数开头，数据固定为 62 条。
+- 调整入口：<code>_representative_curves()</code>；案例列表在 <code>cases</code>，
+  左侧标签在 <code>header.text()</code>，曲线线宽在 <code>lw</code>。
 
 ## 5. 新增或修改图件检查清单
 
