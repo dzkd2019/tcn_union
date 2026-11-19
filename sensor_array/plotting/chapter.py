@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
@@ -24,7 +25,7 @@ from .style import (
 )
 from ..core.hybrid import HybridArrayModel, bspline_basis
 from ..core.grey_box import FirstOrderArrayModel, fit_experiment_shapes
-from ..paths import ANALYSIS, AUGMENTATION, MODELS, VALIDATION
+from ..paths import ANALYSIS, AUGMENTATION, LOGO, MODELS, VALIDATION
 
 MODEL_ORDER = ["mean_curve", "direct_ridge", "two_stage", "tcn", "grey_box", "hybrid"]
 MODEL_COLORS = {**MODEL_COLORS, "hybrid": "#4C72B0"}
@@ -907,6 +908,129 @@ def figure_fair_augmentation() -> None:
     _save(figure, "fig27_fair_augmentation")
 
 
+def figure_forward_error_visual(experiments) -> None:
+    """把正模型的曲线误差换算成原始传感器单位，选最差折外实验。"""
+    metrics = pd.read_csv(LOGO / "logo_hybrid.csv").set_index("file")
+    predictions = np.load(LOGO / "pred_hybrid.npz")
+    experiment = experiments[0]
+    time = experiment.time
+    predicted_relative = predictions[str(experiment.file_id)]
+    measured = experiment.response
+    generated = experiment.initial[None, :] * (1.0 + predicted_relative)
+
+    figure, axes = plt.subplots(1, 3, figsize=(9.6, 2.9))
+    for index, gas in enumerate(GASES):
+        ax = axes[index]
+        rmse = float(np.sqrt(np.mean((generated[:, index] - measured[:, index]) ** 2)))
+        amplitude = float(measured[:, index].max() - measured[:, index].min())
+        ax.plot(time, measured[:, index], color="#222222", lw=1.2, label="实测")
+        ax.plot(
+            time,
+            generated[:, index],
+            color=GAS_COLORS[gas],
+            lw=1.2,
+            ls="--",
+            label="混合生成",
+        )
+        ax.set_xlabel("时间 / s")
+        ax.set_ylabel("传感器输出（原始单位）")
+        ax.text(
+            0.97,
+            0.05,
+            f"LOGO nRMSE {metrics.loc[experiment.file_id, f'nrmse_{gas}'] * 100:.1f}%\n"
+            f"RMSE {rmse:.2f}（{100 * rmse / amplitude:.1f}% 全幅）",
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=6.8,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+        )
+        if index == 0:
+            ax.legend(frameon=False, loc="upper left", fontsize=6.8)
+        _letter(ax, f"({'abc'[index]}) {GAS_LABEL[gas]}")
+    figure.suptitle(
+        "正模型最差折外曲线（文件 0：H₂=32000，NH₃=10，NO₂=2；虚线为混合模型生成）",
+        fontsize=9.0,
+    )
+    figure.tight_layout()
+    _save(figure, "fig28_forward_error_visual")
+
+
+def figure_estimator_scatter() -> None:
+    """10 s 时用混合模型估计真实曲线：预测浓度对真值。"""
+    estimate = pd.read_csv(ANALYSIS / "estimates.csv")
+    estimate = estimate[estimate["tmax"] == 10.0]
+    figure, axes = plt.subplots(1, 3, figsize=(9.6, 3.0))
+    for index, gas in enumerate(GASES):
+        ax = axes[index]
+        frame = estimate[estimate["gas"] == gas].copy()
+        frame["true"] = np.exp(frame["theta_true"])
+        frame["estimated"] = np.exp(frame["theta_hat"])
+        ax.scatter(
+            frame["true"],
+            frame["estimated"],
+            s=12,
+            color=GAS_COLORS[gas],
+            alpha=0.72,
+            edgecolor="white",
+            linewidth=0.3,
+            label="留出实验",
+        )
+        low = float(min(frame["true"].min(), frame["estimated"].min())) * 0.8
+        high = float(max(frame["true"].max(), frame["estimated"].max())) * 1.2
+        ax.plot([low, high], [low, high], color="#444444", lw=0.9, ls="--", label="1:1")
+        worst = frame.loc[frame["abs_rel_error"].idxmax()]
+        ax.scatter(
+            [np.exp(worst["theta_true"])],
+            [np.exp(worst["theta_hat"])],
+            s=42,
+            facecolor="none",
+            edgecolor="#222222",
+            linewidth=0.9,
+            zorder=5,
+        )
+        ax.annotate(
+            f"最差 file {int(worst['file'])}",
+            (np.exp(worst["theta_true"]), np.exp(worst["theta_hat"])),
+            textcoords="offset points",
+            xytext=(6, -2),
+            fontsize=6.6,
+        )
+        median = 100 * float(frame["abs_rel_error"].median())
+        p90 = 100 * float(frame["abs_rel_error"].quantile(0.9))
+        ax.text(
+            0.04,
+            0.96,
+            f"中位 {median:.1f}%\np90 {p90:.1f}%",
+            transform=ax.transAxes,
+            va="top",
+            fontsize=6.8,
+        )
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlim(low, high)
+        ax.set_ylim(low, high)
+        ticks = {
+            "H2": [8000, 16000, 24000, 32000],
+            "NH3": [5, 10, 20, 30, 40, 50],
+            "NO2": [2, 4, 6, 8, 10],
+        }[gas]
+        ax.set_xticks(ticks)
+        ax.set_yticks(ticks)
+        formatter = FuncFormatter(lambda value, _: f"{value:.0f}")
+        ax.xaxis.set_major_formatter(formatter)
+        ax.yaxis.set_major_formatter(formatter)
+        ax.minorticks_off()
+        ax.set_xlabel("真实浓度（原始单位，log 轴）")
+        ax.set_ylabel("估计浓度（原始单位，log 轴）")
+        _letter(ax, f"({'abc'[index]}) {GAS_LABEL[gas]}")
+        if index == 0:
+            ax.legend(frameon=False, loc="lower right", fontsize=6.8)
+    figure.suptitle("用混合正模型估计真实曲线：10 s 窗、62 折 LOGO 的浓度误差", fontsize=9.0)
+    figure.tight_layout()
+    _save(figure, "fig29_estimator_scatter")
+
+
 def main() -> None:
     _style()
     experiments = load_experiments()
@@ -951,6 +1075,9 @@ def main() -> None:
         AUGMENTATION / "fair_summary.csv"
     ).exists():
         figure_fair_augmentation()
+    figure_forward_error_visual(experiments)
+    if (ANALYSIS / "estimates.csv").exists():
+        figure_estimator_scatter()
 
 
 if __name__ == "__main__":
