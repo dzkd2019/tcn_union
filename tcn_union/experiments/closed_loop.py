@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 from tcn_union.core.data import TIME_STEP_SECONDS, make_features
 from tcn_union.core.device import configure_threads, resolve_device
 from tcn_union.training.gan_train import MODE, _read_manifest
-from tcn_union.training.train import _train_network
+from tcn_union.training.train import _train_network, fit_scalers
 
 from sensor_array.core.data import load_experiments
 from sensor_array.core.double_exponential import DoubleExponentialArrayModel
@@ -53,6 +53,14 @@ def _metrics(prediction: np.ndarray, truth: np.ndarray) -> dict[str, float]:
     return out
 
 
+def _real_scaler(x_real: np.ndarray, y_real: np.ndarray) -> dict[str, np.ndarray]:
+    """用真实训练折拟合 z-score 统计量，供合成预训练/微调共用。"""
+    y_fit = y_real.copy()
+    y_fit[:, 0] = np.log(np.maximum(y_fit[:, 0], 1e-6))
+    y_fit[:, 2] = np.log(np.maximum(y_fit[:, 2], 1e-6))
+    return fit_scalers(x_real, y_fit)
+
+
 def _forward_curves(
     train_experiments: list,
     time: np.ndarray,
@@ -72,7 +80,14 @@ def _forward_curves(
     concentration = np.concatenate((train_concentration, random_concentration), axis=0)
     relative = forward.predict_relative(concentration, time)
     initial = np.stack([experiment.initial for experiment in train_experiments])
-    chosen_initial = initial[rng.integers(0, len(initial), size=len(concentration))]
+    # 前一半与训练实验一一对应（同浓度、同 R0），后一半随机配 R0 补充基线多样性。
+    chosen_initial = np.concatenate(
+        (
+            initial,
+            initial[rng.integers(0, len(initial), size=n_random)],
+        ),
+        axis=0,
+    )
     response = chosen_initial[:, None, :] * (1.0 + relative)
     return concentration, response
 
@@ -119,21 +134,22 @@ def main() -> None:
                     for response in synthetic_response
                 ]
             )
-            for arm, x_train, y_train, train_range in (
-                ("real", x_real, truth_train, truth_train),
+            stats = _real_scaler(x_real, truth_train)
+            arms = [
+                ("real", x_real, truth_train),
                 (
-                    "real+synthetic",
-                    np.concatenate((x_real, x_synthetic), axis=0),
-                    np.concatenate((truth_train, synthetic_labels), axis=0),
-                    truth_train,
+                    "real+synthetic(1:1)",
+                    np.concatenate((x_real, x_synthetic[: len(x_real)]), axis=0),
+                    np.concatenate((truth_train, synthetic_labels[: len(x_real)]), axis=0),
                 ),
-            ):
+            ]
+            for arm, x_train, y_train in arms:
                 model, _, epochs_used, _, prediction = _train_network(
                     x_train,
                     y_train,
                     x_val,
                     truth_val,
-                    train_range,
+                    truth_train,
                     EPOCHS,
                     SEED,
                     device,
@@ -142,6 +158,7 @@ def main() -> None:
                     target_transform="log,none,log",
                     per_gas_head=True,
                     low_conc_power="1.0",
+                    scaler_stats=stats,
                 )
                 if prediction is None:
                     raise RuntimeError("validation prediction is None")
@@ -158,6 +175,56 @@ def main() -> None:
                     f"  {seconds}s {arm}: macro3σ={record['macro_three_sigma']:.2f}",
                     flush=True,
                 )
+
+            # 合成预训练 + 真实微调；预训练和微调共用真实训练折的 scaler。
+            pretrained, _, pretrain_epochs, _, _ = _train_network(
+                x_synthetic[: len(x_real)],
+                synthetic_labels[: len(x_real)],
+                None,
+                None,
+                truth_train,
+                200,
+                SEED,
+                device,
+                False,
+                validation_metric="three_sigma",
+                target_transform="log,none,log",
+                per_gas_head=True,
+                low_conc_power="1.0",
+                scaler_stats=stats,
+            )
+            model, _, epochs_used, _, prediction = _train_network(
+                x_real,
+                truth_train,
+                x_val,
+                truth_val,
+                truth_train,
+                100,
+                SEED,
+                device,
+                True,
+                validation_metric="three_sigma",
+                target_transform="log,none,log",
+                per_gas_head=True,
+                low_conc_power="1.0",
+                initial_state=pretrained.state_dict(),
+                scaler_stats=stats,
+            )
+            if prediction is None:
+                raise RuntimeError("validation prediction is None")
+            record = {
+                "window": seconds,
+                "fold": fold,
+                "arm": "pretrain+finetune",
+                "epochs": pretrain_epochs + epochs_used,
+                "n_train": len(x_real),
+                **_metrics(prediction, truth_val),
+            }
+            records.append(record)
+            print(
+                f"  {seconds}s pretrain+finetune: macro3σ={record['macro_three_sigma']:.2f}",
+                flush=True,
+            )
 
     path = BASE / "closed_loop.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
