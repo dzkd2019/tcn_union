@@ -33,6 +33,8 @@ P4 区间校准已在同一批折外估计上重做：10 s 原始 Laplace 90% �
   分组共形只作诊断；区间不改变点估计。
 - 代表案例：图 fig06 选出当前模型宏误差的最优、中位、最差三条，以及 NH₃ 低端
   与 NH₃/NO₂ 高端两个设计边界；每行三路气体同时画实测、骨架与组合模型。
+- 模型架构：图 fig07 画浓度输入、双指数骨架、三路 MLP 残差与绝对输出还原，
+  只保留推理路径，不写训练细节。
 - 限制：单 seed、三路独立固定 600 轮且无早停、下游似然使用训练集自报残差尺度、
   区间只用开发 50 条校准；三路独立同时改变了容量与训练方式，不能把全部收益
   单独归因于“三路独立”。
@@ -73,7 +75,7 @@ $$
 \(f_j\in(0,1)\)。\(\ln A_j\) 是 \(\ln(c/c^{\mathrm{ref}})\) 的二次多项式，
 \(\ln\tau^{\mathrm{fast}}_j\)、\(\ln(\tau^{\mathrm{slow}}_j-\tau^{\mathrm{fast}}_j)\) 与
 \(\operatorname{logit} f_j\) 是一次多项式；参考浓度 \(c^{\mathrm{ref}}=(16000,30,6)\)。
-完整公式、参数计数、初值与优化见 [<code>docs/model.md</code>](docs/model.md)。
+完整公式、参数计数、初值与优化见 [<code>docs/model.md</code>](docs/model.md)；逐参数分析见 [<code>docs/double_exponential_analysis.md</code>](docs/double_exponential_analysis.md)。
 
 ### 3.2 三路独立 MLP 残差
 
@@ -173,11 +175,12 @@ sensor_array/
     evaluate.py             62 折 LOGO、5/10 s 下游、模型保存
   plotting/
     style.py                字体、配色、PNG+SVG 保存
-    model.py                fig01–fig06
+    model.py                fig01–fig07
   tests/
     test_model.py           形状、双指数、per-gas MLP、保存/加载、MAP
   docs/
     model.md                模型公式、参数、接口
+    double_exponential_analysis.md  参数化、初值、联合拟合与最终参数
     evaluation.md           评估结果、P4 校准与限制
     plotting_guide.md       逐图脚本与函数索引
     archive/                旧模型历史文档（代码已删除）
@@ -186,7 +189,7 @@ sensor_array/
     evaluation/             curve_*、downstream_*、predictions.npz
     calibration/            intervals.csv、summary.csv、by_group.csv
   figures/
-    model/                  fig01–fig06，PNG + SVG
+    model/                  fig01–fig07，PNG + SVG
   MANIFEST.md / SHA256SUMS  当前快照
 ~~~
 
@@ -205,6 +208,7 @@ sensor_array/
 ## 8. 相关文档
 
 - [模型细节](docs/model.md)
+- [双指数参数化与拟合](docs/double_exponential_analysis.md)
 - [评估结果与 P4 校准](docs/evaluation.md)
 - [逐图索引](docs/plotting_guide.md)
 - [快照说明](MANIFEST.md)

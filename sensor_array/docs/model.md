@@ -9,6 +9,14 @@ MLP 学习的浓度—时间残差。62 折留一评估中，组合的曲线宏 
 旧的一阶灰盒、低秩 B 样条残差（hybrid）、直接岭回归、TCN、均值曲线以及旧实验分支的代码都已从本分支删除；相关历史文档在同目录
 <code>archive/</code> 中仅作归档。
 
+![双指数骨架 + 三路独立 MLP 残差](../figures/model/fig07_model_architecture.png)
+
+*图 1：推理架构。浓度与时间先进入双指数骨架，骨架输出再与浓度、时间一起进入三路
+独立 MLP 残差，二者相加后由 \(R_j(0)\) 还原绝对响应。*
+
+参数化逐项解释、初值构造、联合拟合细节与最终参数读数见
+[<code>double_exponential_analysis.md</code>](double_exponential_analysis.md)。
+
 ## 1. 建模对象
 
 每次实验是在恒定浓度 \(\mathbf c=(c_{\mathrm H_2},c_{\mathrm{NH_3}},c_{\mathrm{NO_2}})\)

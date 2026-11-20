@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 from ..paths import FIGURES_MODEL
 
-GAS_LABEL = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}
+GAS_LABEL = {"H2": r"$\mathrm{H}_2$", "NH3": r"$\mathrm{NH}_3$", "NO2": r"$\mathrm{NO}_2$"}
 GAS_COLORS = {"H2": "#C0392B", "NH3": "#E69F00", "NO2": "#0072B2"}
 MODEL_COLORS = {
     "double": "#4C72B0",
@@ -24,7 +24,7 @@ MODEL_ORDER = ["double", "mlp_per_gas"]
 
 # Noto Serif 覆盖拉丁字母与 H₂ 等下标，Source Han Sans CN 覆盖中文；
 # 单用 SimSun 在多面板图里会丢部分 CJK 字形。
-FONT_FAMILY = ["Noto Serif", "Source Han Sans CN"]
+FONT_FAMILY = ["Noto Serif CJK SC"]
 
 
 def _style() -> None:

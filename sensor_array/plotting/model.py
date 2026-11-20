@@ -7,6 +7,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 from ..core.data import GASES, load_experiments
 from ..paths import CALIBRATION, EVALUATION
@@ -59,8 +60,8 @@ def _representative_curves(experiments, curve: pd.DataFrame, predictions: dict) 
     cases = [
         (best_file, "最优"),
         (median_file, "中位"),
-        (4, "NH₃ 低端"),
-        (61, "NH₃/NO₂ 高端"),
+        (4, r"$\mathrm{NH}_3$ 低端"),
+        (61, r"$\mathrm{NH}_3$/$\mathrm{NO}_2$ 高端"),
         (worst_file, "最差"),
     ]
     figure = plt.figure(figsize=(11.4, 8.8), layout="constrained")
@@ -75,8 +76,8 @@ def _representative_curves(experiments, curve: pd.DataFrame, predictions: dict) 
             0.95,
             0.5,
             f"file {file_id}\n{tag} · 宏 {100.0 * macro[file_id]:.2f}%\n"
-            f"H₂ {experiment.concentration[0]:.0f}\n"
-            f"NH₃ {experiment.concentration[1]:.0f} · NO₂ {experiment.concentration[2]:.0f}",
+            fr"$\mathrm{{H}}_2$ {experiment.concentration[0]:.0f}" "\n"
+            fr"$\mathrm{{NH}}_3$ {experiment.concentration[1]:.0f} · $\mathrm{{NO}}_2$ {experiment.concentration[2]:.0f}",
             ha="right",
             va="center",
             fontsize=7.8,
@@ -193,7 +194,7 @@ def _downstream(downstream: pd.DataFrame) -> None:
 
 def _interval_calibration(summary: pd.DataFrame) -> None:
     methods = ["laplace90", "conformal_all", "conformal_NH3", "conformal_block"]
-    labels = ["原始 Laplace 90%", "全局共形", "NH₃ 档位共形", "采集块共形"]
+    labels = ["原始 Laplace 90%", "全局共形", r"$\mathrm{NH}_3$ 档位共形", "采集块共形"]
     colors = ["#777777", "#4C72B0", "#E69F00", "#009E73"]
     figure, axes = plt.subplots(1, 3, figsize=(10.8, 3.5), layout="constrained")
     x = np.arange(len(GASES))
@@ -232,7 +233,7 @@ def _interval_calibration(summary: pd.DataFrame) -> None:
         ax.grid(axis="y", alpha=0.25, lw=0.5)
     handles, labels = axes[0].get_legend_handles_labels()
     figure.legend(handles, labels, loc="outside lower center", ncol=4, frameon=False)
-    figure.suptitle("P4 区间校准：Laplace 欠覆盖，全局/NH₃ 共形约 90%，采集块偏低", fontsize=10)
+    figure.suptitle(r"P4 区间校准：Laplace 欠覆盖，全局/$\mathrm{NH}_3$ 共形约 90%，采集块偏低", fontsize=10)
     _save(figure, "fig05_interval_calibration")
 
 
@@ -251,11 +252,11 @@ def _design(experiments) -> None:
     )
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("H₂ 浓度 / 原始单位")
-    ax.set_ylabel("NH₃ 浓度 / 原始单位")
+    ax.set_xlabel(r"$\mathrm{H}_2$ 浓度 / 原始单位")
+    ax.set_ylabel(r"$\mathrm{NH}_3$ 浓度 / 原始单位")
     ax.set_title("(a) 62 条实验的设计点")
     colorbar = figure.colorbar(scatter, ax=ax, pad=0.02)
-    colorbar.set_label("NO₂ 浓度 / 原始单位")
+    colorbar.set_label(r"$\mathrm{NO}_2$ 浓度 / 原始单位")
 
     ax = axes[1]
     experiment = experiments[0]
@@ -268,6 +269,113 @@ def _design(experiments) -> None:
     _save(figure, "fig01_design_and_data")
 
 
+
+def _architecture() -> None:
+    """双指数骨架 + 三路 MLP 残差的推理架构图（不依赖拟合结果）。"""
+    figure, ax = plt.subplots(figsize=(9.4, 4.1))
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 4.8)
+    ax.axis("off")
+
+    blue = "#4C72B0"
+    green = "#009E73"
+    ink = "#222222"
+
+    def box(x, y, w, h, text, edge, face, fontsize=9.0):
+        patch = FancyBboxPatch(
+            (x, y),
+            w,
+            h,
+            boxstyle="round,pad=0.07,rounding_size=0.12",
+            linewidth=1.0,
+            edgecolor=edge,
+            facecolor=face,
+        )
+        ax.add_patch(patch)
+        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=fontsize, color=ink)
+        return patch
+
+    def arrow(start, end, color=ink, style="-|>", linestyle="-", lw=1.0):
+        ax.add_patch(
+            FancyArrowPatch(
+                start,
+                end,
+                arrowstyle=style,
+                mutation_scale=10,
+                linewidth=lw,
+                color=color,
+                linestyle=linestyle,
+                shrinkA=2,
+                shrinkB=2,
+            )
+        )
+
+    box(
+        0.15,
+        1.55,
+        1.75,
+        1.55,
+        "浓度输入\n$\\mathbf{c}=(c_{H_2},c_{NH_3},c_{NO_2})$\n时间 $t$",
+        "#666666",
+        "#F5F5F5",
+        8.6,
+    )
+    box(
+        2.55,
+        3.05,
+        3.55,
+        1.30,
+        "双指数骨架\n"
+        r"$y_j^{\mathrm{skel}}=s_j A_j(c)\left[f_j(c)\left(1-e^{-t/\tau^{f}_j}\right)"
+        r"+\left(1-f_j(c)\right)\left(1-e^{-t/\tau^{s}_j}\right)\right]$",
+        blue,
+        "#EAF0F8",
+        8.4,
+    )
+    box(
+        2.55,
+        0.55,
+        3.55,
+        1.25,
+        "三路 MLP 残差（每路独立）\n"
+        r"$x=[\log c,\,t,\,y^{\mathrm{skel}}]$" "\n"
+        r"$7\to64\to64\to1\;\Rightarrow\; r_j(t,c)$",
+        green,
+        "#E6F4EF",
+        8.4,
+    )
+    box(
+        7.35,
+        1.75,
+        2.45,
+        1.15,
+        "三路传感器输出\n$R_j(t)=R_j(0)\\,[1+y_j(t,c)]$\n$j=H_2,NH_3,NO_2$",
+        "#666666",
+        "#F5F5F5",
+        8.6,
+    )
+
+    ax.scatter([6.55], [2.55], s=150, color="white", edgecolor=ink, linewidth=1.0, zorder=5)
+    ax.text(6.55, 2.55, "+", ha="center", va="center", fontsize=13, color=ink, zorder=6)
+
+    arrow((1.90, 2.65), (2.55, 3.45), color=blue)
+    arrow((1.90, 2.05), (2.55, 1.50), color=green)
+    arrow((4.33, 3.05), (4.33, 1.80), color=green, linestyle="--")
+    ax.text(4.43, 2.42, "$y^{\\mathrm{skel}}$", fontsize=8.2, color=green, va="center")
+    arrow((6.10, 3.50), (6.55, 2.78), color=blue)
+    arrow((6.10, 1.65), (6.55, 2.32), color=green)
+    ax.text(6.30, 3.28, "$y^{\\mathrm{skel}}$", fontsize=7.8, color=blue)
+    ax.text(6.30, 1.78, "$r$", fontsize=8.2, color=green)
+    arrow((6.80, 2.55), (7.35, 2.55), color=ink)
+    ax.text(7.06, 2.70, "$y$", fontsize=8.4, color=ink, ha="center")
+
+    arrow((8.58, 0.95), (8.58, 1.75), color="#666666")
+    ax.text(8.68, 1.30, "$R_j(0)$", fontsize=8.2, color="#444444", va="center")
+
+    ax.text(0.15, 4.55, "传感器阵列动态响应建模：可解释骨架 + 学习式残差", fontsize=10.5, color=ink)
+    _save(figure, "fig07_model_architecture")
+
+
 def main() -> None:
     _style()
     experiments = load_experiments()
@@ -277,6 +385,7 @@ def main() -> None:
     predictions = dict(np.load(EVALUATION / "predictions.npz"))
     _curve_examples(experiments, curve, predictions)
     _representative_curves(experiments, curve, predictions)
+    _architecture()
     _curve_error(curve)
     _downstream(downstream)
     calibration = CALIBRATION / "summary.csv"

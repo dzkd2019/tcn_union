@@ -20,8 +20,8 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 
 - 样式集中在 <code>sensor_array/plotting/style.py</code>：
   <code>_style()</code> 设置字体、字号、线宽；<code>_save(figure, name)</code> 保存 PNG + SVG。
-- 字体为 <code>["Noto Serif", "Source Han Sans CN"]</code>：Noto Serif 覆盖拉丁字母与
-  H₂/NH₃/NO₂ 下标，Source Han Sans CN 覆盖中文。不要改成单独 SimSun，否则多面板图可能丢 CJK 字形。
+- 字体为 <code>["Noto Serif CJK SC"]</code>：同时覆盖拉丁字母、H₂/NH₃/NO₂ 下标与中文。
+  不要改成单独 SimSun 或纯 Latin 的 Noto Serif，否则中文会变成方框。
 - 模型配色：<code>double</code> 蓝色 <code>#4C72B0</code>，<code>mlp_per_gas</code> 绿色
   <code>#009E73</code>；气体配色在 <code>GAS_COLORS</code>。
 - 多面板图统一用 <code>layout="constrained"</code>；图例放在图底部
@@ -38,6 +38,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 | fig04 | <code>figures/model/fig04_downstream.png/.svg</code> | <code>plotting/model.py</code> | <code>_downstream(downstream)</code> | <code>artifacts/evaluation/downstream_summary.csv</code> | 1×3 |
 | fig05 | <code>figures/model/fig05_interval_calibration.png/.svg</code> | <code>plotting/model.py</code> | <code>_interval_calibration(summary)</code> | <code>artifacts/calibration/summary.csv</code> | 1×3 |
 | fig06 | <code>figures/model/fig06_representative_curves.png/.svg</code> | <code>plotting/model.py</code> | <code>_representative_curves(experiments, curve, predictions)</code> | <code>artifacts/evaluation/curve_metrics.csv</code>、<code>predictions.npz</code>、原始 CSV | 5×3（左侧案例标签） |
+| fig07 | <code>figures/model/fig07_model_architecture.png/.svg</code> | <code>plotting/model.py</code> | <code>_architecture()</code> | 无数据依赖，固定架构 | 1×1 流程图 |
 
 ## 4. 逐图说明
 
@@ -95,6 +96,15 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 - 这五条只作展示，不参与选型或调参；选择规则写死在函数开头，数据固定为 62 条。
 - 调整入口：<code>_representative_curves()</code>；案例列表在 <code>cases</code>，
   左侧标签在 <code>header.text()</code>，曲线线宽在 <code>lw</code>。
+
+### fig07 模型架构
+
+- 1×1 流程图：左边浓度输入，上支双指数骨架，下支三路独立 MLP 残差，二者相加后
+  由 \(R_j(0)\) 还原绝对输出。
+- 骨架框给出双指数公式，残差框给出 7 维输入与 \(7\to64\to64\to1\) 宽度；图中不写
+  参数数量、损失函数和训练细节，避免把架构图变成方法正文。
+- 调整入口：<code>_architecture()</code>；框的位置/大小在 <code>box()</code> 调用里，
+  箭头在 <code>arrow()</code> 调用里。
 
 ## 5. 新增或修改图件检查清单
 
