@@ -1,8 +1,8 @@
 # 5 秒前缀 TCN 绘图索引
 
 > 本文件只登记 **TCN 响应加速（`tcn_union`）的 5 秒前缀实验**图件，与
-> `sensor_array/docs/plotting_guide.md` 分开维护。10 秒前缀的既有图件仍在
-> `artifacts/3sigma_noridge/figs/`，本文件不重复登记。
+> `sensor_array/docs/plotting_guide.md` 分开维护。10 秒前缀图件见
+> [`plotting_guide_tcn_10s.md`](plotting_guide_tcn_10s.md)。
 
 ## 图件清单
 
