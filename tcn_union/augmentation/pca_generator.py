@@ -18,8 +18,8 @@ class PCAConfig:
     components: int = 6
 
     def __post_init__(self) -> None:
-        if self.seconds not in {5.0, 10.0}:
-            raise ValueError("PCA 只支持 5 秒或 10 秒窗口")
+        if self.seconds <= 0.0 or abs(self.seconds * 5.0 - round(self.seconds * 5.0)) > 1e-9:
+            raise ValueError("PCA 窗口必须是 0.2 s 的整数倍")
         if self.components < 1:
             raise ValueError("PCA 主成分数必须为正")
 

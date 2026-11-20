@@ -1,4 +1,4 @@
-"""最终 10 秒模型的训练入口，同时保留增强消融模式。
+"""最终 TCN 模型的训练入口（默认 10 秒，可用 --seconds 改窗口），同时保留增强消融模式。
 
 最终方案（``--modes noise_gan --generator vae``）：
 - 训练折内加 0.1× 真实测量噪声；
@@ -243,6 +243,7 @@ def cross_validate(
     feature_mode: str = MODE,
     per_gas_head: bool = False,
     low_conc_power: float = 0.0,
+    seconds: float = 10.0,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """对一种训练模式跑五折 OOF。
 
@@ -263,7 +264,7 @@ def cross_validate(
         # 噪声和生成器的随机种子都随 fold 改变，避免不同折共用同一批合成样本。
         x_train, y_train, noise_count, gan_count, edge_count = _augmented_arrays(
             train_rows,
-            10.0,
+            seconds,
             use_noise,
             use_gan,
             synthetic_ratio,
@@ -281,7 +282,7 @@ def cross_validate(
         # 前 len(train_rows) 条是真实样本；后面是噪声/合成样本。
         # 早停和 NMAE 的分母仍只用真实训练标签，避免合成标签改变评价尺度。
         y_train_real = y_train[: len(train_rows)]
-        features = _features(val_rows, 10.0, feature_mode)
+        features = _features(val_rows, seconds, feature_mode)
         x_val = np.stack([features[row["file"]] for row in val_rows])
         y_val = np.stack([row["_labels"] for row in val_rows]).astype(np.float32)
 
@@ -379,6 +380,7 @@ def train_final(
     feature_mode: str = MODE,
     per_gas_head: bool = False,
     low_conc_power: float = 0.0,
+    seconds: float = 10.0,
 ) -> None:
     """在全部 50 个开发实验上训练一个最终模型。
 
@@ -390,7 +392,7 @@ def train_final(
     # 最终训练也只在开发集上构造增强样本。
     x_dev, y_dev, noise_count, gan_count, edge_count = _augmented_arrays(
         dev_rows,
-        10.0,
+        seconds,
         use_noise,
         use_gan,
         synthetic_ratio,
@@ -449,7 +451,7 @@ def train_final(
         model,
         stats,
         feature_mode,
-        10.0,
+        seconds,
         dev_rows,
         seed,
         epochs,
@@ -472,6 +474,12 @@ def main() -> None:
         nargs="+",
         default=SEEDS,
         help="全开发集最终重训使用的种子列表（默认与历史协议一致）",
+    )
+    parser.add_argument(
+        "--seconds",
+        type=int,
+        default=10,
+        help="响应前缀窗口（秒，2–10 的整数）；默认 10 保持旧产物不变",
     )
     parser.add_argument("--modes", nargs="+", choices=sorted(MODES), default=list(MODES))
     parser.add_argument(
@@ -526,6 +534,8 @@ def main() -> None:
     parser.add_argument("--oof-only", action="store_true")
     args = parser.parse_args()
 
+    if not 2 <= args.seconds <= 10:
+        parser.error("--seconds 必须在 2–10 秒之间")
     if args.synthetic_ratio <= 0.0:
         parser.error("--synthetic-ratio 必须为正")
     if args.noise_scale < 0.0:
@@ -555,21 +565,21 @@ def main() -> None:
     dev_ranges = np.ptp(np.stack([row["_labels"] for row in dev_rows]), axis=0)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     gan_config = GANConfig(
-        seconds=10.0,
+        seconds=float(args.seconds),
         epochs=args.gan_epochs,
         residual=False,
         anchor_endpoints=False,
     )
     vae_config = VAEConfig(
-        seconds=10.0,
+        seconds=float(args.seconds),
         epochs=args.gan_epochs,
         components=args.vae_components,
         latent_dim=args.vae_latent_dim,
         beta=args.vae_beta,
     )
-    pca_config = PCAConfig(seconds=10.0, components=args.pca_components)
+    pca_config = PCAConfig(seconds=float(args.seconds), components=args.pca_components)
     direct_vae_config = DirectVAEConfig(
-        seconds=10.0,
+        seconds=float(args.seconds),
         epochs=args.gan_epochs,
         latent_dim=args.vae_latent_dim,
         beta=args.vae_beta,
@@ -579,6 +589,7 @@ def main() -> None:
     selection: dict[str, Any] = {
         "protocol": "train-fold-only noise/GAN; clean/aux/noise/gan/combined ablation; test untouched",
         "base_seed": args.seed,
+        "seconds": args.seconds,
         "final_seeds": args.final_seeds,
         "mode": args.feature_mode,
         "feature_mode": args.feature_mode,
@@ -621,6 +632,7 @@ def main() -> None:
             feature_mode=args.feature_mode,
             per_gas_head=args.per_gas_head,
             low_conc_power=args.low_conc_power,
+            seconds=float(args.seconds),
         )
         mode_dir = args.output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
@@ -638,7 +650,7 @@ def main() -> None:
         )
         if not args.oof_only:
             for seed in args.final_seeds:
-                path = mode_dir / "10s" / f"seed_{seed}.pt"
+                path = mode_dir / f"{args.seconds}s" / f"seed_{seed}.pt"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 train_final(
                     dev_rows,
@@ -660,11 +672,12 @@ def main() -> None:
                     feature_mode=args.feature_mode,
                     per_gas_head=args.per_gas_head,
                     low_conc_power=args.low_conc_power,
+                    seconds=float(args.seconds),
                 )
                 print(f"  saved {path}", flush=True)
 
         selection["selected"][mode] = {
-            "seconds": 10.0,
+            "seconds": float(args.seconds),
             "noise": MODES[mode][0],
             "gan": MODES[mode][1],
             "aux_positions": list(MODES[mode][2]),

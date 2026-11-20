@@ -54,7 +54,7 @@ class VaeTest(unittest.TestCase):
 
     def test_invalid_config_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            VAEConfig(seconds=7.0)
+            VAEConfig(seconds=7.3)
         with self.assertRaises(ValueError):
             VAEConfig(components=0)
         with self.assertRaises(ValueError):

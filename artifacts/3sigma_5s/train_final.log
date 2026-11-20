@@ -1,0 +1,8 @@
+[p10] epochs=127
+saved /home/mrawa/code/graduate/tcn_union/artifacts/3sigma_5s/final/p10/noise_gan/5s/seed_20260923.pt
+saved /home/mrawa/code/graduate/tcn_union/artifacts/3sigma_5s/final/p10/noise_gan/5s/seed_20260924.pt
+saved /home/mrawa/code/graduate/tcn_union/artifacts/3sigma_5s/final/p10/noise_gan/5s/seed_20260925.pt
+[q] epochs=134
+saved /home/mrawa/code/graduate/tcn_union/artifacts/3sigma_5s/final/q/noise_gan/5s/seed_20260923.pt
+saved /home/mrawa/code/graduate/tcn_union/artifacts/3sigma_5s/final/q/noise_gan/5s/seed_20260924.pt
+saved /home/mrawa/code/graduate/tcn_union/artifacts/3sigma_5s/final/q/noise_gan/5s/seed_20260925.pt

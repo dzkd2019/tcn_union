@@ -1,7 +1,7 @@
 """锁定测试集的 TCN 多 seed / 多目录集成一次性评估（无 Ridge）。
 
 协议：开发集（50 个实验）只用于提供裁剪范围；测试集（12 个锁定实验）只在
-本模块最后评估一次。TCN 侧读取多个训练目录的 ``<dir>/10s/seed_<seed>.pt``
+本模块最后评估一次。TCN 侧读取多个训练目录的 ``<dir>/<seconds>s/seed_<seed>.pt``
 （允许每个目录只含部分 seed，兼容按 seed 分目录的训练产物），先对“所有目录
 × 可用 seed”的预测取算术平均得到 TCN 集平均，再可选裁剪到开发集逐气体
 标签范围：
@@ -228,15 +228,15 @@ def evaluate_ensemble(
     """对锁定测试集做一次 TCN 集平均评估并写出三项产物。
 
     参数：`manifest_path` 是锁定划分；`model_dirs` 是多个训练目录（各含
-    ``10s/seed_<seed>.pt``，允许每个目录只含部分 seed）；`output_dir` 是产物
-    目录；`device` 指定推理设备；`windows` 目前只支持 10 秒；`seeds` 是要
+    ``<seconds>s/seed_<seed>.pt``，允许每个目录只含部分 seed）；`output_dir` 是产物
+    目录；`device` 指定推理设备；`windows` 支持 1–60 秒；`seeds` 是要
     集成的 TCN 种子；`clip_to_development_range` 为真时把集平均预测裁剪到
     开发集逐气体标签范围（物理约束，不使用测试标签）。
     返回：含协议、目录、seed、指标与 3σ 的报告字典；同时写出
     ``test_predictions.csv``、``test_metrics.csv`` 和 ``evaluation.json``。
     """
-    if not windows or any(int(window) != 10 for window in windows):
-        raise ValueError("only the 10 s prefix is supported")
+    if not windows or any(int(window) < 1 or int(window) > 60 for window in windows):
+        raise ValueError("windows must be positive integers up to 60 seconds")
     if not seeds:
         raise ValueError("at least one seed is required")
     dev_rows, test_rows = _manifest(manifest_path)
@@ -352,7 +352,13 @@ def main() -> None:
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="auto", help="auto/cpu/cuda/cuda:0")
-    parser.add_argument("--windows", type=int, nargs="+", default=[10])
+    parser.add_argument(
+        "--windows",
+        type=int,
+        nargs="+",
+        default=[10],
+        help="响应前缀窗口（秒），支持 1–60",
+    )
     parser.add_argument("--seeds", type=int, nargs="+", default=list(SEEDS))
     parser.add_argument(
         "--clip-to-development-range",
@@ -360,8 +366,8 @@ def main() -> None:
         help="把集平均预测裁剪到开发集逐气体标签范围（物理约束）",
     )
     args = parser.parse_args()
-    if any(window != 10 for window in args.windows):
-        parser.error("只支持 10 秒前缀评估")
+    if any(window < 1 or window > 60 for window in args.windows):
+        parser.error("窗口必须是 1–60 秒的整数")
     device = resolve_device(args.device)
     configure_threads(device)
     print(f"[device] {describe_device(device)}")

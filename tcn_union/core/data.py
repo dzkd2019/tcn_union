@@ -149,10 +149,10 @@ def make_features(
 ) -> np.ndarray:
     """构造固定时长、严格因果的 TCN 输入特征。
 
-    参数：`time[N]` 和 `responses[N,3]` 描述时序；`seconds` 仅允许 5 或
-    10 秒；`mode` 为 `delta` 或 `raw_delta`。
-    返回：float32 数组 `[channels,samples]`，终点包含在前缀中，因此 5/10
-    秒输入分别有 26/51 个采样点。相对增量使用
+    参数：`time[N]` 和 `responses[N,3]` 描述时序；`seconds` 为任意正的
+    0.2 s 整数倍（常用 2–10 秒）；`mode` 为 `delta` 或 `raw_delta`。
+    返回：float32 数组 `[channels,samples]`。终点包含在前缀中，因此
+    `seconds` 秒输入有 `seconds/0.2 + 1` 个采样点。相对增量使用
     `(response(t)-response(0))/max(|response(0)|,1e-8)`；`raw_delta` 还拼接
     三路原始响应，`delta` 只保留三路相对增量。相对增量减弱传感器幅度尺度
     影响，保留原始通道则允许模型使用初始响应中可能有用的静态信息；两种
@@ -160,8 +160,11 @@ def make_features(
     """
     if mode not in {"raw_delta", "delta"}:
         raise ValueError("mode must be 'raw_delta' or 'delta'")
-    if seconds not in {5.0, 10.0}:
-        raise ValueError("seconds must be 5.0 or 10.0")
+    if not np.isfinite(seconds) or seconds <= 0.0:
+        raise ValueError("seconds must be a positive finite number")
+    steps = seconds / TIME_STEP_SECONDS
+    if abs(steps - round(steps)) > 1e-6:
+        raise ValueError("seconds must be an integer multiple of 0.2 seconds")
     time = np.asarray(time, dtype=np.float64)
     responses = np.asarray(responses, dtype=np.float64)
     if time.ndim != 1 or responses.shape != (time.size, 3):

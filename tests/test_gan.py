@@ -57,7 +57,7 @@ class GanTest(unittest.TestCase):
 
     def test_invalid_config_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            GANConfig(seconds=7.0)
+            GANConfig(seconds=7.3)
         with self.assertRaises(ValueError):
             GANConfig(epochs=0)
         with self.assertRaises(ValueError):

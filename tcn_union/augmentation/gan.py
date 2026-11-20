@@ -43,8 +43,8 @@ class GANConfig:
     residual: bool = True
 
     def __post_init__(self) -> None:
-        if self.seconds not in {5.0, 10.0}:
-            raise ValueError("GAN 只支持 5 秒或 10 秒窗口")
+        if self.seconds <= 0.0 or abs(self.seconds * 5.0 - round(self.seconds * 5.0)) > 1e-9:
+            raise ValueError("GAN 窗口必须是 0.2 s 的整数倍")
         if self.epochs < 1 or self.batch_size < 2:
             raise ValueError("GAN epochs 必须为正，batch_size 至少为 2")
         if self.noise_dim < 1 or self.hidden_dim < 1:
