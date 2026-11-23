@@ -1,4 +1,4 @@
-"""当前模型的评估图：数据设计、曲线示例、代表性曲线、留一误差、下游浓度误差与区间校准。
+"""当前模型的评估图：数据设计、留一曲线误差、模型架构与数据问题。
 
 所有图写入 sensor_array/figures/model/，同时输出 PNG（300 dpi）与 SVG。
 """
@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 from ..core.data import GASES, load_experiments
-from ..paths import CALIBRATION, EVALUATION
+from ..paths import EVALUATION
 from .style import (
     GAS_COLORS,
     GAS_LABEL,
@@ -20,94 +20,6 @@ from .style import (
     _save,
     _style,
 )
-
-
-def _curve_examples(experiments, curve: pd.DataFrame, predictions: dict) -> None:
-    macro = curve[curve["model"] == "double"].set_index("file")["nrmse_macro"]
-    median_file = int(macro.sub(macro.median()).abs().idxmin())
-    worst_file = int(macro.idxmax())
-    selected = [worst_file, median_file]
-    figure, axes = plt.subplots(2, 3, figsize=(10.6, 5.0), layout="constrained")
-    for row, file_id in enumerate(selected):
-        experiment = next(item for item in experiments if item.file_id == file_id)
-        for column, gas in enumerate(GASES):
-            ax = axes[row, column]
-            ax.plot(experiment.time, experiment.relative[:, column], color="#333333", lw=1.1, label="实测")
-            for model in MODEL_ORDER:
-                prediction = predictions[f"{file_id}_{model}"]
-                ax.plot(experiment.time, prediction[:, column], color=MODEL_COLORS[model], lw=0.9, label=MODEL_LABELS[model])
-            if row == 0:
-                ax.set_title(f"({chr(97 + column)}) {GAS_LABEL[gas]}")
-            if column == 0:
-                ax.set_ylabel(f"file {file_id}\n相对响应")
-            if row == 1:
-                ax.set_xlabel("时间 / s")
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    figure.legend(handles, labels, loc="outside lower center", ncol=3, frameon=False)
-    _save(figure, "fig02_curve_examples")
-
-
-def _representative_curves(experiments, curve: pd.DataFrame, predictions: dict) -> None:
-    """五个代表实验的实测曲线与两个正模型生成曲线。
-
-    三个案例按当前模型的宏 nRMSE 取最优、中位、最差；另外两个是设计边界：
-    file 4（NH3 最低档、H2/NO2 居中）与 file 61（NH3/NO2 同时最高）。
-    """
-    macro = curve[curve["model"] == "mlp_per_gas"].set_index("file")["nrmse_macro"]
-    best_file = int(macro.idxmin())
-    median_file = int(macro.sub(macro.median()).abs().idxmin())
-    worst_file = int(macro.idxmax())
-    cases = [
-        (best_file, "最优"),
-        (median_file, "中位"),
-        (4, r"$\mathrm{NH}_3$ 低端"),
-        (61, r"$\mathrm{NH}_3$/$\mathrm{NO}_2$ 高端"),
-        (worst_file, "最差"),
-    ]
-    figure = plt.figure(figsize=(11.4, 8.8), layout="constrained")
-    grid = figure.add_gridspec(len(cases), 4, width_ratios=[0.62, 1, 1, 1])
-    axes = np.empty((len(cases), len(GASES)), dtype=object)
-    first_axis = None
-    for row, (file_id, tag) in enumerate(cases):
-        experiment = next(item for item in experiments if item.file_id == file_id)
-        header = figure.add_subplot(grid[row, 0])
-        header.axis("off")
-        header.text(
-            0.95,
-            0.5,
-            f"file {file_id}\n{tag} · 宏 {100.0 * macro[file_id]:.2f}%\n"
-            fr"$\mathrm{{H}}_2$ {experiment.concentration[0]:.0f}" "\n"
-            fr"$\mathrm{{NH}}_3$ {experiment.concentration[1]:.0f} · $\mathrm{{NO}}_2$ {experiment.concentration[2]:.0f}",
-            ha="right",
-            va="center",
-            fontsize=7.8,
-            linespacing=1.45,
-        )
-        for column, gas in enumerate(GASES):
-            ax = figure.add_subplot(grid[row, column + 1], sharex=first_axis)
-            if first_axis is None:
-                first_axis = ax
-            axes[row, column] = ax
-            ax.plot(experiment.time, experiment.relative[:, column], color="#333333", lw=1.05, label="实测")
-            for model in MODEL_ORDER:
-                prediction = predictions[f"{file_id}_{model}"]
-                ax.plot(
-                    experiment.time,
-                    prediction[:, column],
-                    color=MODEL_COLORS[model],
-                    lw=0.85,
-                    label=MODEL_LABELS[model],
-                )
-            ax.grid(axis="y", alpha=0.15, lw=0.4)
-            ax.set_xlim(experiment.time[0], experiment.time[-1])
-            if row == 0:
-                ax.set_title(f"({chr(97 + column)}) {GAS_LABEL[gas]}")
-            if row == len(cases) - 1:
-                ax.set_xlabel("时间 / s")
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    figure.legend(handles, labels, loc="outside lower center", ncol=3, frameon=False)
-    figure.suptitle("正模型生成曲线与实测对比：五个代表实验", fontsize=10.5)
-    _save(figure, "fig06_representative_curves")
 
 
 def _curve_error(curve: pd.DataFrame) -> None:
@@ -156,148 +68,6 @@ def _curve_error(curve: pd.DataFrame) -> None:
     ]
     figure.legend(handles=handles, loc="outside lower center", ncol=2, frameon=False)
     _save(figure, "fig03_curve_error")
-
-
-def _downstream(downstream: pd.DataFrame) -> None:
-    figure, axes = plt.subplots(1, 3, figsize=(10.8, 3.4), layout="constrained")
-    panels = ((10.0, False, "(a) 10 s 中位绝对相对误差"), (5.0, False, "(b) 5 s 中位绝对相对误差"), (10.0, True, "(c) 10 s p90 绝对相对误差"))
-    width = 0.30
-    x = np.arange(len(GASES))
-    for ax, (window, p90, title) in zip(axes, panels):
-        maxima = []
-        for model_index, model in enumerate(MODEL_ORDER):
-            values = []
-            for gas in GASES:
-                column = "p90_abs_rel_error" if p90 else "median_abs_rel_error"
-                row = downstream[
-                    (downstream["model"] == model)
-                    & (downstream["gas"] == gas)
-                    & (downstream["tmax"] == window)
-                ]
-                values.append(100.0 * float(row[column].iloc[0]))
-            values = np.array(values)
-            maxima.append(values.max())
-            offset = (model_index - (len(MODEL_ORDER) - 1) / 2.0) * width
-            ax.bar(x + offset, values, width, color=MODEL_COLORS[model], label=MODEL_LABELS[model])
-            for xi, value in zip(x + offset, values):
-                ax.text(xi, value + 0.2, f"{value:.1f}", ha="center", va="bottom", fontsize=7)
-        ax.set_xticks(x)
-        ax.set_xticklabels([GAS_LABEL[gas] for gas in GASES])
-        ax.set_ylabel("绝对相对误差 / %")
-        ax.set_title(title)
-        ax.set_ylim(0, max(maxima) * 1.18)
-        ax.grid(axis="y", alpha=0.25, lw=0.5)
-    handles, labels = axes[0].get_legend_handles_labels()
-    figure.legend(handles, labels, loc="outside lower center", ncol=2, frameon=False)
-    _save(figure, "fig04_downstream")
-
-
-
-
-def _downstream_error_scatter(downstream: pd.DataFrame) -> None:
-    frame = downstream[
-        (downstream["model"] == "mlp_per_gas") & (downstream["tmax"] == 10.0)
-    ].copy()
-    figure, axes = plt.subplots(2, 3, figsize=(10.8, 5.4), layout="constrained")
-    for column, gas in enumerate(GASES):
-        part = frame[frame["gas"] == gas].sort_values("file")
-        files = part["file"].to_numpy()
-        relative = 100.0 * part["rel_error"].to_numpy()
-        signed = part["theta_hat"].to_numpy() - part["theta_true"].to_numpy()
-        color = GAS_COLORS[gas]
-
-        ax = axes[0, column]
-        ax.scatter(files, relative, s=18, color=color, alpha=0.8, linewidths=0)
-        sigma = float(np.std(relative, ddof=1))
-        for k, style in ((1, ":"), (2, "--"), (3, "-.")):
-            ax.axhline(k * sigma, color="#555555", ls=style, lw=0.7)
-            ax.axhline(-k * sigma, color="#555555", ls=style, lw=0.7)
-        ax.axhline(0.0, color="#333333", lw=0.8)
-        ax.text(
-            0.02,
-            0.97,
-            f"均值 {np.mean(relative):+.2f}%\nσ {sigma:.2f}%\n3σ {3.0 * sigma:.2f}%",
-            transform=ax.transAxes,
-            va="top",
-            ha="left",
-            fontsize=7,
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
-        )
-        ax.set_title(GAS_LABEL[gas])
-        ax.set_ylabel("相对误差 / %" if column == 0 else "")
-        ax.set_xlim(-3, 62)
-        ax.grid(axis="y", alpha=0.25, lw=0.5)
-
-        ax = axes[1, column]
-        ax.scatter(files, signed, s=18, color=color, alpha=0.8, linewidths=0)
-        sigma = float(np.std(signed, ddof=1))
-        for k, style in ((1, ":"), (2, "--"), (3, "-.")):
-            ax.axhline(k * sigma, color="#555555", ls=style, lw=0.7)
-            ax.axhline(-k * sigma, color="#555555", ls=style, lw=0.7)
-        ax.axhline(0.0, color="#333333", lw=0.8)
-        ax.text(
-            0.02,
-            0.97,
-            f"均值 {np.mean(signed):+.2f}\nσ {sigma:.2f}\n3σ {3.0 * sigma:.2f}",
-            transform=ax.transAxes,
-            va="top",
-            ha="left",
-            fontsize=7,
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
-        )
-        ax.set_title(GAS_LABEL[gas])
-        ax.set_ylabel("绝对误差 / 原始单位" if column == 0 else "")
-        ax.set_xlabel("实验序号")
-        ax.grid(axis="y", alpha=0.25, lw=0.5)
-
-    _save(figure, "fig08_downstream_error_scatter")
-
-
-def _interval_calibration(summary: pd.DataFrame) -> None:
-    methods = ["laplace90", "conformal_all", "conformal_NH3", "conformal_block"]
-    labels = ["原始 Laplace 90%", "全局共形", r"$\mathrm{NH}_3$ 档位共形", "采集块共形"]
-    colors = ["#777777", "#4C72B0", "#E69F00", "#009E73"]
-    figure, axes = plt.subplots(1, 3, figsize=(10.8, 3.5), layout="constrained")
-    x = np.arange(len(GASES))
-    width = 0.2
-    panels = (
-        ("development", "coverage", "(a) 开发集覆盖率", 100.0),
-        ("development", "median_width_rel", "(b) 开发集中位区间宽度", 100.0),
-        ("locked", "coverage", "(c) 锁定集覆盖率", 100.0),
-    )
-    for ax, (split, column, title, scale) in zip(axes, panels):
-        tops = []
-        for method_index, method in enumerate(methods):
-            values = []
-            for gas in GASES:
-                row = summary[
-                    (summary["method"] == method)
-                    & (summary["split"] == split)
-                    & (summary["gas"] == gas)
-                    & (summary["tmax"] == 10.0)
-                ]
-                values.append(scale * float(row[column].iloc[0]))
-            values = np.array(values)
-            tops.append(values.max())
-            offset = (method_index - (len(methods) - 1) / 2.0) * width
-            ax.bar(x + offset, values, width, color=colors[method_index], label=labels[method_index])
-        ax.set_xticks(x)
-        ax.set_xticklabels([GAS_LABEL[gas] for gas in GASES])
-        ax.set_title(title)
-        if column == "coverage":
-            ax.axhline(90.0, color="#333333", ls=":", lw=0.8)
-            ax.set_ylim(0, 105)
-            ax.set_ylabel("覆盖率 / %")
-        else:
-            ax.set_ylim(0, max(tops) * 1.18)
-            ax.set_ylabel("中位宽度 / %")
-        ax.grid(axis="y", alpha=0.25, lw=0.5)
-    handles, labels = axes[0].get_legend_handles_labels()
-    figure.legend(handles, labels, loc="outside lower center", ncol=4, frameon=False)
-    figure.suptitle(r"P4 区间校准：Laplace 欠覆盖，全局/$\mathrm{NH}_3$ 共形约 90%，采集块偏低", fontsize=10)
-    _save(figure, "fig05_interval_calibration")
-
-
 
 
 def _concentration_design(experiments) -> None:
@@ -446,47 +216,6 @@ def _nh3_initial_drift(experiments) -> None:
 
 
 
-def _degradation() -> None:
-    summary = pd.read_csv(EVALUATION / "degradation_summary.csv")
-    conditions = ["完整", "缺 H₂", "缺 NH₃", "缺 NO₂"]
-    labels = [
-        "完整",
-        r"缺 $\mathrm{H}_2$",
-        r"缺 $\mathrm{NH}_3$",
-        r"缺 $\mathrm{NO}_2$",
-    ]
-    values = np.zeros((len(GASES), len(conditions)))
-    for row, gas in enumerate(GASES):
-        for column, condition in enumerate(conditions):
-            part = summary[(summary["condition"] == condition) & (summary["gas"] == gas)]
-            values[row, column] = 100.0 * float(part["median_abs_rel_error"].iloc[0])
-    folds = values / values[:, :1]
-    vmax = max(1.0, float(values.max()) * 1.05)
-    figure, ax = plt.subplots(figsize=(6.4, 3.5), layout="constrained")
-    image = ax.imshow(values, cmap="Blues", vmin=0.0, vmax=vmax, aspect="auto")
-    for row in range(len(GASES)):
-        for column in range(len(conditions)):
-            value = values[row, column]
-            ax.text(
-                column,
-                row,
-                f"{value:.1f}%\n×{folds[row, column]:.1f}",
-                ha="center",
-                va="center",
-                fontsize=7.5,
-                color="white" if value > 0.55 * vmax else "#222222",
-            )
-    ax.set_xticks(range(len(conditions)))
-    ax.set_xticklabels(labels, fontsize=7.5)
-    ax.set_yticks(range(len(GASES)))
-    ax.set_yticklabels([GAS_LABEL[gas] for gas in GASES])
-    ax.set_xlabel("反演时使用的传感器")
-    ax.set_title("10 s 下少一路传感器的浓度反演误差", fontsize=9.5)
-    colorbar = figure.colorbar(image, ax=ax, pad=0.02)
-    colorbar.set_label("中位绝对相对误差 / %")
-    _save(figure, "fig11_sensor_degradation")
-
-
 def _design(experiments) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(10.6, 3.8), layout="constrained")
     ax = axes[0]
@@ -632,20 +361,9 @@ def main() -> None:
     _design(experiments)
     _concentration_design(experiments)
     _nh3_initial_drift(experiments)
-    if (EVALUATION / "degradation_summary.csv").exists():
-        _degradation()
-    curve = pd.read_csv(EVALUATION / "curve_metrics.csv")
-    downstream = pd.read_csv(EVALUATION / "downstream_summary.csv")
-    predictions = dict(np.load(EVALUATION / "predictions.npz"))
-    _curve_examples(experiments, curve, predictions)
-    _representative_curves(experiments, curve, predictions)
     _architecture()
+    curve = pd.read_csv(EVALUATION / "curve_metrics.csv")
     _curve_error(curve)
-    _downstream(downstream)
-    _downstream_error_scatter(pd.read_csv(EVALUATION / "downstream.csv"))
-    calibration = CALIBRATION / "summary.csv"
-    if calibration.exists():
-        _interval_calibration(pd.read_csv(calibration))
     print("saved figures to", "sensor_array/figures/model")
 
 

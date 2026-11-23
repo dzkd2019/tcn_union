@@ -12,12 +12,11 @@ DATA = ROOT.parent / "data"
 ARTIFACTS = ROOT / "artifacts"
 MODELS = ARTIFACTS / "models"
 EVALUATION = ARTIFACTS / "evaluation"
-CALIBRATION = ARTIFACTS / "calibration"
 FIGURES = ROOT / "figures"
 FIGURES_MODEL = FIGURES / "model"
 
 
 def ensure() -> None:
     """创建当前模型的输出目录；写文件前调用。"""
-    for path in (MODELS, EVALUATION, CALIBRATION, FIGURES_MODEL):
+    for path in (MODELS, EVALUATION, FIGURES_MODEL):
         path.mkdir(parents=True, exist_ok=True)

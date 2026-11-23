@@ -1,5 +1,10 @@
 # 传感器阵列动态响应建模与早期浓度估计
 
+> **2026-11-23 决策**：MAP 浓度反演、区间校准与降级分析已从代码中删除。
+> 本文中与 MAP / Laplace / 共形区间 / 降级相关的章节仅作历史参考，不再对应
+> 当前代码；当前模型只做前向曲线预测。后续会按新方案重写本文。
+
+
 *学习版：从双指数骨架到三路独立残差与区间校准*
 
 > **阅读说明**
@@ -390,7 +395,7 @@ x=\left(\log\frac{c_{\mathrm H_2}}{c^{\mathrm{ref}}_{\mathrm H_2}},
 \hat{\boldsymbol\theta}=\arg\min_{\boldsymbol\theta}\ \sum_{t}\left\|\frac{\hat{\mathbf y}(t;\boldsymbol\theta)-\mathbf y(t)}{\boldsymbol\sigma}\right\|^2+\left\|\frac{\boldsymbol\theta-\boldsymbol\theta_0}{\sigma_{\mathrm{prior}}}\right\|^2,
 \]
 
-其中 \(\boldsymbol\theta=\log\mathbf c\)，先验中心取设计域 log 几何中心，边界用软墙（斜率 0.15）而不是硬截断。
+其中 \(\boldsymbol\theta=\log\mathbf c\)，先验中心取 `REFERENCE_CONCENTRATION=(16000, 30, 6)`（设计域中的参考点，不是几何中心），边界用软墙（斜率 0.15）而不是硬截断。
 
 Laplace 近似给出 log 空间标准误 \(\mathrm{se}_{\log}\)。区间在 log 浓度空间构造：
 

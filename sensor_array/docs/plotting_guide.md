@@ -13,8 +13,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 
 脚本：<code>sensor_array/plotting/model.py</code>；入口 <code>main()</code>。
 所有图片写入 <code>sensor_array/figures/model/</code>，同时输出 PNG（300 dpi）与同名 SVG，不输出 PDF。
-<code>fig05</code> 只有在 <code>artifacts/calibration/summary.csv</code> 存在时才绘制；先运行
-<code>.venv/bin/python -m sensor_array.analysis.calibration</code>。
+本指南只登记仍然保留的图件；MAP 反演、区间校准与降级图已删除。
 
 ## 2. 样式与保存
 
@@ -26,23 +25,16 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
   <code>#009E73</code>；气体配色在 <code>GAS_COLORS</code>。
 - 多面板图统一用 <code>layout="constrained"</code>；图例放在图底部
   （<code>figure.legend(loc="outside lower center")</code>），避免遮挡柱顶数值。
-- 柱图纵轴上限约为最大柱高的 1.18 倍，数值标签放在柱顶上方 0.2 个单位。
 
 ## 3. 逐图索引
 
 | 图号 | 输出文件 | 绘图脚本 | 绘图函数 | 数据源 | 版式 |
 |---|---|---|---|---|---|
 | fig01 | <code>figures/model/fig01_design_and_data.png/.svg</code> | <code>plotting/model.py</code> | <code>_design(experiments)</code>，由 <code>main()</code> 调用 | <code>core.data.load_experiments()</code>，原始 <code>data/0.csv</code>–<code>data/61.csv</code> | 1×2 |
-| fig02 | <code>figures/model/fig02_curve_examples.png/.svg</code> | <code>plotting/model.py</code> | <code>_curve_examples(experiments, curve, predictions)</code> | <code>artifacts/evaluation/curve_metrics.csv</code>、<code>predictions.npz</code>、原始 CSV | 2×3 |
 | fig03 | <code>figures/model/fig03_curve_error.png/.svg</code> | <code>plotting/model.py</code> | <code>_curve_error(curve)</code> | <code>artifacts/evaluation/curve_metrics.csv</code> | 1×2 |
-| fig04 | <code>figures/model/fig04_downstream.png/.svg</code> | <code>plotting/model.py</code> | <code>_downstream(downstream)</code> | <code>artifacts/evaluation/downstream_summary.csv</code> | 1×3 |
-| fig05 | <code>figures/model/fig05_interval_calibration.png/.svg</code> | <code>plotting/model.py</code> | <code>_interval_calibration(summary)</code> | <code>artifacts/calibration/summary.csv</code> | 1×3 |
-| fig06 | <code>figures/model/fig06_representative_curves.png/.svg</code> | <code>plotting/model.py</code> | <code>_representative_curves(experiments, curve, predictions)</code> | <code>artifacts/evaluation/curve_metrics.csv</code>、<code>predictions.npz</code>、原始 CSV | 5×3（左侧案例标签） |
 | fig07 | <code>figures/model/fig07_model_architecture.png/.svg</code> | <code>plotting/model.py</code> | <code>_architecture()</code> | 无数据依赖，固定架构 | 1×1 流程图 |
-| fig08 | <code>figures/model/fig08_downstream_error_scatter.png/.svg</code> | <code>plotting/model.py</code> | <code>_downstream_error_scatter(downstream)</code> | <code>artifacts/evaluation/downstream.csv</code> | 2×3（上：相对误差；下：绝对误差） |
 | fig09 | <code>figures/model/fig09_concentration_design.png/.svg</code> | <code>plotting/model.py</code> | <code>_concentration_design(experiments)</code> | <code>core.data.load_experiments()</code> | 上 4 个 H₂ 切片 + 下 2 个平面汇总 |
 | fig10 | <code>figures/model/fig10_nh3_initial_drift.png/.svg</code> | <code>plotting/model.py</code> | <code>_nh3_initial_drift(experiments)</code> | <code>core.data.load_experiments()</code> | 1×2，漂移与浓度同步 |
-| fig11 | <code>figures/model/fig11_sensor_degradation.png/.svg</code> | <code>plotting/model.py</code> | <code>_degradation()</code> | <code>artifacts/evaluation/degradation_summary.csv</code> | 3×4 热图（行=气体，列=传感器组合） |
 
 ## 4. 逐图说明
 
@@ -53,53 +45,13 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 - 调整入口：<code>_design()</code>；改颜色可改 <code>cmap="viridis"</code>，改点大小改
   <code>s=28</code>，改示例文件把 <code>experiments[0]</code> 换成其他下标。
 
-### fig02 曲线示例
-
-- 选两条实验：双指数骨架宏 nRMSE 最差的一条与中位的一条（按 <code>curve_metrics.csv</code> 的
-  <code>nrmse_macro</code> 选取）；当前主模型的分层代表案例见 fig06。
-- 两行三列：行为实验、列为 H₂/NH₃/NO₂；黑线实测，蓝线双指数骨架，绿线三路独立 MLP + 双指数。
-- 调整入口：<code>_curve_examples()</code>；改选折逻辑在函数开头 <code>median_file</code>/<code>worst_file</code>，
-  改线宽在 <code>lw</code>。
-
 ### fig03 留一曲线误差
 
 - 左图：逐文件 nRMSE 的箱线图，三种气体 × 两个模型；纵轴对数，关闭离群点显示。
 - 右图：每条实验的宏平均 nRMSE，横轴双指数骨架、纵轴三路独立 MLP + 双指数；虚线为 1:1，
-  左上角标注改善折数（当前应为 59/62）。
+  左上角标注改善折数。
 - 调整入口：<code>_curve_error()</code>；箱线图位置由 <code>positions</code> 控制，
   离群点由 <code>showfliers</code> 控制。
-
-### fig04 下游浓度误差
-
-- 三个面板：10 s 中位绝对相对误差、5 s 中位绝对相对误差、10 s p90 绝对相对误差。
-- 每个面板按气体分组，蓝色为双指数骨架，绿色为三路独立 MLP + 双指数；柱顶标数值。
-- 调整入口：<code>_downstream()</code>；窗口与指标在 <code>panels</code> 元组中，
-  纵轴上限由 <code>max(maxima) * 1.18</code> 控制。
-
-### fig05 P4 区间校准
-
-- 三个面板：开发集覆盖率、开发集中位区间宽度、锁定集覆盖率；均为 10 s。
-- 四种方法：原始 Laplace 90%（灰）、全局共形（蓝）、NH₃ 档位共形（橙）、采集块共形（绿）；
-  覆盖率面板画 90% 名义线。开发集上全局/NH₃ 共形为 90%–92%，采集块为 84%，
-  图标题按这一事实标注。
-- 区间在 log 浓度空间构造，宽度用相对宽度 <code>exp(q*se_log)-1</code>；校准只用开发 50 条，
-  锁定 12 条只作描述性复核，不参与分位数拟合。
-- 调整入口：<code>_interval_calibration()</code>；方法列表在 <code>methods</code>，
-  图例标签在 <code>labels</code>，标题在 <code>figure.suptitle</code>。
-
-### fig06 代表性生成曲线
-
-- 五个案例：当前模型宏 nRMSE 的最优（file 31，0.38%）、中位（file 27，1.16%）、
-  最差（file 0，7.03%），以及两个设计边界——NH₃ 最低档且 H₂/NO₂ 居中的 file 4
-  （1.35%）、NH₃ 与 NO₂ 同时最高的 file 61（2.66%）。
-- 版式 5×3：每行一条实验，列为 H₂/NH₃/NO₂；左侧标签给出文件号、案例类型、
-  宏 nRMSE 与三路浓度；黑线实测，蓝线双指数骨架，绿线三路独立 MLP + 双指数。
-- file 31 的 H₂ 通道展示骨架的过冲/平台误差被 MLP 修正；file 0 的 H₂ 展示
-  H₂=32000 边角上实测仍在缓慢上升而两个模型都提前压平；file 61 的 NH₃ 在约 35 s
-  有一次采集跳变，模型无法跟随，这是采集伪影而不是模型输出错误。
-- 这五条只作展示，不参与选型或调参；选择规则写死在函数开头，数据固定为 62 条。
-- 调整入口：<code>_representative_curves()</code>；案例列表在 <code>cases</code>，
-  左侧标签在 <code>header.text()</code>，曲线线宽在 <code>lw</code>。
 
 ### fig07 模型架构
 
@@ -109,14 +61,6 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
   参数数量、损失函数和训练细节，避免把架构图变成方法正文。
 - 调整入口：<code>_architecture()</code>；框的位置/大小在 <code>box()</code> 调用里，
   箭头在 <code>arrow()</code> 调用里。
-
-
-### fig08 下游浓度反演误差散点
-
-- 10 s、当前 `mlp_per_gas` 模型，62 条实验全部画出，不区分 OOF 与锁定测试；无图题。
-- 上排：有符号相对误差 `%`，横轴实验序号；灰线为 ±1σ/±2σ/±3σ，左上角标注均值、σ、3σ，不写样本量。
-- 下排：有符号绝对误差（原始单位，`theta_hat - theta_true`），零线与 ±1σ/±2σ/±3σ 灰线；左上角同样标注均值、σ、3σ，不写样本量。
-- 调整入口：`_downstream_error_scatter()`；换窗口改 `tmax`，换模型改 `model` 过滤条件。
 
 ### fig09 62 条实验的浓度组合覆盖
 
@@ -133,14 +77,6 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 - 右图：同一批点对 NH₃ 设定浓度，颜色为实验序号；标注 Pearson \(r=0.965\)。
 - 用途：说明 NH₃ 初值随采集顺序漂移，并与 NH₃ 浓度档位同步上升，二者在设计上无法分离。
 - 调整入口：`_nh3_initial_drift()`；颜色映射在 `cmap="viridis"` / `cmap="plasma"`。
-
-### fig11 少一路传感器的浓度反演误差
-
-- 数据源：<code>artifacts/evaluation/degradation_summary.csv</code>；由 <code>python -m sensor_array.analysis.degradation</code> 生成。
-- 版式：3×4 热图；行为 H₂/NH₃/NO₂，列为“完整 / 缺 H₂ / 缺 NH₃ / 缺 NO₂”；格内为 10 s 中位绝对相对误差与相对完整三路的倍数。
-- **协议**：模型仍用三路响应训练；只在 MAP 反演时删掉一路残差。不是“去掉一路重新训练”，图注和正文必须写清楚。
-- 数值：完整 1.5/1.2/3.8%；缺 H₂ 15.6/2.7/4.8%；缺 NH₃ 2.6/5.9/4.6%；缺 NO₂ 5.8/2.6/15.1%（H₂/NH₃/NO₂）。
-- 调整入口：<code>_degradation()</code>；颜色范围按最大中位误差自动取 <code>vmax</code>，文字阈值 <code>0.55*vmax</code>。
 
 ## 5. 新增或修改图件检查清单
 

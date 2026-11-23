@@ -1,4 +1,4 @@
-"""新模型的最小单元测试：形状初值、双指数、MLP 残差与 MAP。"""
+"""新模型的最小单元测试：形状初值、双指数、MLP 残差与保存/加载。"""
 from __future__ import annotations
 
 import tempfile
@@ -8,12 +8,6 @@ from pathlib import Path
 import numpy as np
 
 from sensor_array import load_experiments
-from sensor_array.analysis.estimation import (
-    concentration_bounds,
-    estimate_noise,
-    map_estimate,
-    start_points,
-)
 from sensor_array.core.double_exponential import DoubleExponentialArrayModel
 from sensor_array.core.mlp_per_gas import PerGasMLPDoubleExponentialModel
 from sensor_array.core.shapes import fit_experiment_shapes
@@ -83,32 +77,6 @@ class ModelTest(unittest.TestCase):
         self.assertLess(float(np.max(np.abs(loaded_double.predict_relative(concentration, time) - expected_double))), 1e-10)
         self.assertLess(float(np.max(np.abs(loaded_per_gas.predict_relative(concentration, time) - expected_per_gas))), 1e-10)
 
-    def test_map_estimate_is_finite(self) -> None:
-        all_experiments = load_experiments()
-        noise = estimate_noise(all_experiments)
-        bounds = concentration_bounds(all_experiments)
-        starts = start_points(all_experiments)
-        sigma_model = np.sqrt(
-            np.mean(
-                (self.per_gas.predict_relative(
-                    np.stack([item.concentration for item in self.experiments]),
-                    self.test.time,
-                ) - np.stack([item.relative for item in self.experiments])) ** 2,
-                axis=(0, 1),
-            )
-        )
-        estimate = map_estimate(
-            self.per_gas,
-            self.test.time[:20],
-            self.test.relative[:20],
-            np.sqrt(noise**2 + sigma_model**2),
-            bounds,
-            starts,
-        )
-        self.assertTrue(np.isfinite(estimate["theta"]).all())
-        self.assertTrue(np.isfinite(estimate["se"]).all())
-        self.assertTrue((estimate["se"] >= 0).all())
-        self.assertTrue(estimate["success"])
 
 
 if __name__ == "__main__":

@@ -1,74 +1,21 @@
 """62 折留一实验评估：双指数骨架与三路独立 MLP 残差。
 
-输出曲线误差、5 s / 10 s 下游浓度误差、预测数组和全量训练模型。
+输出曲线误差、预测数组和全量训练模型；不再包含 MAP 反演或区间评估。
 """
 from __future__ import annotations
 
 import argparse
 import time
+
 import numpy as np
 import pandas as pd
 
-from ..analysis.estimation import (
-    concentration_bounds,
-    estimate_noise,
-    map_estimate,
-    start_points,
-)
 from ..core.data import GASES, Experiment, load_experiments
 from ..core.double_exponential import DoubleExponentialArrayModel
 from ..core.metrics import curve_metrics
 from ..core.mlp_per_gas import PerGasMLPDoubleExponentialModel
 from ..core.shapes import fit_experiment_shapes
 from ..paths import EVALUATION, MODELS, ensure
-
-WINDOWS = (5.0, 10.0)
-
-
-def _evaluate_downstream(
-    model,
-    train: list[Experiment],
-    test: Experiment,
-    noise: np.ndarray,
-    bounds: np.ndarray,
-    starts: list[np.ndarray],
-) -> list[dict]:
-    time = train[0].time
-    train_concentration = np.stack([item.concentration for item in train])
-    train_relative = np.stack([item.relative for item in train])
-    sigma_model = np.sqrt(
-        np.mean((model.predict_relative(train_concentration, time) - train_relative) ** 2, axis=(0, 1))
-    )
-    sigma = np.sqrt(noise**2 + sigma_model**2)
-    rows = []
-    for window in WINDOWS:
-        mask = time <= window
-        estimate = map_estimate(
-            model,
-            time[mask],
-            test.relative[mask],
-            sigma,
-            bounds,
-            starts,
-        )
-        for j, gas in enumerate(GASES):
-            theta = float(estimate["theta"][j])
-            rows.append(
-                {
-                    "file": test.file_id,
-                    "model": model.name,
-                    "tmax": window,
-                    "gas": gas,
-                    "theta_hat": theta,
-                    "theta_true": float(test.concentration[j]),
-                    "se": float(estimate["se"][j]),
-                    "se_log": float(estimate["se_log"][j]),
-                    "rel_error": float(theta / test.concentration[j] - 1.0),
-                    "abs_rel_error": float(abs(theta / test.concentration[j] - 1.0)),
-                    "success": estimate["success"],
-                }
-            )
-    return rows
 
 
 def _curve_rows(test: Experiment, model, prediction: np.ndarray, scale: np.ndarray) -> dict:
@@ -96,28 +43,11 @@ def _summarize_curve(curve: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _summarize_downstream(downstream: pd.DataFrame) -> pd.DataFrame:
-    return (
-        downstream.groupby(["model", "tmax", "gas"], sort=False)
-        .agg(
-            median_abs_rel_error=("abs_rel_error", "median"),
-            p90_abs_rel_error=("abs_rel_error", lambda values: values.quantile(0.9)),
-            median_rel_error=("rel_error", "median"),
-            success_rate=("success", "mean"),
-        )
-        .reset_index()
-    )
-
-
 def run(folds: int = 62, max_iter: int = 600, batch_size: int = 0) -> None:
     ensure()
     experiments = load_experiments()
     shapes = fit_experiment_shapes(experiments)
-    noise = estimate_noise(experiments)
-    bounds = concentration_bounds(experiments)
-    starts = start_points(experiments)
     curve_rows: list[dict] = []
-    downstream_rows: list[dict] = []
     predictions: dict[str, np.ndarray] = {}
     started = time.time()
     for index, test in enumerate(experiments[:folds]):
@@ -134,9 +64,6 @@ def run(folds: int = 62, max_iter: int = 600, batch_size: int = 0) -> None:
         for model in (double, combined):
             prediction = model.predict_relative(test.concentration[None, :], test.time)[0]
             curve_rows.append(_curve_rows(test, model, prediction, scale))
-            downstream_rows.extend(
-                _evaluate_downstream(model, train, test, noise, bounds, starts)
-            )
             predictions[f"{test.file_id}_{model.name}"] = prediction
         elapsed = time.time() - started
         print(
@@ -148,13 +75,8 @@ def run(folds: int = 62, max_iter: int = 600, batch_size: int = 0) -> None:
         )
 
     curve = pd.DataFrame(curve_rows)
-    downstream = pd.DataFrame(downstream_rows)
     curve.to_csv(EVALUATION / "curve_metrics.csv", index=False)
     _summarize_curve(curve).to_csv(EVALUATION / "curve_summary.csv", index=False)
-    downstream.to_csv(EVALUATION / "downstream.csv", index=False)
-    _summarize_downstream(downstream).to_csv(
-        EVALUATION / "downstream_summary.csv", index=False
-    )
     np.savez_compressed(EVALUATION / "predictions.npz", **predictions)
 
     if folds >= len(experiments):
