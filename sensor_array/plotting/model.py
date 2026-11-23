@@ -192,6 +192,67 @@ def _downstream(downstream: pd.DataFrame) -> None:
     _save(figure, "fig04_downstream")
 
 
+
+
+def _downstream_error_scatter(downstream: pd.DataFrame) -> None:
+    frame = downstream[
+        (downstream["model"] == "mlp_per_gas") & (downstream["tmax"] == 10.0)
+    ].copy()
+    figure, axes = plt.subplots(2, 3, figsize=(10.8, 5.4), layout="constrained")
+    for column, gas in enumerate(GASES):
+        part = frame[frame["gas"] == gas].sort_values("file")
+        files = part["file"].to_numpy()
+        relative = 100.0 * part["rel_error"].to_numpy()
+        signed = part["theta_hat"].to_numpy() - part["theta_true"].to_numpy()
+        color = GAS_COLORS[gas]
+
+        ax = axes[0, column]
+        ax.scatter(files, relative, s=18, color=color, alpha=0.8, linewidths=0)
+        sigma = float(np.std(relative, ddof=1))
+        for k, style in ((1, ":"), (2, "--"), (3, "-.")):
+            ax.axhline(k * sigma, color="#555555", ls=style, lw=0.7)
+            ax.axhline(-k * sigma, color="#555555", ls=style, lw=0.7)
+        ax.axhline(0.0, color="#333333", lw=0.8)
+        ax.text(
+            0.02,
+            0.97,
+            f"均值 {np.mean(relative):+.2f}%\nσ {sigma:.2f}%\n3σ {3.0 * sigma:.2f}%",
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=7,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+        )
+        ax.set_title(GAS_LABEL[gas])
+        ax.set_ylabel("相对误差 / %" if column == 0 else "")
+        ax.set_xlim(-3, 62)
+        ax.grid(axis="y", alpha=0.25, lw=0.5)
+
+        ax = axes[1, column]
+        ax.scatter(files, signed, s=18, color=color, alpha=0.8, linewidths=0)
+        sigma = float(np.std(signed, ddof=1))
+        for k, style in ((1, ":"), (2, "--"), (3, "-.")):
+            ax.axhline(k * sigma, color="#555555", ls=style, lw=0.7)
+            ax.axhline(-k * sigma, color="#555555", ls=style, lw=0.7)
+        ax.axhline(0.0, color="#333333", lw=0.8)
+        ax.text(
+            0.02,
+            0.97,
+            f"均值 {np.mean(signed):+.2f}\nσ {sigma:.2f}\n3σ {3.0 * sigma:.2f}",
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=7,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+        )
+        ax.set_title(GAS_LABEL[gas])
+        ax.set_ylabel("绝对误差 / 原始单位" if column == 0 else "")
+        ax.set_xlabel("实验序号")
+        ax.grid(axis="y", alpha=0.25, lw=0.5)
+
+    _save(figure, "fig08_downstream_error_scatter")
+
+
 def _interval_calibration(summary: pd.DataFrame) -> None:
     methods = ["laplace90", "conformal_all", "conformal_NH3", "conformal_block"]
     labels = ["原始 Laplace 90%", "全局共形", r"$\mathrm{NH}_3$ 档位共形", "采集块共形"]
@@ -235,6 +296,195 @@ def _interval_calibration(summary: pd.DataFrame) -> None:
     figure.legend(handles, labels, loc="outside lower center", ncol=4, frameon=False)
     figure.suptitle(r"P4 区间校准：Laplace 欠覆盖，全局/$\mathrm{NH}_3$ 共形约 90%，采集块偏低", fontsize=10)
     _save(figure, "fig05_interval_calibration")
+
+
+
+
+def _concentration_design(experiments) -> None:
+    h2_levels = sorted({item.concentration[0] for item in experiments})
+    nh3_levels = sorted({item.concentration[1] for item in experiments})
+    no2_levels = sorted({item.concentration[2] for item in experiments})
+    counts = np.zeros((len(h2_levels), len(nh3_levels), len(no2_levels)), dtype=int)
+    for item in experiments:
+        i = h2_levels.index(item.concentration[0])
+        j = nh3_levels.index(item.concentration[1])
+        k = no2_levels.index(item.concentration[2])
+        counts[i, j, k] += 1
+
+    figure = plt.figure(figsize=(11.0, 5.6), layout="constrained")
+    outer = figure.add_gridspec(2, 1, height_ratios=(1.0, 0.85))
+    top = outer[0].subgridspec(1, 4, wspace=0.32)
+    bottom = outer[1].subgridspec(1, 2, wspace=0.28)
+
+    for index, level in enumerate(h2_levels):
+        ax = figure.add_subplot(top[0, index])
+        values = counts[index]
+        ax.imshow(values, cmap="Blues", vmin=0, vmax=1, aspect="auto")
+        for row in range(len(nh3_levels)):
+            for column in range(len(no2_levels)):
+                value = int(values[row, column])
+                ax.text(
+                    column,
+                    row,
+                    str(value),
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color="white" if value else "#B0B0B0",
+                )
+        ax.set_xticks(range(len(no2_levels)))
+        ax.set_xticklabels([f"{value:.0f}" for value in no2_levels])
+        ax.set_yticks(range(len(nh3_levels)))
+        ax.set_yticklabels([f"{value:.0f}" for value in nh3_levels])
+        ax.set_title(rf"$\mathrm{{H}}_2$={level:.0f}")
+        ax.set_xlabel(r"$\mathrm{NO}_2$ 浓度")
+        if index == 0:
+            ax.set_ylabel(r"$\mathrm{NH}_3$ 浓度")
+
+    panels = (
+        counts.sum(axis=1),
+        counts.sum(axis=2),
+        r"$\mathrm{H}_2$–$\mathrm{NO}_2$ 平面：跨 $\mathrm{NH}_3$ 的组合数",
+        r"$\mathrm{H}_2$–$\mathrm{NH}_3$ 平面：跨 $\mathrm{NO}_2$ 的组合数",
+        r"$\mathrm{NO}_2$ 浓度",
+        r"$\mathrm{NH}_3$ 浓度",
+    )
+    for index in range(2):
+        values = panels[index]
+        ax = figure.add_subplot(bottom[0, index])
+        image = ax.imshow(values, cmap="Blues", vmin=0, vmax=5, aspect="auto")
+        for row in range(len(h2_levels)):
+            for column in range(5):
+                value = int(values[row, column])
+                ax.text(
+                    column,
+                    row,
+                    str(value),
+                    ha="center",
+                    va="center",
+                    fontsize=7.5,
+                    color="white" if value >= 3 else "#333333",
+                )
+        ax.set_xticks(range(5))
+        ax.set_xticklabels([f"{value:.0f}" for value in (no2_levels if index == 0 else nh3_levels)])
+        ax.set_yticks(range(len(h2_levels)))
+        ax.set_yticklabels([f"{value:.0f}" for value in h2_levels])
+        ax.set_xlabel(panels[4 + index])
+        if index == 0:
+            ax.set_ylabel(r"$\mathrm{H}_2$ 浓度")
+        ax.set_title(panels[2 + index], fontsize=8.5)
+
+    colorbar = figure.colorbar(image, ax=figure.axes[-2:], orientation="horizontal", shrink=0.55, pad=0.08)
+    colorbar.set_label(r"该平面内有数据的组合数")
+    _save(figure, "fig09_concentration_design")
+
+
+def _nh3_initial_drift(experiments) -> None:
+    files = np.array([item.file_id for item in experiments])
+    concentration = np.array([item.concentration[1] for item in experiments])
+    initial = np.array([item.initial[1] for item in experiments])
+    correlation_file = float(np.corrcoef(files, initial)[0, 1])
+    correlation_concentration = float(np.corrcoef(concentration, initial)[0, 1])
+    fold = float(initial.max() / initial.min())
+
+    figure, axes = plt.subplots(1, 2, figsize=(9.6, 3.6), layout="constrained")
+    ax = axes[0]
+    scatter = ax.scatter(
+        files,
+        initial,
+        c=concentration,
+        cmap="viridis",
+        s=28,
+        edgecolor="white",
+        linewidth=0.35,
+    )
+    ax.set_xlabel("实验序号")
+    ax.set_ylabel(r"$\mathrm{NH}_3$ 初始响应 $R(0)$ / 原始单位")
+    ax.set_title("(a) 随实验序号漂移")
+    ax.grid(alpha=0.25, lw=0.5)
+    ax.text(
+        0.03,
+        0.97,
+        f"Pearson $r$ = {correlation_file:.3f}\n最大/最小 = {fold:.2f}×",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=7.5,
+        bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+    )
+    colorbar = figure.colorbar(scatter, ax=ax, pad=0.02)
+    colorbar.set_label(r"$\mathrm{NH}_3$ 浓度")
+
+    ax = axes[1]
+    scatter = ax.scatter(
+        concentration,
+        initial,
+        c=files,
+        cmap="plasma",
+        s=28,
+        edgecolor="white",
+        linewidth=0.35,
+    )
+    ax.set_xlabel(r"$\mathrm{NH}_3$ 浓度 / 原始单位")
+    ax.set_ylabel(r"$\mathrm{NH}_3$ 初始响应 $R(0)$ / 原始单位")
+    ax.set_title("(b) 与浓度同步上升")
+    ax.grid(alpha=0.25, lw=0.5)
+    ax.text(
+        0.03,
+        0.97,
+        f"Pearson $r$ = {correlation_concentration:.3f}",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=7.5,
+        bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+    )
+    colorbar = figure.colorbar(scatter, ax=ax, pad=0.02)
+    colorbar.set_label("实验序号")
+    _save(figure, "fig10_nh3_initial_drift")
+
+
+
+
+def _degradation() -> None:
+    summary = pd.read_csv(EVALUATION / "degradation_summary.csv")
+    conditions = ["完整", "缺 H₂", "缺 NH₃", "缺 NO₂"]
+    labels = [
+        "完整",
+        r"缺 $\mathrm{H}_2$",
+        r"缺 $\mathrm{NH}_3$",
+        r"缺 $\mathrm{NO}_2$",
+    ]
+    values = np.zeros((len(GASES), len(conditions)))
+    for row, gas in enumerate(GASES):
+        for column, condition in enumerate(conditions):
+            part = summary[(summary["condition"] == condition) & (summary["gas"] == gas)]
+            values[row, column] = 100.0 * float(part["median_abs_rel_error"].iloc[0])
+    folds = values / values[:, :1]
+    vmax = max(1.0, float(values.max()) * 1.05)
+    figure, ax = plt.subplots(figsize=(6.4, 3.5), layout="constrained")
+    image = ax.imshow(values, cmap="Blues", vmin=0.0, vmax=vmax, aspect="auto")
+    for row in range(len(GASES)):
+        for column in range(len(conditions)):
+            value = values[row, column]
+            ax.text(
+                column,
+                row,
+                f"{value:.1f}%\n×{folds[row, column]:.1f}",
+                ha="center",
+                va="center",
+                fontsize=7.5,
+                color="white" if value > 0.55 * vmax else "#222222",
+            )
+    ax.set_xticks(range(len(conditions)))
+    ax.set_xticklabels(labels, fontsize=7.5)
+    ax.set_yticks(range(len(GASES)))
+    ax.set_yticklabels([GAS_LABEL[gas] for gas in GASES])
+    ax.set_xlabel("反演时使用的传感器")
+    ax.set_title("10 s 下少一路传感器的浓度反演误差", fontsize=9.5)
+    colorbar = figure.colorbar(image, ax=ax, pad=0.02)
+    colorbar.set_label("中位绝对相对误差 / %")
+    _save(figure, "fig11_sensor_degradation")
 
 
 def _design(experiments) -> None:
@@ -380,6 +630,10 @@ def main() -> None:
     _style()
     experiments = load_experiments()
     _design(experiments)
+    _concentration_design(experiments)
+    _nh3_initial_drift(experiments)
+    if (EVALUATION / "degradation_summary.csv").exists():
+        _degradation()
     curve = pd.read_csv(EVALUATION / "curve_metrics.csv")
     downstream = pd.read_csv(EVALUATION / "downstream_summary.csv")
     predictions = dict(np.load(EVALUATION / "predictions.npz"))
@@ -388,6 +642,7 @@ def main() -> None:
     _architecture()
     _curve_error(curve)
     _downstream(downstream)
+    _downstream_error_scatter(pd.read_csv(EVALUATION / "downstream.csv"))
     calibration = CALIBRATION / "summary.csv"
     if calibration.exists():
         _interval_calibration(pd.read_csv(calibration))

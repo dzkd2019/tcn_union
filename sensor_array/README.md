@@ -35,6 +35,8 @@ P4 区间校准已在同一批折外估计上重做：10 s 原始 Laplace 90% �
   与 NH₃/NO₂ 高端两个设计边界；每行三路气体同时画实测、骨架与组合模型。
 - 模型架构：图 fig07 画浓度输入、双指数骨架、三路 MLP 残差与绝对输出还原，
   只保留推理路径，不写训练细节。
+- 下游误差：图 fig08 把 62 条实验的浓度反演相对/绝对误差画成散点，不区分 OOF 与锁定测试；
+- 数据问题：图 fig09 展示 62 条实验的浓度组合覆盖（哪些组合有、哪些缺失），图 fig10 展示 NH₃ 初值随采集顺序的漂移；图 fig11 展示少一路传感器时的浓度反演误差。
 - 限制：单 seed、三路独立固定 600 轮且无早停、下游似然使用训练集自报残差尺度、
   区间只用开发 50 条校准；三路独立同时改变了容量与训练方式，不能把全部收益
   单独归因于“三路独立”。
@@ -175,7 +177,7 @@ sensor_array/
     evaluate.py             62 折 LOGO、5/10 s 下游、模型保存
   plotting/
     style.py                字体、配色、PNG+SVG 保存
-    model.py                fig01–fig07
+    model.py                fig01–fig11
   tests/
     test_model.py           形状、双指数、per-gas MLP、保存/加载、MAP
   docs/
@@ -189,7 +191,7 @@ sensor_array/
     evaluation/             curve_*、downstream_*、predictions.npz
     calibration/            intervals.csv、summary.csv、by_group.csv
   figures/
-    model/                  fig01–fig07，PNG + SVG
+    model/                  fig01–fig11，PNG + SVG
   MANIFEST.md / SHA256SUMS  当前快照
 ~~~
 
@@ -203,7 +205,7 @@ sensor_array/
 4. **非严格嵌套**：浓度边界、噪声估计与 MAP 起点使用全部 62 条，属于共享 nuisance；
    留一折只保证模型拟合不使用留出文件。
 5. **NH₃ 混淆与 H₂ 高端稀疏**：见第 2 节；模型不能弥补设计缺陷。
-6. **三气体限定**：不对第四种气体做任何声称；不补测、不补采。
+6. **三气体限定**：不对第四种气体做任何声称；所有分析只基于现有 62 条实验。
 
 ## 8. 相关文档
 

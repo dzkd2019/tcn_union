@@ -56,9 +56,10 @@ def _residual_vector(
     relative: np.ndarray,
     sigma: np.ndarray,
     bounds: np.ndarray,
+    channels: np.ndarray,
 ) -> np.ndarray:
     prediction = model.predict_relative(np.exp(log_theta)[None, :], time)[0]
-    data = (prediction - relative) / sigma[None, :]
+    data = (prediction[:, channels] - relative[:, channels]) / sigma[channels][None, :]
     prior = (log_theta - np.log(REFERENCE_CONCENTRATION)) / PRIOR_SIGMA
     span = bounds[:, 1] - bounds[:, 0]
     wall_width = np.maximum(np.minimum(WALL, 0.25 * span), 1e-9)
@@ -78,10 +79,17 @@ def map_estimate(
     sigma: np.ndarray,
     bounds: np.ndarray,
     starts: list[np.ndarray] | None = None,
+    channels: np.ndarray | None = None,
 ) -> dict:
-    """在给定时间窗口上做 MAP 估计并返回 Laplace 标准误。"""
+    """在给定时间窗口上做 MAP 估计并返回 Laplace 标准误。
+
+    ``channels`` 指定参与反演的传感器通道；默认三路全部参与。
+    """
     time = np.asarray(time, dtype=float)
     relative = np.asarray(relative, dtype=float)
+    if channels is None:
+        channels = np.arange(relative.shape[1])
+    channels = np.asarray(channels, dtype=int)
     sigma = np.asarray(sigma, dtype=float)
     bounds = np.asarray(bounds, dtype=float)
     if starts is None:
@@ -96,7 +104,7 @@ def map_estimate(
             bounds[:, 1] - wall_width,
         )
         result = least_squares(
-            lambda value: _residual_vector(model, value, time, relative, sigma, bounds),
+            lambda value: _residual_vector(model, value, time, relative, sigma, bounds, channels),
             x0=log_start,
             bounds=(bounds[:, 0], bounds[:, 1]),
             max_nfev=300,
@@ -105,7 +113,7 @@ def map_estimate(
         if best is None or result.cost < best.cost:
             best = result
     assert best is not None
-    n_data = relative.size
+    n_data = relative[:, channels].size
     dof = max(n_data - 3, 1)
     covariance = np.linalg.pinv(best.jac.T @ best.jac) * (2.0 * best.cost / dof)
     se_log = np.sqrt(np.maximum(np.diag(covariance), 0.0))

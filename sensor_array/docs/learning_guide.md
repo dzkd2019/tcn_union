@@ -513,6 +513,306 @@ P3 用 5 条按物理时段切分的固定基替换自由 B 样条，宏 nRMSE �
 
 在那之前，诚实的说法是：**当前模型证明了“正模型 + MAP”也能做 5/10 s 反演，而且中位精度很好；但它没有证明 TCN 的加速和尾部优化失去意义。TCN 仍是原 3σ 目标下更强的方案，当前模型是互补的第二条路线。**
 
+#### 7.3.1 MAP 公式从零推导
+
+这一节只回答一个问题：**为什么代码里的 MAP 目标长成“数据项 + 先验项”**，以及每一项、每个符号是从哪里来的。
+
+##### 第 0 步：测量方程
+
+正模型给出“给定浓度时的相对响应”：
+
+\[
+\mathbf c \longmapsto y^{model}(t;\mathbf c)
+\]
+
+实际拿到的是实测相对响应 \(y^{obs}(t)\)。反问题要由 \(y^{obs}\) 反推 \(\mathbf c\)。
+
+##### 第 1 步：把测量写成“真值 + 噪声”
+
+对第 \(j\) 路传感器、时刻 \(t\)，假设
+
+\[
+y^{obs}_j(t)=y^{model}_j(t;\mathbf c)+\varepsilon_{j,t},
+\qquad
+\varepsilon_{j,t}\sim\mathcal N(0,\sigma_j^2)
+\]
+
+含义：
+
+- 正模型给出“真值”；
+- 实测值 = 真值 + 噪声；
+- 噪声零均值、高斯、标准差 \(\sigma_j\)；
+- 不同时间点、不同通道的噪声独立。
+
+这是建模假设，不是真理。选高斯是为了让“最小二乘”自然出现，并且只需要估计一个尺度参数 \(\sigma_j\)。
+
+##### 第 2 步：写出似然
+
+高斯密度为
+
+\[
+p(y^{obs}_{j,t}\mid\mathbf c)
+=
+\frac{1}{\sqrt{2\pi}\sigma_j}
+\exp\left[
+-\frac{(y^{obs}_j(t)-y^{model}_j(t;\mathbf c))^2}{2\sigma_j^2}
+\right]
+\]
+
+所有点独立，乘起来得到似然：
+
+\[
+p(\mathbf y^{obs}\mid\mathbf c)
+=
+\prod_{j\in S}\prod_{t\le T}
+\frac{1}{\sqrt{2\pi}\sigma_j}
+\exp\left[
+-\frac{(y^{obs}_j(t)-y^{model}_j(t;\mathbf c))^2}{2\sigma_j^2}
+\right]
+\]
+
+其中 \(S\) 是当前可用的传感器集合，\(T\) 是时间窗（5 s 或 10 s）。
+
+##### 第 3 步：取负对数，得到数据项
+
+\[
+-\log p(\mathbf y^{obs}\mid\mathbf c)
+=
+\sum_{j,t}
+\frac{(y^{obs}_j-y^{model}_j)^2}{2\sigma_j^2}
++
+\text{常数}
+\]
+
+常数与 \(\mathbf c\) 无关，优化时扔掉。于是
+
+\[
+\max_{\mathbf c}p(\mathbf y^{obs}\mid\mathbf c)
+\iff
+\min_{\mathbf c}
+\sum_{j,t}
+\frac{(y^{obs}_j-y^{model}_j)^2}{\sigma_j^2}
+\]
+
+这就是**加权最小二乘**。除以 \(\sigma_j^2\) 不是装饰：噪声大的通道权重小，噪声小的通道权重大。
+
+##### 第 4 步：为什么只有数据项不够
+
+只最小化数据项，叫最大似然估计（MLE）。它有三个问题：
+
+1. **病态方向**：NO₂ 低敏感、5 s 窗口、缺一路传感器时，数据项在某些方向上几乎是平的，MLE 可以取很大或很小的值。
+2. **边界**：只加硬边界时，优化器可能贴在边界上，产生“虚假的精确解”。
+3. **常识没用上**：浓度必须为正，而且大致在设计域内。
+
+所以需要先验。
+
+##### 第 5 步：给浓度加先验
+
+假设
+
+\[
+\log c_j\sim\mathcal N\left(\log c_j^{ref},\ \sigma_{prior}^2\right)
+\]
+
+即
+
+\[
+p(\mathbf c)
+=
+\prod_j
+\frac{1}{\sqrt{2\pi}\sigma_{prior}}
+\exp\left[
+-\frac{(\log c_j-\log c_j^{ref})^2}{2\sigma_{prior}^2}
+\right]
+\]
+
+为什么对 \(\log c\) 加高斯，而不是对 \(c\) 加高斯：
+
+- 保证 \(c=e^{\log c}>0\)；
+- H₂ 是万级、NH₃ 是十级、NO₂ 是个位数，log 空间里量级可比；
+- log 空间的 1 个单位是“变化 \(e\) 倍”，比绝对误差更符合浓度相对误差的直觉；
+- 先验强度 \(\sigma_{prior}\) 可以直接解释成“大约几倍的范围内”。
+
+代码中的参考浓度是
+
+\[
+c^{ref}=(16000,\ 30,\ 6)
+\]
+
+它位于设计域中部，是一个**固定参考点**，不是真实标签。先验表达的是“没有数据时，浓度大概在参考点附近”，不是“答案就是参考点”。
+
+强度 \(\sigma_{prior}=1.5\) 是弱先验：1.5 个 log 单位约等于 \(e^{1.5}\approx4.5\) 倍。数据强时（H₂）先验几乎不起作用；数据弱时（NO₂ 低端、5 s、缺一路）先验负责稳定。
+
+##### 第 6 步：贝叶斯公式
+
+\[
+p(\mathbf c\mid\mathbf y^{obs})
+\propto
+p(\mathbf y^{obs}\mid\mathbf c)\,p(\mathbf c)
+\]
+
+- \(p(\mathbf y^{obs}\mid\mathbf c)\)：似然，数据像不像；
+- \(p(\mathbf c)\)：先验，浓度大概在哪；
+- \(p(\mathbf c\mid\mathbf y^{obs})\)：后验，看完数据后浓度在哪。
+
+MAP 取后验最大的点：
+
+\[
+\hat{\mathbf c}
+=
+\arg\max_{\mathbf c}p(\mathbf c\mid\mathbf y^{obs})
+\]
+
+##### 第 7 步：取负对数，得到 MAP 目标
+
+\[
+-\log p(\mathbf c\mid\mathbf y^{obs})
+=
+-\log p(\mathbf y^{obs}\mid\mathbf c)
+-\log p(\mathbf c)
++
+\text{常数}
+\]
+
+代入前两步：
+
+\[
+\hat{\mathbf c}
+=
+\arg\min_{\log\mathbf c}
+\left[
+\sum_{j\in S}\sum_{t\le T}
+\left(
+\frac{y^{obs}_j(t)-y^{model}_j(t;\mathbf c)}{\sigma_j}
+\right)^2
++
+\sum_j
+\left(
+\frac{\log c_j-\log c_j^{ref}}{\sigma_{prior}}
+\right)^2
+\right]
+\]
+
+这就是代码里的 MAP 公式：
+
+- 第一项：数据项/似然；
+- 第二项：先验项/正则。
+
+##### 第 8 步：为什么代码写成残差向量
+
+`scipy.optimize.least_squares` 最小化的是
+
+\[
+\frac12\|\mathbf r(\mathbf c)\|^2
+=
+\frac12\sum_i r_i(\mathbf c)^2
+\]
+
+因此把每一项开方成残差：
+
+\[
+r^{data}_{j,t}
+=
+\frac{y^{obs}_j(t)-y^{model}_j(t;\mathbf c)}{\sigma_j},
+\qquad
+r^{prior}_j
+=
+\frac{\log c_j-\log c_j^{ref}}{\sigma_{prior}}
+\]
+
+拼成向量
+
+\[
+\mathbf r=
+[
+r^{data}_{1,1},\dots,r^{data}_{3,T},
+r^{prior}_1,r^{prior}_2,r^{prior}_3
+]
+\]
+
+最小化 \(\frac12\|\mathbf r\|^2\) 就等价于上面的 MAP 目标（差一个常数因子 2，不影响最优解）。
+
+所以 `estimation.py` 里的
+
+```python
+return np.r_[data.ravel(), prior, wall]
+```
+
+不是随便拼三项：`data` 是似然，`prior` 是先验，`wall` 是数值软墙。
+
+##### 第 9 步：\(\sigma_j\) 里为什么还有模型残差
+
+代码取
+
+\[
+\sigma_j=\sqrt{\sigma_{noise,j}^2+\sigma_{model,j}^2}
+\]
+
+- \(\sigma_{noise,j}\)：测量噪声，用二阶差分 MAD 估计；
+- \(\sigma_{model,j}\)：正模型在训练集上的残差 RMS。
+
+严格说，模型偏差不是随机噪声；这里把它塞进 \(\sigma_j\) 是一种工程近似：
+
+> 正模型本身有 1% 的误差，就把这一路的有效噪声调大，别让数据项过度相信模型。
+
+好处是简单、稳定；坏处是它不是严格的层次贝叶斯模型，后面区间估计会因此偏乐观或偏保守。这也是为什么不能把 Laplace/共形区间直接当严格置信区间用。
+
+##### 第 10 步：软墙为什么不在公式里
+
+软墙不是先验的一部分，是数值保护。当 \(\log c_j\) 接近设计域边界时，额外加
+
+\[
+r^{wall}_j=
+\begin{cases}
+\dfrac{b^{low}_j+w_j-\log c_j}{w_j}, & \log c_j<b^{low}_j+w_j\\[4pt]
+\dfrac{\log c_j-(b^{high}_j-w_j)}{w_j}, & \log c_j>b^{high}_j-w_j\\[4pt]
+0, & \text{否则}
+\end{cases}
+\]
+
+其中 \(w_j=0.15\times\) 设计域跨度。
+
+作用：
+
+- 不让优化器贴在硬边界上；
+- 贴边要付代价，但允许稍微越界；
+- 避免之前“硬边界把估计钉死、产生虚假零误差”的问题。
+
+它不是概率模型的一部分，所以公式里通常不写；但代码里必须有。
+
+##### 第 11 步：一页总结
+
+\[
+\begin{aligned}
+\text{测量模型} && y^{obs}_j(t) &= y^{model}_j(t;\mathbf c)+\varepsilon_{j,t},\quad \varepsilon\sim\mathcal N(0,\sigma_j^2)\\
+\text{似然} && p(\mathbf y^{obs}\mid\mathbf c) &= \prod_{j,t}\mathcal N\left(y^{obs}_j(t);y^{model}_j(t;\mathbf c),\sigma_j^2\right)\\
+\text{先验} && p(\mathbf c) &= \prod_j\mathcal N\left(\log c_j;\log c_j^{ref},\sigma_{prior}^2\right)\\
+\text{贝叶斯} && p(\mathbf c\mid\mathbf y^{obs}) &\propto p(\mathbf y^{obs}\mid\mathbf c)p(\mathbf c)\\
+\text{MAP} && \hat{\mathbf c} &= \arg\max_{\mathbf c}p(\mathbf c\mid\mathbf y^{obs})\\
+&& &= \arg\min_{\log\mathbf c}\left[
+\sum_{j,t}\frac{(y^{obs}_j-y^{model}_j)^2}{\sigma_j^2}
++
+\sum_j\frac{(\log c_j-\log c_j^{ref})^2}{\sigma_{prior}^2}
+\right]
+\end{aligned}
+\]
+
+##### 第 12 步：一句话理解每一项
+
+| 公式部分 | 概率含义 | 直白解释 |
+|---|---|---|
+| \(\sum((y^{obs}-y^{model})/\sigma)^2\) | 负对数似然 | 模型曲线要贴近实测；\(\sigma\) 决定每路多可信 |
+| \(\sum((\log c-\log c^{ref})/\sigma_{prior})^2\) | 负对数先验 | 浓度别离参考点太远；数据弱时防止跑飞 |
+| \(\log c\) | 参数变换 | 保证正数、统一尺度、让先验变成高斯 |
+| 软墙 | 无数值概率含义 | 别贴在边界上 |
+| \(\sigma_j=\sqrt{\sigma_{noise}^2+\sigma_{model}^2}\) | 有效噪声 | 把模型偏差也当成不确定性 |
+
+##### 第 13 步：为什么不是“随便加一个正则项”
+
+因为第二项对应一个明确的概率假设：**在看数据之前，我们相信浓度在 log 空间里围绕 \(c^{ref}\) 波动，标准差 1.5**。这个假设可以讨论、可以改（换中心、换 \(\sigma_{prior}\)、换重尾分布），但它不是为了让结果好看而加的。数据强时它让路，数据弱时它稳定。
+
+这就是 MAP 和“随便加正则”的区别。
+
 ### 7.4 P5 合成数据增强
 
 P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公平比较：
@@ -647,7 +947,7 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 
 ## 附录 C 5 分钟汇报提纲
 
-1. **问题**：62 条实验、不可补测、NH₃ 与采集顺序混淆；要回答“多早、多准、多可信”。
+1. **问题**：62 条实验、不可扩充、NH₃ 与采集顺序混淆；要回答“多早、多准、多可信”。
 2. **骨架**：双指数描述快慢两个时间尺度，69 参数，曲线 3.30%。
 3. **残差**：三路独立 MLP，7 维输入含骨架输出，14,211 参数，曲线 1.48%。
 4. **下游**：10 s 2.14%、5 s 2.96%；59/62、47/62、45/62 折改善。
