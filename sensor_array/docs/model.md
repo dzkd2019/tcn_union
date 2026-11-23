@@ -2,9 +2,9 @@
 
 本文件说明当前分支的唯一正式组合模型：三通道双指数响应骨架，加上三路完全独立的
 MLP 学习的浓度—时间残差。62 折留一评估中，组合的曲线宏 nRMSE 为 1.48%，
-明显优于纯双指数骨架的 3.30%；10 s 下游三气体宏中位绝对相对误差为 2.14%，
-骨架为 4.99%。默认推荐 <code>mlp_per_gas.json</code>，<code>double.json</code>
-保留作骨架对照，详见第 8 节和 [evaluation.md](evaluation.md)。
+明显优于纯双指数骨架的 3.30%。默认推荐 <code>mlp_per_gas.json</code>，
+<code>double.json</code> 保留作骨架对照；一阶/二阶骨架对比的 3 seed 结果显示
+双指数与一阶差异不显著，详见 [evaluation.md](evaluation.md) 第 3.2 节与第 8 节。
 
 旧的一阶灰盒、低秩 B 样条残差（hybrid）、直接岭回归、TCN、均值曲线以及旧实验分支的代码都已从本分支删除；相关历史文档在同目录
 <code>archive/</code> 中仅作归档。

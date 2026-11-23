@@ -1,4 +1,4 @@
-"""当前模型的评估图：数据设计、留一曲线误差、模型架构与数据问题。
+"""当前模型的评估图：数据设计、留一曲线误差、模型架构、全部曲线与误差离散度。
 
 所有图写入 sensor_array/figures/model/，同时输出 PNG（300 dpi）与 SVG。
 """
@@ -68,6 +68,96 @@ def _curve_error(curve: pd.DataFrame) -> None:
     ]
     figure.legend(handles=handles, loc="outside lower center", ncol=2, frameon=False)
     _save(figure, "fig03_curve_error")
+
+
+def _all_curves(experiments) -> None:
+    """每气体 62 条实测与 62 折留一预测总图；不挑选案例。"""
+    predictions = np.load(EVALUATION / "predictions.npz")
+    for gas_index, gas in enumerate(GASES):
+        figure, ax = plt.subplots(figsize=(7.0, 4.1), layout="constrained")
+        for experiment in experiments:
+            ax.plot(
+                experiment.time,
+                experiment.relative[:, gas_index],
+                color="#6F6F6F",
+                lw=0.65,
+                alpha=0.80,
+                zorder=1,
+            )
+        for experiment in experiments:
+            prediction = predictions[f"{experiment.file_id}_mlp_per_gas"]
+            ax.plot(
+                experiment.time,
+                prediction[:, gas_index],
+                color=GAS_COLORS[gas],
+                lw=0.65,
+                alpha=0.55,
+                zorder=2,
+            )
+        handles = [
+            plt.Line2D([], [], color="#6F6F6F", lw=1.2, label="实测"),
+            plt.Line2D([], [], color=GAS_COLORS[gas], lw=1.2, label="预测"),
+        ]
+        ax.legend(handles=handles, loc="best", frameon=False)
+        ax.set_xlabel("时间 / s")
+        ax.set_ylabel("相对响应")
+        plain = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}[gas]
+        ax.set_title(f"{plain}：62 条实测与留一预测")
+        ax.grid(alpha=0.18, lw=0.45)
+        _save(figure, f"fig{12 + gas_index}_all_curves_{gas}")
+
+
+def _curve_error_sigma(experiments) -> None:
+    """逐文件曲线误差散点与 62 条实验的均值/标准差带。"""
+    predictions = np.load(EVALUATION / "predictions.npz")
+    truth = np.stack([experiment.relative for experiment in experiments])
+    figure, axes = plt.subplots(1, 3, figsize=(11.0, 3.5), layout="constrained")
+    rows = []
+    for gas_index, (gas, ax) in enumerate(zip(GASES, axes)):
+        prediction = np.stack(
+            [predictions[f"{experiment.file_id}_mlp_per_gas"] for experiment in experiments]
+        )
+        scale = np.sqrt(np.mean(truth[:, :, gas_index] ** 2))
+        errors = (
+            np.sqrt(np.mean((prediction[:, :, gas_index] - truth[:, :, gas_index]) ** 2, axis=1))
+            / max(scale, 1e-12)
+            * 100.0
+        )
+        files = np.array([experiment.file_id for experiment in experiments])
+        mean = float(errors.mean())
+        sd = float(errors.std(ddof=1))
+        rows.append(
+            {
+                "gas": gas,
+                "mean": mean,
+                "median": float(np.median(errors)),
+                "std": sd,
+                "p90": float(np.quantile(errors, 0.9)),
+                "min": float(errors.min()),
+                "max": float(errors.max()),
+            }
+        )
+        ax.scatter(files, errors, s=15, color=GAS_COLORS[gas], alpha=0.80, linewidths=0)
+        ax.axhline(mean, color="#333333", lw=0.9, label="均值")
+        for multiple, linestyle in ((1, ":"), (2, "-."), (3, "--")):
+            ax.axhline(
+                mean + multiple * sd,
+                color="#777777",
+                lw=0.75,
+                ls=linestyle,
+                label=rf"$\pm {multiple}\sigma$",
+            )
+        ax.set_xlim(-1, 62)
+        ax.set_ylim(0, max(float(errors.max()), mean + 3 * sd) * 1.06)
+        ax.set_xticks([0, 10, 20, 30, 40, 50, 60])
+        ax.set_xlabel("实验序号")
+        ax.set_ylabel("曲线 nRMSE / %")
+        ax.set_title(GAS_LABEL[gas])
+        ax.grid(axis="y", alpha=0.22, lw=0.45)
+        if gas_index == 0:
+            ax.legend(loc="upper right", frameon=False, fontsize=7.0)
+    pd.DataFrame(rows).to_csv(EVALUATION / "curve_error_stats.csv", index=False)
+    _save(figure, "fig15_curve_error_sigma")
 
 
 def _concentration_design(experiments) -> None:
@@ -364,6 +454,8 @@ def main() -> None:
     _architecture()
     curve = pd.read_csv(EVALUATION / "curve_metrics.csv")
     _curve_error(curve)
+    _all_curves(experiments)
+    _curve_error_sigma(experiments)
     print("saved figures to", "sensor_array/figures/model")
 
 

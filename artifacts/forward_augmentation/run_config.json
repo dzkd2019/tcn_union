@@ -1,0 +1,22 @@
+{
+  "folds": 5,
+  "seeds": [
+    20260923,
+    20260924,
+    20260925
+  ],
+  "windows": [
+    5,
+    10
+  ],
+  "arms": [
+    "real",
+    "forward",
+    "pca_vae",
+    "forward+pca_vae"
+  ],
+  "epochs": 500,
+  "elapsed_seconds": 1339.1,
+  "mode": "raw_delta",
+  "device": "cuda"
+}

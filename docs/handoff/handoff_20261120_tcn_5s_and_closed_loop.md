@@ -1,5 +1,9 @@
 # Handoff：5 s 前缀 TCN 与正模型闭环（2026-11-20）
 
+> **历史交接（2026-11-20）**：本文件的闭环产物与 fig06 已在本分支后续清理中删除；
+> 当前状态见 [handoff_20261123_map_removal_and_plan.md](handoff_20261123_map_removal_and_plan.md)
+> 与 [plan_20261123.md](../../sensor_array/docs/plan_20261123.md)。
+
 ## 0. 一句话
 
 在 `experiment/mlp-double-exponential` 分支上，5 s 前缀 TCN 已按 10 s 的 3σ 配方完成训练/评估，并用“当前双指数 + 三路 MLP 正模型”做了 5 s/10 s 的合成增强闭环对照；10 s 既有代码和产物全部保留。当前最需要接着做的是：闭环结果的多种子复现，以及 9 s 前缀是否值得补 final/test。

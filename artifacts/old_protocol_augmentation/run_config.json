@@ -1,0 +1,26 @@
+{
+  "folds": 5,
+  "seeds": [
+    20260923,
+    20260924,
+    20260925
+  ],
+  "window": 10,
+  "epochs": 500,
+  "arms": [
+    "real",
+    "vae",
+    "forward",
+    "forward+vae"
+  ],
+  "synthetic_count_per_arm": 120,
+  "synthetic_ratio": 3,
+  "noise": false,
+  "edge_copies": 0,
+  "low_conc_configs": [
+    "1.0"
+  ],
+  "elapsed_seconds": 939.2,
+  "mode": "raw_delta",
+  "device": "cuda"
+}

@@ -15,12 +15,15 @@ import numpy as np
 
 from .data import REFERENCE_CONCENTRATION, RESPONSE_SIGNS, Experiment
 from .double_exponential import DoubleExponentialArrayModel
+from .skeletons import skeleton_from_dict
 
 HIDDEN_LAYERS = (64, 64)
 
 
 class PerGasMLPDoubleExponentialModel:
     """双指数骨架加三路相互独立的 MLP 残差。"""
+
+    kind = "mlp_per_gas_double_exponential"
 
     def __init__(
         self,
@@ -44,7 +47,7 @@ class PerGasMLPDoubleExponentialModel:
         self.device = device
         self.random_state = random_state
         self.name = "mlp_per_gas"
-        self.skeleton: DoubleExponentialArrayModel | None = None
+        self.skeleton = None
         self.time_scale: float | None = None
         self.x_mean: np.ndarray | None = None
         self.x_scale: np.ndarray | None = None
@@ -89,7 +92,7 @@ class PerGasMLPDoubleExponentialModel:
     def fit(
         self,
         experiments: list[Experiment],
-        skeleton: DoubleExponentialArrayModel | None = None,
+        skeleton=None,
         shape_init: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
     ) -> PerGasMLPDoubleExponentialModel:
         """拟合骨架与三路独立残差网络；可传入已拟合的骨架。"""
@@ -221,7 +224,7 @@ class PerGasMLPDoubleExponentialModel:
         if self.skeleton is None or not self.weights:
             raise RuntimeError("模型尚未拟合")
         return {
-            "kind": "mlp_per_gas_double_exponential",
+            "kind": self.kind,
             "reference": self.reference.tolist(),
             "signs": self.signs.tolist(),
             "hidden_layers": list(self.hidden_layers),
@@ -249,7 +252,7 @@ class PerGasMLPDoubleExponentialModel:
 
     @classmethod
     def from_dict(cls, payload: dict) -> PerGasMLPDoubleExponentialModel:
-        if payload.get("kind") != "mlp_per_gas_double_exponential":
+        if payload.get("kind") != cls.kind:
             raise ValueError("不是三路独立 MLP 残差的 JSON")
         model = cls(
             reference=np.array(payload["reference"]),
@@ -262,7 +265,7 @@ class PerGasMLPDoubleExponentialModel:
             device=payload["device"],
             random_state=payload["random_state"],
         )
-        model.skeleton = DoubleExponentialArrayModel.from_dict(payload["skeleton"])
+        model.skeleton = skeleton_from_dict(payload["skeleton"])
         model.time_scale = float(payload["time_scale"])
         model.x_mean = np.array(payload["x_mean"])
         model.x_scale = np.array(payload["x_scale"])

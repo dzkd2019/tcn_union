@@ -1,0 +1,3 @@
+window,arm,macro_three_sigma_mean,macro_three_sigma_sd,macro_mape_mean,macro_mape_sd,macro_median_mean,macro_median_sd,macro_p90_mean,macro_p90_sd
+5,real_dup,14.24318,3.517044,4.064504,0.986994,3.459801,0.918666,7.255931,1.499052
+10,real_dup,13.246298,4.145257,3.63529,1.165174,3.127385,1.103601,6.687595,1.999221

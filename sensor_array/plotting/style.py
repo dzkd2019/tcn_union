@@ -24,7 +24,7 @@ MODEL_ORDER = ["double", "mlp_per_gas"]
 
 # Noto Serif 覆盖拉丁字母与 H₂ 等下标，Source Han Sans CN 覆盖中文；
 # 单用 SimSun 在多面板图里会丢部分 CJK 字形。
-FONT_FAMILY = ["Noto Serif CJK SC"]
+FONT_FAMILY = ["Noto Serif", "Source Han Sans CN"]
 
 
 def _style() -> None:

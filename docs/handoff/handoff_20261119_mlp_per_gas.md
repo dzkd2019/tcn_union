@@ -1,5 +1,9 @@
 # Handoff：双指数 + 三路独立 MLP（2026-11-19 晚）
 
+> **历史交接（2026-11-19）**：fig06 与 MAP/区间内容已在本分支后续清理中删除；
+> 当前状态见 [handoff_20261123_map_removal_and_plan.md](handoff_20261123_map_removal_and_plan.md)
+> 与 [plan_20261123.md](../../sensor_array/docs/plan_20261123.md)。
+
 > 面向明天工位开发机继续开发。
 >
 > 根目录的 `handoff_20261117.md` 是同日更长的详细记录；本文件只保留开工必需的状态、结论、命令和下一步。

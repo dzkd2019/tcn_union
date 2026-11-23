@@ -376,8 +376,7 @@ x=\left(\log\frac{c_{\mathrm H_2}}{c^{\mathrm{ref}}_{\mathrm H_2}},
 - NO₂ 的下游改善最大（5.76% → 3.79%），但仍是三种气体中最高的；
 - NH₃ 的曲线改善最小（1.69% → 1.01%），下游 10 s 也只有 41/62 折改善、p=0.004，说明 NH₃ 的残差更接近不可约；
 - H₂ 的曲线与下游都改善，但 10 s 下游仍有 7 折变差，不能声称“H₂ 全面更好”。
-- 图 fig06 把五个代表案例按三路气体展开：最优（file 31）、中位（file 27）、最差（file 0），
-  以及 NH₃ 低端（file 4）与 NH₃/NO₂ 高端（file 61）；可直接看骨架与组合模型在哪些段贴近实测。
+- 图 fig12–fig14 把每气体的 62 条实测与 62 折留一预测全部叠画，fig15 给出逐文件曲线误差与均值/σ 带；它们不挑选案例，适合检查整体分布与长尾。
 
 ---
 
@@ -867,12 +866,22 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 
 ### 8.2 下一步
 
-1. **3–5 seed 复验**：给出种子方差，判断 1.48% 是否稳定。
+1. **3–5 seed 复验**：骨架对比已完成 3 seed；三路独立 MLP 仍是单 seed，
+   需要补种子方差判断 1.48% 是否稳定。
 2. **早停/轮数敏感性**：确认 600 轮不是偶然最优点。
-3. **嵌套校准**：把内层折外残差用于区间尺度，检查共形覆盖是否仍成立。
-4. **停止策略**：在当前模型上重做决策/损失停止，而不是沿用旧 P4 数字。
-5. **P5 重跑**：用当前正模型生成合成数据，检验下游逆模型是否仍受益。
-6. **论文图件**：统一用 fig01–fig06，按 [plotting_guide.md](plotting_guide.md) 复现。
+3. **嵌套校准**：把内层折外残差用于区间尺度；MAP/区间已从本分支删除，
+   这项工作暂不在主线上。
+4. **停止策略**：当前主线已不再做 MAP，停止策略只在历史归档中保留。
+5. **正模型增强逆模型**：首轮四臂 3 seed × 5 折没有稳定优于仅真实，`real_dup`
+   对照更好。完整旧协议（0.1× 噪声 + 边缘 ×4 + 两套低浓度配置 + 6 checkpoint
+   + 裁剪）下，仅真实 10.79%、PCA-VAE only **7.47% / 1.79%**（14/15，
+   p=0.00012）、正模型 only 10.92%（p=0.524）、正模型 + PCA-VAE 9.10%
+   （14/15，p=0.0084）。VAE-only 与旧最终 7.47%/1.79% 对齐，说明协议级复刻
+   成立；正模型合成没有增益，混合反而稀释 VAE（详见
+   [full_protocol_augmentation.md](full_protocol_augmentation.md) 与
+   [evaluation.md](evaluation.md) §8.8）。
+6. **论文图件**：统一用 fig01、fig03、fig07、fig09、fig10、fig12–fig19，
+   按 [plotting_guide.md](plotting_guide.md) 复现。
 
 ---
 
@@ -885,11 +894,29 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
       MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.evaluate \
       --folds 62 --max-iter 600
 
-    # P4 区间校准
-    MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.analysis.calibration
+    # 四骨架 62 折筛选（约 41 分钟；前两名再按计划复跑）
+    OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+      MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.compare_skeletons \
+      --folds 62 --max-iter 600
 
     # 图件（PNG + SVG）
     MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
+
+    # 正模型增强 TCN 四臂（开发 50 的 5 折，3 seed；约 22 分钟）
+    OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+      MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.forward_augmentation \
+      --folds 5 --seeds 20260923 20260924 20260925 --windows 5 10 --epochs 500
+
+    # 旧训练协议增强来源对照（10 s，3 seed × 5 折；约 16 分钟）
+    OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+      MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.old_protocol_augmentation \
+      --folds 5 --seeds 20260923 20260924 20260925 --seconds 10 --epochs 500
+
+    # 完整旧协议四臂（0.1×噪声 + 边缘 ×4 + 两套低浓度 + 6 checkpoint；约 56 分钟）
+    OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+      MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
+      --folds 5 --seeds 20260923 20260924 20260925 --seconds 10 --epochs 500 \
+      --configs 1.0 0,0.3,1.0 --arms real vae forward forward+vae
 
     # 测试
     .venv/bin/python -m unittest discover -s sensor_array/tests
@@ -902,19 +929,33 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 | sensor_array/core/shapes.py | 逐实验一阶形状拟合，给双指数初值 |
 | sensor_array/core/double_exponential.py | 双指数骨架，69 参数，联合拟合 |
 | sensor_array/core/mlp_per_gas.py | 三路独立 MLP 残差，PyTorch 训练，NumPy 推理 |
-| sensor_array/analysis/estimation.py | 噪声、MAP、Laplace 标准误 |
-| sensor_array/analysis/calibration.py | 开发集共形校准，区间/覆盖/宽度 |
-| sensor_array/experiments/evaluate.py | 62 折 LOGO、曲线/下游指标、模型保存 |
-| sensor_array/plotting/model.py | fig01–fig06 |
+| sensor_array/core/skeletons.py | 一阶、二阶、两个二阶并联三种可替换骨架 |
+| sensor_array/core/residual.py | 任意骨架 + 三路独立 MLP 残差的通用包装 |
+| sensor_array/experiments/evaluate.py | 62 折 LOGO、曲线指标、模型保存 |
+| sensor_array/experiments/compare_skeletons.py | 四骨架 × 62 折筛选、前两名多种子复跑 |
+| sensor_array/plotting/model.py | fig01、fig03、fig07、fig09、fig10、fig12–fig15 |
+| tcn_union/experiments/forward_augmentation.py | 正模型增强 TCN 四臂 OOF |
+| tcn_union/experiments/old_protocol_augmentation.py | 旧训练协议增强来源对照 |
+| tcn_union/experiments/full_protocol_augmentation.py | 完整旧协议四臂（噪声/边缘/两配置/6 checkpoint） |
+| tcn_union/experiments/real_control.py | 双倍真实样本对照 real_dup |
+| tcn_union/visualization/forward_augmentation.py | fig16、fig17 |
+| tcn_union/visualization/old_protocol_augmentation.py | fig18 |
+| tcn_union/visualization/full_protocol_augmentation.py | fig19 |
 | sensor_array/plotting/style.py | 颜色、字体、保存（PNG 300 dpi + SVG） |
-| sensor_array/tests/test_model.py | 前向一致性、残差、save/load、MAP 冒烟 |
+| sensor_array/tests/test_model.py | 前向一致性、残差、save/load、骨架冒烟 |
 
 ### 9.3 产物
 
-- artifacts/evaluation/curve_metrics.csv、curve_summary.csv、downstream.csv、downstream_summary.csv、predictions.npz；
+- artifacts/evaluation/curve_metrics.csv、curve_summary.csv、predictions.npz、curve_error_stats.csv；
+- artifacts/comparison/skeleton_metrics.csv、skeleton_summary.csv、predictions_<model>.npz；
 - artifacts/models/double.json、mlp_per_gas.json；
-- artifacts/calibration/intervals.csv、summary.csv、by_group.csv；
-- figures/model/fig01–fig06（PNG + SVG）。
+- 根目录 `artifacts/forward_augmentation/`：TCN 四臂 folds/oof/summary、
+  real_dup 对照、predictions.npz、run_config.json；
+- 根目录 `artifacts/old_protocol_augmentation/`：旧训练协议增强来源对照的
+  folds/oof/summary、predictions.npz、run_config.json；
+- 根目录 `artifacts/full_protocol_augmentation/`：完整旧协议四臂的
+  folds/fold_seed/oof_seed/oof/summary/paired、predictions.npz、summary.md；
+- figures/model/fig01、fig03、fig07、fig09、fig10、fig12–fig19（PNG + SVG）。
 
 ---
 
