@@ -32,3 +32,53 @@
 
 - 10 秒方案与 3σ 结果：[`docs/sigma-target/3sigma_方案.md`](sigma-target/3sigma_方案.md)
 - 5 秒对照：[`docs/tcn_5s_evaluation.md`](tcn_5s_evaluation.md)
+
+## 最终评估图件与目录规范（2026-11-24）
+
+本节适用于每一次 TCN 浓度反演评估（OOF、验证、锁定测试、集成），与
+`AGENTS.md` §10 配套；图件、指标、目录必须同时满足。
+
+### 目录
+
+每次评估运行一个独立目录：
+
+```text
+artifacts/<run_name>/
+  predictions.csv
+  metrics.csv
+  figs/
+    fig_H2_signed_error_scatter.png/.svg
+    fig_H2_ci95.png/.svg
+    fig_NH3_signed_error_scatter.png/.svg
+    fig_NH3_ci95.png/.svg
+    fig_NO2_signed_error_scatter.png/.svg
+    fig_NO2_ci95.png/.svg
+```
+
+`<run_name>` 至少包含模型、窗口、协议与 seed，例如
+`tcn_10s_full_seed20260923`。同一次运行的所有图件放在同一个 `figs/`；
+不与其他 run、其他窗口、其他模型混放。TCN 逆问题图件不放进
+`sensor_array/figures/`（那里只放正问题图）。
+
+### 必报指标（`metrics.csv`）
+
+逐气体（H2/NH3/NO2）报告：`n`、`MAPE_percent`、`NRMSE`、
+`three_sigma_percent`、`ci95_low_percent`、`ci95_high_percent`、
+`mean_relative_percent`；并报告三气体宏平均 `macro_MAPE_percent`、
+`macro_NRMSE`、`macro_three_sigma_percent`。定义与分母口径见 `AGENTS.md`
+§10.1；NRMSE 的浓度量程来源必须写进 `metrics.csv` 旁注或运行配置。
+
+### 必报图件
+
+1. **有符号误差散点图**：每气体 1×2；左为绝对误差 \(\hat c-c\)，右为相对误差
+   \(100(\hat c-c)/c\)；横轴实验序号；零线加粗，另画 \(\pm1\sigma,\pm2\sigma,
+   \pm3\sigma\) 并在图内标数值；不连线、不平滑；OOF 与锁定测试同图时用底色/分面区分。
+2. **95% 置信区间图**：每气体 1×1；只画相对误差均值与 95% CI 误差棒，
+   不显示原始散点；标注 \(n\)；多种子时每种一个点。
+
+PNG 300 dpi + 同名 SVG，不输出 PDF；不写 `ppm`。
+
+### 登记
+
+新增运行后，在本文件“图件清单”表补一行 run 级记录，并在图注中写明
+`run_name`、绘图脚本/函数、数据源、版式与 `figs/` 路径；不得只生成图不更新索引。

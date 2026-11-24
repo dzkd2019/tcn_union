@@ -163,3 +163,4 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 3. 在本文件第 3 节表格和第 4 节说明中登记图号、函数、数据源、版式。
 4. 重新运行 <code>python -m sensor_array.plotting.model</code>，目视检查中文、下标、图例、数值标签是否被裁剪。
 5. 若新增数据文件，在 <code>evaluation.md</code> 与 <code>README.md</code> 中同步数值和路径。
+6. TCN 逆问题的评估图不放在本目录：按 <code>docs/plotting_guide_tcn_10s.md</code> 的“最终评估图件与目录规范”，每次运行一个 <code>artifacts/&lt;run_name&gt;/figs/</code> 子目录；本文件只维护正问题图。
