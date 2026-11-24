@@ -267,6 +267,7 @@ def _train_network(
     low_conc_power: float | str | list[str] | tuple[float, ...] = 0.0,
     initial_state: dict[str, torch.Tensor] | None = None,
     scaler_stats: dict[str, np.ndarray] | None = None,
+    sample_weight: np.ndarray | None = None,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -326,7 +327,17 @@ def _train_network(
 
     # 小样本训练集直接放进内存；每个 epoch 重新打乱一次。
     loss_weights = _low_conc_weights(y_train, low_conc_power)
-    weighted_loss = bool(np.any(np.asarray(_low_conc_powers(low_conc_power)) > 0.0))
+    if sample_weight is not None:
+        if sample_weight.shape != y_train.shape:
+            raise ValueError(
+                "sample_weight 形状必须与 y_train 相同："
+                f"{sample_weight.shape} != {y_train.shape}"
+            )
+        loss_weights = loss_weights * sample_weight.astype(np.float32)
+    weighted_loss = bool(
+        np.any(np.asarray(_low_conc_powers(low_conc_power)) > 0.0)
+        or (sample_weight is not None and np.any(sample_weight != 1.0))
+    )
     if weighted_loss:
         dataset = TensorDataset(
             torch.from_numpy(x_train_z),

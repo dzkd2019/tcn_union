@@ -1,0 +1,16 @@
+fold=0 seed=20260923 arm=real         cfg=1.0       n= 40 ep=170 3σ=7.182 MAPE=1.585
+fold=0 seed=20260923 arm=vae          cfg=1.0       n=320 ep= 70 3σ=6.987 MAPE=1.786
+fold=0 seed=20260923 arm=forward_seen cfg=1.0       n=320 ep= 84 3σ=7.506 MAPE=1.773
+fold=1 seed=20260923 arm=real         cfg=1.0       n= 40 ep= 50 3σ=15.987 MAPE=5.883
+fold=1 seed=20260923 arm=vae          cfg=1.0       n=328 ep=117 3σ=8.613 MAPE=2.215
+fold=1 seed=20260923 arm=forward_seen cfg=1.0       n=328 ep=112 3σ=8.081 MAPE=2.189
+fold=2 seed=20260923 arm=real         cfg=1.0       n= 40 ep= 74 3σ=22.894 MAPE=5.452
+fold=2 seed=20260923 arm=vae          cfg=1.0       n=332 ep= 91 3σ=11.921 MAPE=3.061
+fold=2 seed=20260923 arm=forward_seen cfg=1.0       n=332 ep= 51 3σ=13.194 MAPE=3.106
+fold=3 seed=20260923 arm=real         cfg=1.0       n= 40 ep= 74 3σ=11.245 MAPE=2.461
+fold=3 seed=20260923 arm=vae          cfg=1.0       n=320 ep=216 3σ=6.500 MAPE=2.244
+fold=3 seed=20260923 arm=forward_seen cfg=1.0       n=320 ep=108 3σ=9.885 MAPE=2.245
+fold=4 seed=20260923 arm=real         cfg=1.0       n= 40 ep=270 3σ=10.858 MAPE=3.204
+fold=4 seed=20260923 arm=vae          cfg=1.0       n=324 ep= 71 3σ=11.755 MAPE=2.573
+fold=4 seed=20260923 arm=forward_seen cfg=1.0       n=324 ep=140 3σ=7.412 MAPE=2.134
+Wrote /home/mrawa/code/graduate/tcn_union/artifacts/forward_seen_pilot in 778.6 s

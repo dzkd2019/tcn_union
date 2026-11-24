@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from itertools import product
 from pathlib import Path
 
 import numpy as np
@@ -47,7 +48,7 @@ from tcn_union.experiments.old_protocol_augmentation import (
     _write_csv,
 )
 from tcn_union.training.gan_train import MODE, _edge_case_labels, _read_manifest
-from tcn_union.training.train import _train_network
+from tcn_union.training.train import _train_network, fit_scalers
 
 from sensor_array.core.data import load_experiments
 from sensor_array.core.double_exponential import DoubleExponentialArrayModel
@@ -55,10 +56,11 @@ from sensor_array.core.mlp_per_gas import PerGasMLPDoubleExponentialModel
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "artifacts/full_protocol_augmentation"
-ARMS = ("real", "vae", "forward", "forward+vae")
+ARMS = ("real", "vae", "forward", "forward+vae", "forward_pretrain", "forward_unseen", "forward_h2", "forward_seen")
 DEFAULT_SEEDS = (20260923, 20260924, 20260925)
 DEFAULT_CONFIGS = ("1.0", "0,0.3,1.0")
 EPOCHS = 500
+PRETRAIN_EPOCHS = 200
 SYNTHETIC_FACTOR = 3
 NOISE_SCALE = 0.1
 EDGE_COPIES = 4
@@ -75,6 +77,74 @@ PAIR_METRICS = (
 
 def _times(seconds: int) -> np.ndarray:
     return np.arange(round(seconds / 0.2) + 1) * 0.2
+
+
+def _grid_combinations(labels: np.ndarray) -> np.ndarray:
+    levels = [np.unique(labels[:, axis]) for axis in range(3)]
+    return np.array(list(product(*levels)), dtype=np.float64)
+
+
+def _synthetic_concentration_excluding(
+    labels: np.ndarray,
+    excluded: np.ndarray,
+    count: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """一半复制训练标签，一半使用训练档位网格内、非验证折的新组合。"""
+    n_copy = count // 2
+    copied = labels[np.arange(n_copy) % len(labels)]
+    grid = _grid_combinations(labels)
+    train_set = {tuple(row) for row in labels.tolist()}
+    excluded_set = {tuple(row) for row in excluded.tolist()}
+    allowed = np.array(
+        [row for row in grid if tuple(row) not in train_set and tuple(row) not in excluded_set],
+        dtype=np.float64,
+    )
+    if not len(allowed):
+        return _synthetic_concentration(labels, count, rng)
+    reps = int(np.ceil((count - n_copy) / len(allowed)))
+    order = []
+    for _ in range(reps):
+        order.append(allowed[rng.permutation(len(allowed))])
+    new_part = np.concatenate(order, axis=0)[: count - n_copy]
+    return np.concatenate((copied, new_part), axis=0)
+
+
+def _unseen_concentrations(
+    labels: np.ndarray,
+    excluded: np.ndarray,
+    count: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """在训练档位网格内，循环采样既非训练也非验证折的浓度组合。"""
+    grid = _grid_combinations(labels)
+    train_set = {tuple(row) for row in labels.tolist()}
+    excluded_set = {tuple(row) for row in excluded.tolist()}
+    allowed = np.array(
+        [row for row in grid if tuple(row) not in train_set and tuple(row) not in excluded_set],
+        dtype=np.float64,
+    )
+    if not len(allowed):
+        return _synthetic_concentration(labels, count, rng)
+    reps = int(np.ceil(count / len(allowed)))
+    parts = [allowed[rng.permutation(len(allowed))] for _ in range(reps)]
+    return np.concatenate(parts, axis=0)[:count]
+
+
+def _training_concentrations(
+    labels: np.ndarray,
+    count: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """从训练标签中有放回抽样，不产生新的浓度组合。"""
+    index = rng.integers(0, len(labels), size=count)
+    return labels[index]
+
+
+def _random_initial(rows: list[dict], count: int, rng: np.random.Generator) -> np.ndarray:
+    initial = np.stack([row["_response"][0] for row in rows])
+    index = rng.integers(0, len(initial), size=count)
+    return initial[index]
 
 
 def _forward_features(
@@ -158,6 +228,8 @@ def _synthetic_for_arm(
     edge_labels: np.ndarray,
     edge_forward: tuple[np.ndarray, np.ndarray],
     edge_vae: tuple[np.ndarray, np.ndarray],
+    forward_unseen_base: tuple[np.ndarray, np.ndarray],
+    forward_seen_base: tuple[np.ndarray, np.ndarray],
     synthetic_count: int,
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
     """按臂拼基础合成与边缘复制，返回 (x, y, synthetic, edge)。"""
@@ -165,10 +237,18 @@ def _synthetic_for_arm(
         x = np.concatenate((vae_base[0], edge_vae[0]), axis=0)
         y = np.concatenate((vae_base[1], edge_vae[1]), axis=0)
         return x, y, len(vae_base[1]), len(edge_vae[1])
-    if arm == "forward":
+    if arm in {"forward", "forward_pretrain"}:
         x = np.concatenate((forward_base[0], edge_forward[0]), axis=0)
         y = np.concatenate((forward_base[1], edge_forward[1]), axis=0)
         return x, y, len(forward_base[1]), len(edge_forward[1])
+    if arm in {"forward_unseen", "forward_h2"}:
+        x = np.concatenate((forward_unseen_base[0], edge_forward[0]), axis=0)
+        y = np.concatenate((forward_unseen_base[1], edge_forward[1]), axis=0)
+        return x, y, len(forward_unseen_base[1]), len(edge_forward[1])
+    if arm == "forward_seen":
+        x = np.concatenate((forward_seen_base[0], edge_forward[0]), axis=0)
+        y = np.concatenate((forward_seen_base[1], edge_forward[1]), axis=0)
+        return x, y, len(forward_seen_base[1]), len(edge_forward[1])
     if arm == "forward+vae":
         half = synthetic_count // 2
         n_edge_half = len(edge_labels) * (EDGE_COPIES // 2)
@@ -204,6 +284,8 @@ def _train(
     device,
     epochs: int,
     low_conc_power: str,
+    scaler_stats: dict[str, np.ndarray] | None = None,
+    sample_weight: np.ndarray | None = None,
 ) -> tuple[np.ndarray, int]:
     _, _, epochs_used, _, prediction = _train_network(
         x_train,
@@ -219,9 +301,61 @@ def _train(
         target_transform="log,none,log",
         per_gas_head=True,
         low_conc_power=low_conc_power,
+        scaler_stats=scaler_stats,
     )
     if prediction is None:
         raise RuntimeError("训练没有产生验证预测")
+    return prediction, epochs_used
+
+
+def _train_pretrain(
+    x_pretrain: np.ndarray,
+    y_pretrain: np.ndarray,
+    x_finetune: np.ndarray,
+    y_finetune: np.ndarray,
+    x_val: np.ndarray,
+    y_val: np.ndarray,
+    y_real: np.ndarray,
+    seed: int,
+    device,
+    epochs: int,
+    low_conc_power: str,
+    scaler_stats: dict[str, np.ndarray] | None = None,
+) -> tuple[np.ndarray, int]:
+    """先在正模型合成曲线上预训练，再用真实+噪声+边缘数据微调。"""
+    model, _, _, _, _ = _train_network(
+        x_pretrain,
+        y_pretrain,
+        None,
+        None,
+        y_pretrain,
+        PRETRAIN_EPOCHS,
+        seed,
+        device,
+        False,
+        target_transform="log,none,log",
+        per_gas_head=True,
+        low_conc_power=low_conc_power,
+    )
+    _, _, epochs_used, _, prediction = _train_network(
+        x_finetune,
+        y_finetune,
+        x_val,
+        y_val,
+        y_real,
+        epochs,
+        seed,
+        device,
+        True,
+        validation_metric="three_sigma",
+        target_transform="log,none,log",
+        per_gas_head=True,
+        low_conc_power=low_conc_power,
+        initial_state=model.state_dict(),
+        scaler_stats=scaler_stats,
+    )
+    if prediction is None:
+        raise RuntimeError("预训练微调没有产生验证预测")
     return prediction, epochs_used
 
 
@@ -231,6 +365,14 @@ def _clip(prediction: np.ndarray, labels: np.ndarray) -> np.ndarray:
         labels.min(axis=0),
         labels.max(axis=0),
     )
+
+
+def _transformed_labels(labels: np.ndarray) -> np.ndarray:
+    """与训练目标一致：H2/NO2 取 log，NH3 保持原空间。"""
+    transformed = np.asarray(labels, dtype=np.float64).copy()
+    transformed[:, 0] = np.log(np.maximum(transformed[:, 0], 1e-6))
+    transformed[:, 2] = np.log(np.maximum(transformed[:, 2], 1e-6))
+    return transformed
 
 
 def _bootstrap_ci(
@@ -246,8 +388,10 @@ def _paired_rows(
     fold_rows: list[dict], metrics: tuple[str, ...], arms: tuple[str, ...]
 ) -> list[dict]:
     """候选臂相对 real 的逐 seed/折配对差；负值表示候选更好。"""
+    if "real" not in arms:
+        return []
     rows = []
-    for candidate in ("vae", "forward", "forward+vae"):
+    for candidate in ("vae", "forward", "forward+vae", "forward_pretrain", "forward_unseen", "forward_h2", "forward_seen"):
         if candidate not in arms:
             continue
         for metric in metrics:
@@ -318,6 +462,7 @@ def run(
     configs: tuple[str, ...] = DEFAULT_CONFIGS,
     arms: tuple[str, ...] = ARMS,
     output: Path | str = BASE,
+    real_scaler: bool = False,
 ) -> None:
     if folds < 1 or folds > 5:
         raise ValueError("folds 必须在 1–5 之间")
@@ -342,7 +487,7 @@ def run(
     experiments = {experiment.file_id: experiment for experiment in load_experiments()}
     y_dev = np.stack([row["_labels"] for row in development]).astype(np.float32)
     synthetic_count = SYNTHETIC_FACTOR * 40
-    need_forward = bool({"forward", "forward+vae"} & set(arms))
+    need_forward = bool({"forward", "forward+vae", "forward_pretrain", "forward_unseen", "forward_h2", "forward_seen"} & set(arms))
     need_vae = bool({"vae", "forward+vae"} & set(arms))
 
     fold_rows: list[dict] = []
@@ -360,6 +505,9 @@ def run(
         ]
         x_real, y_real = _real_features(train_rows, seconds)
         x_val, y_val = _real_features(val_rows, seconds)
+        scaler_stats = (
+            fit_scalers(x_real, _transformed_labels(y_real)) if real_scaler else None
+        )
         fold_truth[fold] = y_val
         truth_parts.append(y_val)
         file_ids.extend(int(Path(row["file"]).stem) for row in val_rows)
@@ -378,8 +526,9 @@ def run(
                 np.float64
             )
             rng = np.random.default_rng(aug_seed)
-            base_labels = _synthetic_concentration(
-                labels, synthetic_count, rng
+            val_labels = np.stack([row["_labels"] for row in val_rows]).astype(np.float64)
+            base_labels = _synthetic_concentration_excluding(
+                labels, val_labels, synthetic_count, rng
             )
             base_initial = _initial_for_synthetic(
                 train_rows, synthetic_count, rng
@@ -389,6 +538,26 @@ def run(
                 if forward is not None
                 else (np.empty((0, 0)), np.empty((0, 3)))
             )
+            if {"forward_unseen", "forward_h2"} & set(arms) and forward is not None:
+                unseen_labels = _unseen_concentrations(
+                    labels, val_labels, synthetic_count, rng
+                )
+                unseen_initial = _random_initial(train_rows, synthetic_count, rng)
+                forward_unseen_base = _forward_features(
+                    forward, unseen_labels, unseen_initial, seconds
+                )
+            else:
+                forward_unseen_base = (np.empty((0, 0)), np.empty((0, 3)))
+            if "forward_seen" in arms and forward is not None:
+                seen_labels = _training_concentrations(
+                    labels, synthetic_count, rng
+                )
+                seen_initial = _initial_for_labels(train_rows, seen_labels)
+                forward_seen_base = _forward_features(
+                    forward, seen_labels, seen_initial, seconds
+                )
+            else:
+                forward_seen_base = (np.empty((0, 0)), np.empty((0, 3)))
             vae_base = (
                 _vae_features(vae, synthetic_count, aug_seed + 1, seconds)
                 if vae is not None
@@ -428,6 +597,8 @@ def run(
             )
             arm_arrays: dict[str, tuple[np.ndarray, np.ndarray, int, int]] = {}
             arm_arrays["real"] = (x_real, y_real, 0, 0)
+            sample_weights: dict[str, np.ndarray | None] = {"real": None}
+            pretrain_arrays: dict[str, tuple[np.ndarray, np.ndarray]] = {}
             for arm in arms:
                 if arm == "real":
                     continue
@@ -438,29 +609,69 @@ def run(
                     edge_labels,
                     edge_forward,
                     edge_vae,
+                    forward_unseen_base,
+                    forward_seen_base,
                     synthetic_count,
                 )
-                arm_arrays[arm] = (
-                    np.concatenate((x_real, x_noise, x_syn), axis=0),
-                    np.concatenate((y_real, y_noise, y_syn), axis=0),
-                    n_syn,
-                    n_edge,
-                )
+                if arm == "forward_pretrain":
+                    arm_arrays[arm] = (
+                        np.concatenate((x_real, x_noise, edge_forward[0]), axis=0),
+                        np.concatenate((y_real, y_noise, edge_forward[1]), axis=0),
+                        n_syn,
+                        n_edge,
+                    )
+                    pretrain_arrays[arm] = (x_syn, y_syn)
+                else:
+                    arm_arrays[arm] = (
+                        np.concatenate((x_real, x_noise, x_syn), axis=0),
+                        np.concatenate((y_real, y_noise, y_syn), axis=0),
+                        n_syn,
+                        n_edge,
+                    )
+                    sample_weights[arm] = None
+
+            if "forward_h2" in arms:
+                n_clean = len(y_real) + len(y_noise)
+                weights = np.ones((len(y_real) + len(y_noise) + len(edge_forward[1]), 3), dtype=np.float32)
+                if len(edge_forward[1]):
+                    weights[-len(edge_forward[1]):, 1:] = 0.0
+                # forward_unseen 合成部分：只给 H2 头监督
+                n_h2 = arm_arrays["forward_h2"][2]
+                start = n_clean
+                weights[start:start + n_h2, 1:] = 0.0
+                weights[start + n_h2:, 1:] = 0.0
+                sample_weights["forward_h2"] = weights
 
             for arm in arms:
                 x_train, y_train, n_syn, n_edge = arm_arrays[arm]
                 for config_index, power in enumerate(configs):
-                    prediction, epochs_used = _train(
-                        x_train,
-                        y_train,
-                        x_val,
-                        y_val,
-                        y_real,
-                        seed,
-                        device,
-                        epochs,
-                        power,
-                    )
+                    if arm == "forward_pretrain":
+                        prediction, epochs_used = _train_pretrain(
+                            *pretrain_arrays[arm],
+                            x_train,
+                            y_train,
+                            x_val,
+                            y_val,
+                            y_real,
+                            seed,
+                            device,
+                            epochs,
+                            power,
+                            scaler_stats=scaler_stats,
+                        )
+                    else:
+                        prediction, epochs_used = _train(
+                            x_train,
+                            y_train,
+                            x_val,
+                            y_val,
+                            y_real,
+                            seed,
+                            device,
+                            epochs,
+                            power,
+                            scaler_stats=scaler_stats,
+                        )
                     pred_clip = _clip(prediction, y_dev)
                     metrics = _metric_values(pred_clip, y_val)
                     row = {
@@ -637,6 +848,8 @@ def run(
         "noise_scale": NOISE_SCALE,
         "noise_count_per_augmented_arm": noise_count,
         "edge_copies": EDGE_COPIES,
+        "pretrain_epochs": PRETRAIN_EPOCHS,
+        "real_scaler": real_scaler,
         "clip_to_development_range": True,
         "elapsed_seconds": round(time.time() - started, 1),
         "mode": MODE,
@@ -661,6 +874,11 @@ def main() -> None:
     )
     parser.add_argument("--arms", nargs="+", default=list(ARMS))
     parser.add_argument("--output", default=str(BASE))
+    parser.add_argument(
+        "--real-scaler",
+        action="store_true",
+        help="用真实训练折拟合 scaler，合成样本只参与参数更新",
+    )
     args = parser.parse_args()
     run(
         folds=args.folds,
@@ -670,6 +888,7 @@ def main() -> None:
         configs=tuple(args.configs),
         arms=tuple(args.arms),
         output=args.output,
+        real_scaler=args.real_scaler,
     )
 
 

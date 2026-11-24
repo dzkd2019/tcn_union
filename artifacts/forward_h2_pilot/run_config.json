@@ -1,0 +1,26 @@
+{
+  "folds": 5,
+  "seeds": [
+    20260923
+  ],
+  "window": 10,
+  "epochs": 500,
+  "arms": [
+    "real",
+    "forward_h2"
+  ],
+  "low_conc_configs": [
+    "1.0"
+  ],
+  "synthetic_count_per_arm": 120,
+  "synthetic_ratio": 3,
+  "noise_scale": 0.1,
+  "noise_count_per_augmented_arm": 40,
+  "edge_copies": 4,
+  "pretrain_epochs": 200,
+  "real_scaler": true,
+  "clip_to_development_range": true,
+  "elapsed_seconds": 513.5,
+  "mode": "raw_delta",
+  "device": "cuda"
+}

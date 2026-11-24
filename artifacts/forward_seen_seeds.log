@@ -1,0 +1,55 @@
+fold=0 seed=20260923 arm=vae          cfg=1.0       n=320 ep= 70 3σ=7.317 MAPE=1.843
+fold=0 seed=20260923 arm=forward_seen cfg=1.0       n=320 ep= 84 3σ=7.412 MAPE=1.832
+fold=0 seed=20260924 arm=vae          cfg=1.0       n=320 ep= 71 3σ=7.587 MAPE=1.884
+fold=0 seed=20260924 arm=forward_seen cfg=1.0       n=320 ep=108 3σ=6.767 MAPE=1.822
+fold=0 seed=20260925 arm=vae          cfg=1.0       n=320 ep=184 3σ=8.229 MAPE=2.177
+fold=0 seed=20260925 arm=forward_seen cfg=1.0       n=320 ep=191 3σ=6.934 MAPE=1.816
+fold=1 seed=20260923 arm=vae          cfg=1.0       n=328 ep=144 3σ=8.533 MAPE=2.249
+fold=1 seed=20260923 arm=forward_seen cfg=1.0       n=328 ep=220 3σ=7.268 MAPE=1.834
+fold=1 seed=20260924 arm=vae          cfg=1.0       n=328 ep= 69 3σ=12.026 MAPE=3.090
+fold=1 seed=20260924 arm=forward_seen cfg=1.0       n=328 ep=142 3σ=4.880 MAPE=1.269
+fold=1 seed=20260925 arm=vae          cfg=1.0       n=328 ep=189 3σ=9.226 MAPE=2.559
+fold=1 seed=20260925 arm=forward_seen cfg=1.0       n=328 ep=148 3σ=11.610 MAPE=2.705
+fold=2 seed=20260923 arm=vae          cfg=1.0       n=332 ep= 88 3σ=11.929 MAPE=3.043
+fold=2 seed=20260923 arm=forward_seen cfg=1.0       n=332 ep= 51 3σ=12.862 MAPE=3.093
+fold=2 seed=20260924 arm=vae          cfg=1.0       n=332 ep= 53 3σ=12.580 MAPE=3.463
+fold=2 seed=20260924 arm=forward_seen cfg=1.0       n=332 ep= 54 3σ=12.830 MAPE=3.356
+fold=2 seed=20260925 arm=vae          cfg=1.0       n=332 ep= 95 3σ=12.718 MAPE=3.174
+fold=2 seed=20260925 arm=forward_seen cfg=1.0       n=332 ep= 95 3σ=15.632 MAPE=3.659
+fold=3 seed=20260923 arm=vae          cfg=1.0       n=320 ep=216 3σ=5.742 MAPE=1.769
+fold=3 seed=20260923 arm=forward_seen cfg=1.0       n=320 ep=111 3σ=10.956 MAPE=2.305
+fold=3 seed=20260924 arm=vae          cfg=1.0       n=320 ep= 77 3σ=9.775 MAPE=2.260
+fold=3 seed=20260924 arm=forward_seen cfg=1.0       n=320 ep= 68 3σ=13.478 MAPE=3.128
+fold=3 seed=20260925 arm=vae          cfg=1.0       n=320 ep= 69 3σ=8.341 MAPE=1.996
+fold=3 seed=20260925 arm=forward_seen cfg=1.0       n=320 ep=111 3σ=8.963 MAPE=2.215
+fold=4 seed=20260923 arm=vae          cfg=1.0       n=324 ep=403 3σ=7.036 MAPE=1.598
+fold=4 seed=20260923 arm=forward_seen cfg=1.0       n=324 ep=125 3σ=6.459 MAPE=1.749
+fold=4 seed=20260924 arm=vae          cfg=1.0       n=324 ep=195 3σ=10.110 MAPE=2.536
+fold=4 seed=20260924 arm=forward_seen cfg=1.0       n=324 ep=125 3σ=8.275 MAPE=2.504
+fold=4 seed=20260925 arm=vae          cfg=1.0       n=324 ep=227 3σ=7.705 MAPE=1.803
+fold=4 seed=20260925 arm=forward_seen cfg=1.0       n=324 ep= 27 3σ=17.483 MAPE=4.988
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/mrawa/code/graduate/tcn_union/tcn_union/experiments/full_protocol_augmentation.py", line 894, in <module>
+    main()
+    ~~~~^^
+  File "/home/mrawa/code/graduate/tcn_union/tcn_union/experiments/full_protocol_augmentation.py", line 881, in main
+    run(
+    ~~~^
+        folds=args.folds,
+        ^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        real_scaler=args.real_scaler,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/mrawa/code/graduate/tcn_union/tcn_union/experiments/full_protocol_augmentation.py", line 810, in run
+    paired_rows = _paired_rows(fold_seed_rows, PAIR_METRICS, arms)
+  File "/home/mrawa/code/graduate/tcn_union/tcn_union/experiments/full_protocol_augmentation.py", line 399, in _paired_rows
+    base = next(
+        row
+    ...<3 lines>...
+        and row["fold"] == fold
+    )
+StopIteration

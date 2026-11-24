@@ -1,0 +1,5 @@
+fold=0 seed=20260923 arm=real         cfg=1.0       n= 40 ep=170 3σ=7.182 MAPE=1.585
+fold=0 seed=20260923 arm=forward      cfg=1.0       n=320 ep= 86 3σ=13.670 MAPE=3.612
+fold=0 seed=20260923 arm=forward_pretrain cfg=1.0       n=200 ep= 60 3σ=7.865 MAPE=2.196
+fold=1 seed=20260923 arm=real         cfg=1.0       n= 40 ep= 50 3σ=15.987 MAPE=5.883
+fold=1 seed=20260923 arm=forward      cfg=1.0       n=328 ep=211 3σ=7.947 MAPE=1.945

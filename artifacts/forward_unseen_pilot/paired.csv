@@ -1,0 +1,15 @@
+candidate,reference,metric,n,wins,median_delta,mean_delta,ci_low,ci_high,wilcoxon_p
+forward,real,macro_three_sigma,5,2,2.34525,0.423359,-3.235659,3.809355,1.0
+forward,real,macro_mape,5,2,0.694358,-0.281308,-1.884686,0.952347,1.0
+forward,real,macro_median,5,2,0.936028,-0.411574,-2.294812,1.079314,0.8125
+forward,real,macro_p90,5,2,0.582668,-0.486997,-3.415718,1.770719,1.0
+forward,real,H2_three_sigma,5,3,-2.143655,-3.24294,-8.746785,2.260905,0.625
+forward,real,NH3_three_sigma,5,1,1.770396,4.344106,-1.12506,12.205462,0.4375
+forward,real,NO2_three_sigma,5,2,4.932499,0.168914,-5.690792,5.784862,0.8125
+forward_unseen,real,macro_three_sigma,5,2,0.738435,0.858262,-4.496943,7.212837,1.0
+forward_unseen,real,macro_mape,5,2,0.736626,-0.200452,-1.944147,1.337642,1.0
+forward_unseen,real,macro_median,5,2,0.885619,-0.650396,-2.748508,1.18585,0.8125
+forward_unseen,real,macro_p90,5,2,1.444361,0.176217,-3.136754,3.135729,0.8125
+forward_unseen,real,H2_three_sigma,5,3,-3.888771,-3.984659,-8.076415,0.107097,0.3125
+forward_unseen,real,NH3_three_sigma,5,2,0.548701,5.553776,-3.229711,19.360579,0.8125
+forward_unseen,real,NO2_three_sigma,5,3,-0.574141,1.00567,-5.110937,7.703252,1.0

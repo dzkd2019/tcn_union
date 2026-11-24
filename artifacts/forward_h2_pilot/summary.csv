@@ -1,0 +1,3 @@
+window,arm,seeds,configs,macro_three_sigma_mean,macro_three_sigma_sd,macro_mape_mean,macro_mape_sd,macro_median_mean,macro_median_sd,macro_p90_mean,macro_p90_sd,ensemble_macro_three_sigma,ensemble_macro_mape,ensemble_macro_median,ensemble_macro_p90
+10,real,1,1,16.903433,0.0,3.865236,0.0,2.520189,0.0,8.864451,0.0,16.903433,3.865236,2.520189,8.864451
+10,forward_h2,1,1,18.227701,0.0,3.595773,0.0,2.252078,0.0,7.736973,0.0,18.227701,3.595773,2.252078,7.736973
