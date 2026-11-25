@@ -1,0 +1,13 @@
+{
+  "run_name": "full_protocol_augmentation",
+  "arm": "vae",
+  "window_s": 10.0,
+  "source": "artifacts/full_protocol_augmentation/predictions.npz",
+  "range_source": "development_50",
+  "n": 50,
+  "seeds": [
+    "20260923",
+    "20260924",
+    "20260925"
+  ]
+}

@@ -48,6 +48,15 @@
   正模型合成在完整协议下没有增益，混合反而把 VAE 结果拉差；详见
   [`docs/full_protocol_augmentation.md`](docs/full_protocol_augmentation.md) 与
   fig19。
+- 正模型增强的后续探索（2026-11-25）：条件 R0 修正了随机初始基线与浓度标签
+  不一致的问题，但仍只在 H2 产生稳健增益；固定按气体路由（H2 用 mixed、
+  NH3/NO2 用 VAE）的 50 条 OOF 宏 3σ 为 7.14%，嵌套选臂后约 7.47%，与
+  VAE 7.47% 打平。H2-only 单模型 3 seed × 2 配置的 6 checkpoint 集成宏 3σ
+  8.04%（VAE 7.99%、仅真实 10.59%），相对仅真实三气体都改善且配对显著，
+  是对“三气体都相对 real 有增益”目标的可行单模型；相对 VAE 只有 H2 显著
+  更好、NH3/NO2 更差，宏平均统计打平，总体最优仍是 VAE-only。预训练臂
+  NH3 17.20% 失败，按气体拼接 pretrain 未采用。
+  详见 [`docs/forward_augmentation_20261125.md`](docs/forward_augmentation_20261125.md)。
 - 限制：单 seed、三路独立固定 600 轮且无早停、没有独立锁定测试；
   62 条实验、每个浓度组合 1 条、无重复；NH₃ 浓度与采集顺序高度混淆；
   H₂=32000 只有 4 条且都在 NO₂=2；这些限制不能靠模型弥补。

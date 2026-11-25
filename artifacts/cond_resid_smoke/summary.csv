@@ -1,0 +1,5 @@
+window,arm,seeds,configs,macro_three_sigma_mean,macro_three_sigma_sd,macro_mape_mean,macro_mape_sd,macro_median_mean,macro_median_sd,macro_p90_mean,macro_p90_sd,ensemble_macro_three_sigma,ensemble_macro_mape,ensemble_macro_median,ensemble_macro_p90
+10,real,1,1,7.251673,0.0,1.694194,0.0,1.02546,0.0,3.629608,0.0,7.251673,1.694194,1.02546,3.629608
+10,vae,1,1,7.395679,0.0,1.856302,0.0,1.540365,0.0,4.203476,0.0,7.395679,1.856302,1.540365,4.203476
+10,forward_resid,1,1,9.506841,0.0,2.606687,0.0,2.354749,0.0,5.37265,0.0,9.506841,2.606687,2.354749,5.37265
+10,forward_resid+vae,1,1,7.430883,0.0,2.054328,0.0,1.946246,0.0,4.455743,0.0,7.430883,2.054328,1.946246,4.455743

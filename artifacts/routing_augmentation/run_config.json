@@ -1,0 +1,15 @@
+{
+  "source": "/home/mrawa/code/deep-learning/tcn_union/artifacts/full_protocol_augmentation/predictions.npz",
+  "route": {
+    "gas_0": "forward+vae",
+    "gas_1": "vae",
+    "gas_2": "vae"
+  },
+  "seeds": [
+    "20260923",
+    "20260924",
+    "20260925"
+  ],
+  "clip": "development_50",
+  "n": 50
+}
