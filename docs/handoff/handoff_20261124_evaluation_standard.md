@@ -1,5 +1,7 @@
 # Handoff：逆问题最终评估规范与 forward_seen 对比
 
+> 最新交接（2026-11-25 纯正模型 joint10）：[handoff_20261125_pure_forward_augmentation.md](handoff_20261125_pure_forward_augmentation.md)。本文件保留 11-24 历史状态。
+
 - 日期：2026-11-24
 - 当前分支：`experiment/forward-augmented-tcn`
 - 当前 HEAD：`828fc6c feat(tcn): complete full old-protocol augmentation comparison`

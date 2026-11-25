@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from itertools import product
 from pathlib import Path
@@ -76,12 +77,16 @@ ARMS = (
     "forward_unseen",
     "forward_h2",
     "forward_seen",
+    "forward_prob",
+    "forward_prob_joint",
+    "forward_prob_joint10",
 )
 DEFAULT_SEEDS = (20260923, 20260924, 20260925)
 DEFAULT_CONFIGS = ("1.0", "0,0.3,1.0")
 EPOCHS = 500
 PRETRAIN_EPOCHS = 200
 SYNTHETIC_FACTOR = 3
+JOINT_SAMPLE = os.environ.get("FORWARD_JOINT_SAMPLE", "normal")
 NOISE_SCALE = 0.1
 EDGE_COPIES = 4
 PAIR_METRICS = (
@@ -226,6 +231,167 @@ def _forward_residual_features(
     return features.astype(np.float32), labels.astype(np.float32)
 
 
+def _prob_design(values: np.ndarray) -> np.ndarray:
+    u = np.log(values)
+    return np.column_stack(
+        (
+            np.ones(len(u)),
+            u,
+            u**2,
+            u[:, [0]] * u[:, [1]],
+            u[:, [0]] * u[:, [2]],
+            u[:, [1]] * u[:, [2]],
+        )
+    )
+
+
+def _forward_prob_features(
+    model: PerGasMLPDoubleExponentialModel,
+    rows: list[dict],
+    labels: np.ndarray,
+    initial: np.ndarray,
+    seconds: int,
+    rng: np.random.Generator,
+    components: int = 3,
+    ridge: float = 1e-2,
+    shrink: float = 0.2,
+) -> tuple[np.ndarray, np.ndarray]:
+    """正模型均值 + 训练折残差的低秩条件分布采样。
+
+    与直接 bootstrap 某个真实实验的残差不同，这里先把训练折残差按气体
+    做 PCA，再让每个主成分得分对 log 浓度做二次岭回归；合成样本的条件
+    均值取回归预测，波动取回归残差协方差。这样既能补实验间形状差异，
+    又不会把某个高浓度实验的残差整条移植到低浓度组合上。
+    """
+    times = _times(seconds)
+    train_labels = np.stack([row["_labels"] for row in rows]).astype(np.float64)
+    train_response = np.stack(
+        [np.asarray(row["_response"])[: len(times)] for row in rows]
+    )
+    train_initial = train_response[:, 0, :]
+    train_relative = train_response / train_initial[:, None, :] - 1.0
+    train_prediction = model.predict_relative(train_labels, times)
+    residual = train_relative - train_prediction
+
+    design = _prob_design(train_labels)
+    design_mean = design[:, 1:].mean(axis=0)
+    design_scale = design[:, 1:].std(axis=0)
+    design_scale[design_scale == 0.0] = 1.0
+    design[:, 1:] = (design[:, 1:] - design_mean) / design_scale
+    target_design = _prob_design(labels)
+    target_design[:, 1:] = (target_design[:, 1:] - design_mean) / design_scale
+
+    sampled = np.empty((len(labels), len(times), 3), dtype=np.float64)
+    for gas in range(3):
+        values = residual[:, :, gas]
+        mean = values.mean(axis=0)
+        centered = values - mean[None, :]
+        _, _, vt = np.linalg.svd(centered, full_matrices=False)
+        count = min(components, len(rows) - 1, len(times))
+        basis = vt[:count]
+        scores = centered @ basis.T
+
+        penalty = ridge * np.eye(design.shape[1])
+        penalty[0, 0] = 0.0
+        coefficients = np.linalg.solve(
+            design.T @ design + penalty, design.T @ scores
+        )
+        fitted = design @ coefficients
+        error = scores - fitted
+        covariance = np.atleast_2d(np.cov(error, rowvar=False))
+        covariance = 0.5 * (covariance + covariance.T)
+        covariance += shrink * np.trace(covariance) / count * np.eye(count)
+        covariance += 1e-10 * np.eye(count)
+
+        predicted = target_design @ coefficients
+        noise = rng.multivariate_normal(
+            np.zeros(count), covariance, size=len(labels)
+        )
+        reconstruction = mean[None, :] + (predicted + noise) @ basis
+        low = values.min(axis=0)
+        high = values.max(axis=0)
+        sampled[:, :, gas] = np.clip(reconstruction, low, high)
+
+    relative = model.predict_relative(labels, times) + sampled
+    response = initial[:, None, :] * (1.0 + relative)
+    features = np.stack(
+        [make_features(times, item, seconds, MODE) for item in response]
+    )
+    return features.astype(np.float32), labels.astype(np.float32)
+
+
+def _forward_prob_joint_features(
+    model: PerGasMLPDoubleExponentialModel,
+    rows: list[dict],
+    labels: np.ndarray,
+    initial: np.ndarray,
+    seconds: int,
+    rng: np.random.Generator,
+    components: int = 5,
+    ridge: float = 1e-2,
+    shrink: float = 0.2,
+    sample: str = "normal",
+) -> tuple[np.ndarray, np.ndarray]:
+    """正模型均值 + 三气体联合残差的低秩条件分布采样。
+
+    逐气体独立采样会破坏实验内三通道残差的相关性；这里把 3×T 的残差
+    展平后做一次 PCA，使合成曲线保留跨气体共享的实验状态。
+    """
+    times = _times(seconds)
+    train_labels = np.stack([row["_labels"] for row in rows]).astype(np.float64)
+    train_response = np.stack(
+        [np.asarray(row["_response"])[: len(times)] for row in rows]
+    )
+    train_initial = train_response[:, 0, :]
+    train_relative = train_response / train_initial[:, None, :] - 1.0
+    train_prediction = model.predict_relative(train_labels, times)
+    residual = (train_relative - train_prediction).reshape(len(rows), -1)
+
+    design = _prob_design(train_labels)
+    design_mean = design[:, 1:].mean(axis=0)
+    design_scale = design[:, 1:].std(axis=0)
+    design_scale[design_scale == 0.0] = 1.0
+    design[:, 1:] = (design[:, 1:] - design_mean) / design_scale
+    target_design = _prob_design(labels)
+    target_design[:, 1:] = (target_design[:, 1:] - design_mean) / design_scale
+
+    mean = residual.mean(axis=0)
+    centered = residual - mean[None, :]
+    _, _, vt = np.linalg.svd(centered, full_matrices=False)
+    count = min(components, len(rows) - 1, residual.shape[1])
+    basis = vt[:count]
+    scores = centered @ basis.T
+
+    penalty = ridge * np.eye(design.shape[1])
+    penalty[0, 0] = 0.0
+    coefficients = np.linalg.solve(design.T @ design + penalty, design.T @ scores)
+    error = scores - design @ coefficients
+    covariance = np.atleast_2d(np.cov(error, rowvar=False))
+    covariance = 0.5 * (covariance + covariance.T)
+    covariance += shrink * np.trace(covariance) / count * np.eye(count)
+    covariance += 1e-10 * np.eye(count)
+
+    predicted = target_design @ coefficients
+    noise = rng.multivariate_normal(np.zeros(count), covariance, size=len(labels))
+    if sample == "bootstrap":
+        distance = ((target_design[:, None, :] - design[None, :, :]) ** 2).sum(axis=2)
+        nearest = np.argsort(distance, axis=1)[:, :5]
+        pick = nearest[np.arange(len(labels)), rng.integers(0, 5, size=len(labels))]
+        noise = error[pick]
+    reconstruction = mean[None, :] + (predicted + noise) @ basis
+    reconstruction = reconstruction.reshape(len(labels), len(times), 3)
+    low = residual.reshape(len(rows), len(times), 3).min(axis=0)
+    high = residual.reshape(len(rows), len(times), 3).max(axis=0)
+    sampled = np.clip(reconstruction, low[None, :, :], high[None, :, :])
+
+    relative = model.predict_relative(labels, times) + sampled
+    response = initial[:, None, :] * (1.0 + relative)
+    features = np.stack(
+        [make_features(times, item, seconds, MODE) for item in response]
+    )
+    return features.astype(np.float32), labels.astype(np.float32)
+
+
 def _vae_features(
     model,
     count: int,
@@ -347,9 +513,15 @@ def _synthetic_for_arm(
     edge_forward_cond: tuple[np.ndarray, np.ndarray],
     edge_forward_resid: tuple[np.ndarray, np.ndarray],
     edge_forward_nn: tuple[np.ndarray, np.ndarray],
+    edge_forward_prob: tuple[np.ndarray, np.ndarray],
+    edge_forward_prob_joint: tuple[np.ndarray, np.ndarray],
+    edge_forward_prob_joint10: tuple[np.ndarray, np.ndarray],
     edge_vae: tuple[np.ndarray, np.ndarray],
     forward_unseen_base: tuple[np.ndarray, np.ndarray],
     forward_seen_base: tuple[np.ndarray, np.ndarray],
+    forward_prob_base: tuple[np.ndarray, np.ndarray],
+    forward_prob_joint_base: tuple[np.ndarray, np.ndarray],
+    forward_prob_joint10_base: tuple[np.ndarray, np.ndarray],
     forward_resid_base: tuple[np.ndarray, np.ndarray],
     forward_nn_base: tuple[np.ndarray, np.ndarray],
     synthetic_count: int,
@@ -453,6 +625,26 @@ def _synthetic_for_arm(
         x = np.concatenate((forward_seen_base[0], edge_forward[0]), axis=0)
         y = np.concatenate((forward_seen_base[1], edge_forward[1]), axis=0)
         return x, y, len(forward_seen_base[1]), len(edge_forward[1])
+    if arm == "forward_prob":
+        x = np.concatenate((forward_prob_base[0], edge_forward_prob[0]), axis=0)
+        y = np.concatenate((forward_prob_base[1], edge_forward_prob[1]), axis=0)
+        return x, y, len(forward_prob_base[1]), len(edge_forward_prob[1])
+    if arm == "forward_prob_joint":
+        x = np.concatenate(
+            (forward_prob_joint_base[0], edge_forward_prob_joint[0]), axis=0
+        )
+        y = np.concatenate(
+            (forward_prob_joint_base[1], edge_forward_prob_joint[1]), axis=0
+        )
+        return x, y, len(forward_prob_joint_base[1]), len(edge_forward_prob_joint[1])
+    if arm == "forward_prob_joint10":
+        x = np.concatenate(
+            (forward_prob_joint10_base[0], edge_forward_prob_joint10[0]), axis=0
+        )
+        y = np.concatenate(
+            (forward_prob_joint10_base[1], edge_forward_prob_joint10[1]), axis=0
+        )
+        return x, y, len(forward_prob_joint10_base[1]), len(edge_forward_prob_joint10[1])
     if arm == "forward+vae":
         half = synthetic_count // 2
         n_edge_half = len(edge_labels) * (EDGE_COPIES // 2)
@@ -617,6 +809,9 @@ def _paired_rows(
         "forward_unseen",
         "forward_h2",
         "forward_seen",
+        "forward_prob",
+        "forward_prob_joint",
+        "forward_prob_joint10",
     ):
         if candidate not in arms:
             continue
@@ -713,7 +908,7 @@ def run(
     experiments = {experiment.file_id: experiment for experiment in load_experiments()}
     y_dev = np.stack([row["_labels"] for row in development]).astype(np.float32)
     synthetic_count = SYNTHETIC_FACTOR * 40
-    need_forward = bool({"forward", "forward+vae", "forward_cond", "forward_cond+vae", "forward_cond_weighted", "forward_cond_h2", "forward_resid", "forward_resid+vae", "forward_nn", "forward_nn+vae", "forward_pretrain", "forward_pretrain_no_h2", "forward_pretrain_h2", "forward_cond_pretrain", "forward_unseen", "forward_h2", "forward_seen"} & set(arms))
+    need_forward = bool({"forward", "forward+vae", "forward_cond", "forward_cond+vae", "forward_cond_weighted", "forward_cond_h2", "forward_resid", "forward_resid+vae", "forward_nn", "forward_nn+vae", "forward_pretrain", "forward_pretrain_no_h2", "forward_pretrain_h2", "forward_cond_pretrain", "forward_unseen", "forward_h2", "forward_seen", "forward_prob", "forward_prob_joint", "forward_prob_joint10"} & set(arms))
     need_vae = bool({"vae", "forward+vae", "forward_cond+vae", "forward_cond_weighted", "forward_cond_h2", "forward_resid+vae", "forward_nn+vae"} & set(arms))
 
     fold_rows: list[dict] = []
@@ -778,7 +973,7 @@ def run(
                     forward,
                     train_rows,
                     base_labels,
-                    _initial_for_conditional(train_rows, base_labels),
+                    _initial_for_labels(train_rows, base_labels),
                     seconds,
                     rng,
                     nearest=True,
@@ -790,7 +985,7 @@ def run(
                     forward,
                     train_rows,
                     base_labels,
-                    _initial_for_conditional(train_rows, base_labels),
+                    _initial_for_labels(train_rows, base_labels),
                     seconds,
                     rng,
                 )
@@ -816,6 +1011,37 @@ def run(
                 )
             else:
                 forward_seen_base = (np.empty((0, 0)), np.empty((0, 3)))
+            if "forward_prob" in arms and forward is not None:
+                prob_labels = _training_concentrations(
+                    labels, synthetic_count, rng
+                )
+                prob_initial = _initial_for_labels(train_rows, prob_labels)
+                forward_prob_base = _forward_prob_features(
+                    forward, train_rows, prob_labels, prob_initial, seconds, rng
+                )
+            else:
+                forward_prob_base = (np.empty((0, 0)), np.empty((0, 3)))
+            if {"forward_prob_joint", "forward_prob_joint10"} & set(arms) and forward is not None:
+                joint_labels = _training_concentrations(
+                    labels, synthetic_count, rng
+                )
+                joint_initial = _initial_for_labels(train_rows, joint_labels)
+                forward_prob_joint_base = _forward_prob_joint_features(
+                    forward, train_rows, joint_labels, joint_initial, seconds, rng
+                )
+                forward_prob_joint10_base = _forward_prob_joint_features(
+                    forward,
+                    train_rows,
+                    joint_labels,
+                    joint_initial,
+                    seconds,
+                    rng,
+                    components=10,
+                    sample=JOINT_SAMPLE,
+                )
+            else:
+                forward_prob_joint_base = (np.empty((0, 0)), np.empty((0, 3)))
+                forward_prob_joint10_base = (np.empty((0, 0)), np.empty((0, 3)))
             vae_base = (
                 _vae_features(vae, synthetic_count, aug_seed + 1, seconds)
                 if vae is not None
@@ -846,7 +1072,7 @@ def run(
                         forward,
                         train_rows,
                         repeated,
-                        _initial_for_conditional(train_rows, repeated),
+                        _initial_for_labels(train_rows, repeated),
                         seconds,
                         rng,
                     )
@@ -858,10 +1084,47 @@ def run(
                         forward,
                         train_rows,
                         repeated,
-                        _initial_for_conditional(train_rows, repeated),
+                        _initial_for_labels(train_rows, repeated),
                         seconds,
                         rng,
                         nearest=True,
+                    )
+                    if forward is not None
+                    else (np.empty((0, 0)), np.empty((0, 3)))
+                )
+                edge_forward_prob = (
+                    _forward_prob_features(
+                        forward,
+                        train_rows,
+                        repeated,
+                        _initial_for_labels(train_rows, repeated),
+                        seconds,
+                        rng,
+                    )
+                    if forward is not None
+                    else (np.empty((0, 0)), np.empty((0, 3)))
+                )
+                edge_forward_prob_joint = (
+                    _forward_prob_joint_features(
+                        forward,
+                        train_rows,
+                        repeated,
+                        _initial_for_labels(train_rows, repeated),
+                        seconds,
+                        rng,
+                    )
+                    if forward is not None
+                    else (np.empty((0, 0)), np.empty((0, 3)))
+                )
+                edge_forward_prob_joint10 = (
+                    _forward_prob_joint_features(
+                        forward,
+                        train_rows,
+                        repeated,
+                        _initial_for_labels(train_rows, repeated),
+                        seconds,
+                        rng,
+                        components=10,
                     )
                     if forward is not None
                     else (np.empty((0, 0)), np.empty((0, 3)))
@@ -882,6 +1145,9 @@ def run(
                 edge_forward_cond = (np.empty((0, 0)), np.empty((0, 3)))
                 edge_forward_resid = (np.empty((0, 0)), np.empty((0, 3)))
                 edge_forward_nn = (np.empty((0, 0)), np.empty((0, 3)))
+                edge_forward_prob = (np.empty((0, 0)), np.empty((0, 3)))
+                edge_forward_prob_joint = (np.empty((0, 0)), np.empty((0, 3)))
+                edge_forward_prob_joint10 = (np.empty((0, 0)), np.empty((0, 3)))
                 edge_vae = (np.empty((0, 0)), np.empty((0, 3)))
 
             x_noise, y_noise = noisy_features(
@@ -912,9 +1178,15 @@ def run(
                     edge_forward_cond,
                     edge_forward_resid,
                     edge_forward_nn,
+                    edge_forward_prob,
+                    edge_forward_prob_joint,
+                    edge_forward_prob_joint10,
                     edge_vae,
                     forward_unseen_base,
                     forward_seen_base,
+                    forward_prob_base,
+                    forward_prob_joint_base,
+                    forward_prob_joint10_base,
                     forward_resid_base,
                     forward_nn_base,
                     synthetic_count,

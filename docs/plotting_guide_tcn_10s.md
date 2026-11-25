@@ -17,6 +17,14 @@
 | 10s-F3 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | 同上，arm=vae | 同上 | `artifacts/full_protocol_augmentation/report/vae/figs/` |
 | 10s-F4 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/routing_augmentation/predictions.npz`，arm=routing | 同上；routing 为 H2 用 forward+vae、NH3/NO2 用 vae | `artifacts/routing_augmentation/report/figs/` |
 | 10s-F5 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/h2_augmentation_full/predictions.npz`，arm=forward_cond_h2 | 同上；H2-only 正模型 + VAE，3 seed × 2 配置 | `artifacts/h2_augmentation_full/report/forward_cond_h2/figs/` |
+| 10s-F6 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/joint10_full/predictions.npz`，arm=real | 3 张 1×3；OOF 50，n=50 | `artifacts/joint10_full/report/real/figs/` |
+| 10s-F7 | 同上 | 同上 | 同上，arm=vae | 同上 | `artifacts/joint10_full/report/vae/figs/` |
+| 10s-F8 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 纯正模型，5 主成分 | `artifacts/joint10_full/report/forward_prob_joint/figs/` |
+| 10s-F9 | 同上 | 同上 | 同上，arm=forward_prob_joint10 | joint10 纯正模型，10 主成分，主结果 | `artifacts/joint10_full/report/forward_prob_joint10/figs/` |
+| 10s-F10 | 同上 | 同上 | `artifacts/joint_boot_full/predictions.npz`，arm=forward_prob_joint10 | 残差 bootstrap 负结果 | `artifacts/joint_boot_full/report/forward_prob_joint10/figs/` |
+| 10s-F11 | 同上 | 同上 | `artifacts/pure_forward_full/predictions.npz`，arm=real | joint5 全量的仅真实基线 | `artifacts/pure_forward_full/report/real/figs/` |
+| 10s-F12 | 同上 | 同上 | 同上，arm=vae | joint5 全量的 PCA-VAE | `artifacts/pure_forward_full/report/vae/figs/` |
+| 10s-F13 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 全量主结果 | `artifacts/pure_forward_full/report/forward_prob_joint/figs/` |
 
 ## 统一规范
 
@@ -113,3 +121,24 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
 - 四个 run（real / vae / routing / forward_cond_h2）的指标分别见各目录 `metrics.csv`；
   NRMSE 量程统一用开发集 50 条逐气体极差，已写入 `run_config.json` 的
   `range_source=development_50`。锁定 12 条未参与本轮评估。
+
+### 2026-11-25 纯正模型 joint10
+
+- 结果文档：`sensor_array/docs/pure_forward_augmentation.md`
+- 主结果：`artifacts/joint10_full/`；joint5 全量：`artifacts/pure_forward_full/`；
+  bootstrap 负结果：`artifacts/joint_boot_full/`
+- 复现：
+
+```bash
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
+  -m tcn_union.experiments.full_protocol_augmentation \
+  --folds 5 --seeds 20260923 20260924 20260925 \
+  --configs 1.0 0,0.3,1.0 \
+  --arms real vae forward_prob_joint forward_prob_joint10 \
+  --real-scaler --output artifacts/joint10_full
+```
+
+- 每个 run 的指标见 `report/<arm>/metrics.csv`；图统一为
+  `fig_abs_error`、`fig_rel_error`、`fig_ci95` 三张 1×3，
+  ensemble 散点、CI 每 seed 一点。锁定 12 条未参与本轮评估。

@@ -1,0 +1,15 @@
+candidate,reference,metric,n,wins,median_delta,mean_delta,ci_low,ci_high,wilcoxon_p
+vae,real,macro_three_sigma,15,15,-2.356319,-3.120545,-4.409054,-1.996672,6.104e-05
+vae,real,macro_mape,15,15,-0.828475,-0.9365,-1.308824,-0.607311,6.104e-05
+vae,real,macro_median,15,12,-0.823068,-0.76672,-1.183695,-0.374577,0.00427246
+vae,real,macro_p90,15,14,-1.351903,-1.755165,-2.501006,-1.084467,0.00012207
+vae,real,H2_three_sigma,15,8,-1.067986,-1.030252,-3.353964,1.169888,0.5244751
+vae,real,NH3_three_sigma,15,12,-2.014976,-2.741439,-4.112328,-1.486155,0.00115967
+vae,real,NO2_three_sigma,15,15,-5.256663,-5.589945,-7.412904,-3.889468,6.104e-05
+forward_prob_joint,real,macro_three_sigma,15,10,-1.911012,-2.687514,-4.541916,-0.914801,0.03015137
+forward_prob_joint,real,macro_mape,15,12,-0.713708,-0.890165,-1.386406,-0.422961,0.00427246
+forward_prob_joint,real,macro_median,15,14,-0.667714,-1.023902,-1.505644,-0.573414,0.00085449
+forward_prob_joint,real,macro_p90,15,12,-0.966266,-1.566556,-2.478128,-0.668972,0.01245117
+forward_prob_joint,real,H2_three_sigma,15,11,-3.151887,-2.832252,-4.965121,-0.653655,0.03015137
+forward_prob_joint,real,NH3_three_sigma,15,11,-2.816516,-2.22768,-4.012107,-0.39689,0.03533936
+forward_prob_joint,real,NO2_three_sigma,15,8,-2.957043,-3.00261,-5.819958,-0.132562,0.10699463
