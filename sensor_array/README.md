@@ -171,14 +171,18 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.visualization.full_protocol_
 ```text
 sensor_array/
   core/          data.py  skeletons.py  double_exponential.py  mlp_per_gas.py
-                 residual.py  metrics.py  shapes.py
+                 hierarchical.py  residual.py  metrics.py  shapes.py
   experiments/   evaluate.py  compare_skeletons.py
   plotting/      model.py  style.py
   artifacts/     models/  evaluation/  comparison/
   figures/model/ fig01、fig03、fig07、fig09、fig10、fig12–fig19（PNG+SVG）
-  docs/          model.md  evaluation.md  double_exponential_analysis.md
-                 plotting_guide.md  plan_20261123.md  archive/
-  tests/         test_model.py
+  docs/          README.md（索引）  model.md  evaluation.md
+                 double_exponential_analysis.md  learning_guide.md
+                 beginner_guide.md  plotting_guide.md  plan_20261123.md
+                 full_protocol_augmentation.md  forward_seen_vs_vae.md
+                 forward_augmentation_20261125.md  pure_forward_augmentation.md
+                 hierarchical_augmentation.md
+  tests/         test_model.py  test_hierarchical.py
 ```
 
 ## 7. 限制

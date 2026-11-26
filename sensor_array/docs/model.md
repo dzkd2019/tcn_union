@@ -6,8 +6,8 @@ MLP 学习的浓度—时间残差。62 折留一评估中，组合的曲线宏 
 <code>double.json</code> 保留作骨架对照；一阶/二阶骨架对比的 3 seed 结果显示
 双指数与一阶差异不显著，详见 [evaluation.md](evaluation.md) 第 3.2 节与第 8 节。
 
-旧的一阶灰盒、低秩 B 样条残差（hybrid）、直接岭回归、TCN、均值曲线以及旧实验分支的代码都已从本分支删除；相关历史文档在同目录
-<code>archive/</code> 中仅作归档。
+旧的一阶灰盒、低秩 B 样条残差（hybrid）、直接岭回归、TCN、均值曲线以及旧实验分支的代码都已从本分支删除；
+相关历史文档已删除，需要时用 <code>git log -- sensor_array/docs/archive</code> 查历史。
 
 ![双指数骨架 + 三路独立 MLP 残差](../figures/model/fig07_model_architecture.png)
 

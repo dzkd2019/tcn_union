@@ -1,8 +1,8 @@
-# 结果与图件快照（当前分支，2026-11-23）
+# 结果与图件快照（当前分支，2026-11-26）
 
-本文件记录当前分支 `experiment/forward-augmented-tcn` 的 `sensor_array/artifacts/` 与
+本文件记录当前分支 `experiment/pure-forward-augmentation` 的 `sensor_array/artifacts/` 与
 `sensor_array/figures/model/` 内容。MAP 反演、区间校准与降级产物已删除；旧模型
-代码与图件只保留在 `docs/archive/` 作历史归档。逆问题 TCN 的新产物在仓库根
+代码与图件已删除，历史版本可用 `git log` 查看。逆问题 TCN 的新产物在仓库根
 `artifacts/augmentation/protocols/forward/`、`artifacts/augmentation/protocols/old/`
 与 `artifacts/augmentation/protocols/full/`，不属于本快照的 SHA 校验范围。
 

@@ -2,7 +2,7 @@
 
 本文件逐图记录绘图脚本、绘图函数、数据源和版式。每次新增图片或修改绘图脚本，都要同步更新本文件。
 当前分支只保留两个模型：双指数骨架（<code>double</code>）与三路独立 MLP 残差 + 双指数（<code>mlp_per_gas</code>）。
-历史脚本在 <code>docs/archive/plotting_guide.md</code> 中仅作归档。图片对应的数值与统计口径见
+历史脚本已删除，需要时用 <code>git log -- sensor_array/docs/archive/plotting_guide.md</code> 查历史。图片对应的数值与统计口径见
 [<code>evaluation.md</code>](evaluation.md)。
 
 ## 1. 运行入口
