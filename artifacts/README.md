@@ -31,6 +31,7 @@ artifacts/
 │   │   ├── base/                 # 早期 pure forward
 │   │   ├── h2/                   # H2 专用/逐气体路由
 │   │   └── routing/              # 路由实验
+│   ├── hierarchical/            # 方案 1：分层随机效应合成
 │   ├── diagnostics/              # forward_seen / h2 / unseen / 条件残差筛查
 │   └── vae_gan/                  # PCA-VAE、GAN、noise 与旧对比
 │
@@ -61,6 +62,7 @@ artifacts/
 | 纯正模型最好方案 | `augmentation/pure_forward/joint10/` |
 | 完整旧协议四臂 | `augmentation/protocols/full/` |
 | 旧协议（历史对照） | `augmentation/protocols/old/` |
+| 方案 1 分层随机效应 | `augmentation/hierarchical/` |
 | 正模型诊断 | `augmentation/diagnostics/` |
 | PCA-VAE / GAN | `augmentation/vae_gan/` |
 | 误差与消融 | `analysis/` |

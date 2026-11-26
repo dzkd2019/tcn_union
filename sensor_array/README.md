@@ -64,6 +64,13 @@
   joint10−VAE 宏 8/15、p=0.76，没有一种气体显著超过 VAE。严格目标
   “纯正模型三气体都明显超过 VAE”未达成；bootstrap 残差采样更差。
   详见 [`docs/pure_forward_augmentation.md`](docs/pure_forward_augmentation.md)。
+- 方案 1（2026-11-26，分层随机效应）：把每条实验的增益/时间尺度/漂移作为
+  条件在浓度上的随机效应内化到正模型，3 seed × 2 配置 6 checkpoint 集成宏
+  3σ 8.99%、MAPE 2.19%，PCA-VAE 7.83%/2.07%，仅真实 11.24%/2.95%。相对
+  仅真实显著改善（−2.92 pp，23/30，p<0.001），但没有超过 PCA-VAE
+  （+0.78 pp，p=0.328）；H2 更好、NH3/NO2 更差。方案 1 + VAE 联合同样
+  没有超过 PCA-VAE（8.35%、p=0.299）。详见
+  [`docs/hierarchical_augmentation.md`](docs/hierarchical_augmentation.md)。
 - 限制：单 seed、三路独立固定 600 轮且无早停、没有独立锁定测试；
   62 条实验、每个浓度组合 1 条、无重复；NH₃ 浓度与采集顺序高度混淆；
   H₂=32000 只有 4 条且都在 NO₂=2；这些限制不能靠模型弥补。
