@@ -87,7 +87,7 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 --configs 1.0 \
   --arms real vae forward_cond forward_cond+vae --real-scaler \
-  --output artifacts/cond_screen
+  --output artifacts/augmentation/diagnostics/cond_screen
 ```
 
 结果（10 s，50 条 OOF，单位 %）：
@@ -113,7 +113,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_au
 样本的 NH3/NO2 损失权重设为 0，只监督 H2；VAE 样本仍监督三气体。这样是
 一次训练、一个模型，正模型只负责 H2，NH3/NO2 由 VAE 保底。
 
-5 折 1 seed 1 配置筛选（`artifacts/cond_h2_screen`，10 s，50 条 OOF；
+5 折 1 seed 1 配置筛选（`artifacts/augmentation/diagnostics/cond_h2_screen`，10 s，50 条 OOF；
 仅用于决定是否值得做 3 seed，不作为最终数字）：
 
 | 臂 | 宏 3σ | 宏 MAPE | H2 3σ | NH3 3σ | NO2 3σ | H2 MAPE | NH3 MAPE | NO2 MAPE |
@@ -141,7 +141,7 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 20260924 20260925 \
   --configs 1.0 0,0.3,1.0 --arms real vae forward_cond_h2 --real-scaler \
-  --output artifacts/h2_augmentation_full
+  --output artifacts/augmentation/pure_forward/h2
 ```
 
 3 seed 逐 seed OOF 宏平均（均值 ± seed 标准差，%）：
@@ -334,14 +334,14 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_au
 
 ## 8. 产物与复现
 
-- 条件 R0 筛选：`artifacts/cond_screen/`
-- H2-only 筛选：`artifacts/cond_h2_screen/`
-- 残差 bootstrap smoke：`artifacts/cond_resid_smoke/`
-- 路由预测：`artifacts/routing_augmentation/predictions.npz`、`run_config.json`
-- 路由最终评估：`artifacts/routing_augmentation/report/{metrics.csv,predictions.csv,run_config.json,figs/}`
-- 基线最终评估：`artifacts/full_protocol_augmentation/report/real/`、`.../vae/`
-- H2-only 3 seed 全量：`artifacts/h2_augmentation_full/`
-- H2-only 最终评估：`artifacts/h2_augmentation_full/report/forward_cond_h2/`
+- 条件 R0 筛选：`artifacts/augmentation/diagnostics/cond_screen/`
+- H2-only 筛选：`artifacts/augmentation/diagnostics/cond_h2_screen/`
+- 残差 bootstrap smoke：`artifacts/augmentation/diagnostics/cond_resid_smoke/`
+- 路由预测：`artifacts/augmentation/pure_forward/routing/predictions.npz`、`run_config.json`
+- 路由最终评估：`artifacts/augmentation/pure_forward/routing/report/{metrics.csv,predictions.csv,run_config.json,figs/}`
+- 基线最终评估：`artifacts/augmentation/protocols/full/report/real/`、`.../vae/`
+- H2-only 3 seed 全量：`artifacts/augmentation/pure_forward/h2/`
+- H2-only 最终评估：`artifacts/augmentation/pure_forward/h2/report/forward_cond_h2/`
 - 图件索引：`docs/plotting_guide_tcn_10s.md` 的 10s-F2–F5
 
 ```bash
@@ -350,13 +350,13 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 --configs 1.0 \
   --arms real vae forward_cond forward_cond+vae --real-scaler \
-  --output artifacts/cond_screen
+  --output artifacts/augmentation/diagnostics/cond_screen
 
 # 路由与最终报告
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.routing
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
-  --source artifacts/routing_augmentation/predictions.npz \
-  --output artifacts/routing_augmentation/report --arm routing \
+  --source artifacts/augmentation/pure_forward/routing/predictions.npz \
+  --output artifacts/augmentation/pure_forward/routing/report --arm routing \
   --run-name routing_augmentation
 ```
 

@@ -13,7 +13,7 @@
 - 数据仍为 62 条实验，50 条开发 / 12 条锁定；不补测、不重采。
 - 5 秒模型只用 50 条开发集训练；锁定 12 条只在最终候选上评估一次。
 - 超参数、增强、目标变换、损失加权均沿用 10 秒 3σ 方案，没有为 5 秒重新调参。
-- 10 秒结果不重跑，直接引用已冻结的 `artifacts/3sigma_noridge/` 产物。
+- 10 秒结果不重跑，直接引用已冻结的 `artifacts/inverse/eval_10s/` 产物。
 
 ## 2. 协议
 
@@ -94,31 +94,31 @@
 
 ```bash
 # 1) 5 秒 OOF（两配置 × 3 seed）
-#    见 artifacts/3sigma_5s/oof_raw/<p10|q>/seed_<seed>/noise_gan/oof.csv
+#    见 artifacts/inverse/eval_5s/oof_raw/<p10|q>/seed_<seed>/noise_gan/oof.csv
 # 2) 两配置 OOF 平均
-.venv/bin/python artifacts/3sigma_5s/scripts/build_oof.py
+.venv/bin/python artifacts/inverse/eval_5s/scripts/build_oof.py
 # 3) 最终 3 seed 重训（epochs 取 OOF 中位数）
-.venv/bin/python artifacts/3sigma_5s/scripts/train_final_5s.py
+.venv/bin/python artifacts/inverse/eval_5s/scripts/train_final_5s.py
 # 4) 锁定 12 条评估一次
 .venv/bin/python -m tcn_union.evaluation.ensemble_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --model-dirs artifacts/3sigma_5s/final/p10/noise_gan \
-               artifacts/3sigma_5s/final/q/noise_gan \
-  --output-dir artifacts/3sigma_5s/evaluation --device cuda \
+  --manifest artifacts/data/splits/manifest.csv \
+  --model-dirs artifacts/inverse/eval_5s/final/p10/noise_gan \
+               artifacts/inverse/eval_5s/final/q/noise_gan \
+  --output-dir artifacts/inverse/eval_5s/evaluation --device cuda \
   --windows 5 --seeds 20260923 20260924 20260925 \
   --clip-to-development-range
 # 5) 图
-.venv/bin/python artifacts/3sigma_5s/scripts/plot_all62_5s.py
+.venv/bin/python artifacts/inverse/eval_5s/scripts/plot_all62_5s.py
 ```
 
 关键文件：
 
-- `artifacts/3sigma_5s/all62_predictions.csv`：62 点预测（50 OOF + 12 锁定）
-- `artifacts/3sigma_5s/all62_error_stats.csv`：逐气体/分口径的 3σ、MAPE、均值/标准差
-- `artifacts/3sigma_5s/prefix_metrics.csv`：5 s vs 10 s 的 OOF 指标
-- `artifacts/3sigma_5s/figs/fig_5s_relative_error_all62.{png,svg}`
-- `artifacts/3sigma_5s/figs/fig_5s_absolute_error_all62.{png,svg}`
-- `artifacts/3sigma_5s/figs/fig_5s_vs_10s_metrics.{png,svg}`
+- `artifacts/inverse/eval_5s/all62_predictions.csv`：62 点预测（50 OOF + 12 锁定）
+- `artifacts/inverse/eval_5s/all62_error_stats.csv`：逐气体/分口径的 3σ、MAPE、均值/标准差
+- `artifacts/inverse/eval_5s/prefix_metrics.csv`：5 s vs 10 s 的 OOF 指标
+- `artifacts/inverse/eval_5s/figs/fig_5s_relative_error_all62.{png,svg}`
+- `artifacts/inverse/eval_5s/figs/fig_5s_absolute_error_all62.{png,svg}`
+- `artifacts/inverse/eval_5s/figs/fig_5s_vs_10s_metrics.{png,svg}`
 
 ## 7. 局限
 

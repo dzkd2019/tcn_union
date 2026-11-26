@@ -80,9 +80,9 @@ rel_i=\frac{\hat y_i-y_i}{y_i}\times100\%
 
 下图沿用同一版式，把当前最终方案（62 点 = 50 OOF + 12 测试）的逐点相对误差按真实浓度重新画了一遍。蓝色圆点为低浓度组，橙色方块为高浓度组，灰色虚线为各气体的中位数切分点；每个面板内标出低/高浓度各自的 3σ。
 
-![当前方案不同浓度相对误差散点](../../artifacts/3sigma_noridge/figs/fig_current_relative_error_vs_concentration.png)
+![当前方案不同浓度相对误差散点](../../../artifacts/inverse/eval_10s/figs/fig_current_relative_error_vs_concentration.png)
 
-> 图注：当前最终方案（A+B 六 checkpoint 集成）的相对误差随真实浓度变化。H2 低/高浓度 3σ 8.08%/9.88%，NH3 6.14%/3.21%，NO2 8.92%/7.66%。数据与统计见 `artifacts/3sigma_noridge/figs/current_relative_error_low_high.csv`，绘图脚本为 `tcn_union/visualization/plot_concentration_error.py`。
+> 图注：当前最终方案（A+B 六 checkpoint 集成）的相对误差随真实浓度变化。H2 低/高浓度 3σ 8.08%/9.88%，NH3 6.14%/3.21%，NO2 8.92%/7.66%。数据与统计见 `artifacts/inverse/eval_10s/figs/current_relative_error_low_high.csv`，绘图脚本为 `tcn_union/visualization/plot_concentration_error.py`。
 
 ### 1.4 绝对误差的两种画法（保留正负号）
 
@@ -92,7 +92,7 @@ rel_i=\frac{\hat y_i-y_i}{y_i}\times100\%
 
 横轴是 62 个实验按 `data` 编号排序后的序号，纵轴是 \(e=\hat y-y\)；蓝色圆点为 50 个 OOF 实验，粉色方块为 12 个锁定测试。图中沿用相对误差散点图的画法，标出均值以及 \(\pm\sigma\)、\(\pm2\sigma\)、\(\pm3\sigma\) 水平线，浅灰色带为 \(\pm\sigma\) 区间；实线为 0 误差。
 
-![当前方案三种气体有符号误差散点](../../artifacts/3sigma_noridge/figs/fig_current_signed_error_by_sample.png)
+![当前方案三种气体有符号误差散点](../../../artifacts/inverse/eval_10s/figs/fig_current_signed_error_by_sample.png)
 
 > 图注：当前方案（A+B 六 checkpoint 集成）的逐实验误差，标题按要求为“当前方案：三种气体绝对误差散点图”，纵轴保留正负号。H2、NH3、NO2 的整体平均误差分别为 −20.46、−0.095、−0.0004 ppm，\(\sigma\) 分别为 645.85、0.458、0.182 ppm；最小/最大值分别为 `data/0.csv` −3604.98 / `data/26.csv` +1036.34、`data/52.csv` −1.26 / `data/36.csv` +1.04、`data/18.csv` −0.54 / `data/2.csv` +0.62 ppm。
 
@@ -100,9 +100,9 @@ rel_i=\frac{\hat y_i-y_i}{y_i}\times100\%
 
 横轴是真实浓度，纵轴仍是有符号误差；按每个气体 62 个真实浓度的中位数切分低/高浓度，蓝色圆点为低浓度，橙色方块为高浓度，灰色虚线为中位数切分点。面板内标出低/高浓度各自的平均误差。
 
-![当前方案不同浓度有符号误差散点](../../artifacts/3sigma_noridge/figs/fig_current_signed_error_vs_concentration.png)
+![当前方案不同浓度有符号误差散点](../../../artifacts/inverse/eval_10s/figs/fig_current_signed_error_vs_concentration.png)
 
-> 图注：有符号误差随真实浓度的变化。切分点分别为 H2=16000、NH3=30、NO2=6；H2 低/高浓度平均误差 +90.61/−314.47 ppm，NH3 −0.126/−0.054 ppm，NO2 +0.025/−0.054 ppm。完整统计见 `artifacts/3sigma_noridge/figs/current_signed_error_stats.csv`，逐点误差见 `current_signed_error_points.csv`，脚本为 `tcn_union/visualization/plot_signed_error.py`。
+> 图注：有符号误差随真实浓度的变化。切分点分别为 H2=16000、NH3=30、NO2=6；H2 低/高浓度平均误差 +90.61/−314.47 ppm，NH3 −0.126/−0.054 ppm，NO2 +0.025/−0.054 ppm。完整统计见 `artifacts/inverse/eval_10s/figs/current_signed_error_stats.csv`，逐点误差见 `current_signed_error_points.csv`，脚本为 `tcn_union/visualization/plot_signed_error.py`。
 
 | 气体 | 总体均值 | 最小值 | 最大值 | 低浓度均值 | 高浓度均值 | 低浓度 3σ | 高浓度 3σ |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -169,7 +169,7 @@ B: p = 0,0.3,1.0   # H2 不加权，NH3 轻加权，NO2 全加权
 
 这组数据说明：低浓度加权不是“免费提升”，它把低浓度尾部压下去，同时会牺牲另一端的余量；两配置平均是折中。
 
-![低浓度加权设计](../../artifacts/3sigma_noridge/figs/fig_low_conc_weighting.png)
+![低浓度加权设计](../../../artifacts/inverse/eval_10s/figs/fig_low_conc_weighting.png)
 
 ---
 
@@ -413,9 +413,9 @@ NO2 边缘：22.52 → 8.63
 
 ## 6. 整体效果图
 
-![旧方案 vs 当前方案 62 点](../../artifacts/3sigma_noridge/figs/fig_noridge_vs_baseline_all62.png)
+![旧方案 vs 当前方案 62 点](../../../artifacts/inverse/eval_10s/figs/fig_noridge_vs_baseline_all62.png)
 
-![当前方案 62 点误差分布](../../artifacts/3sigma_noridge/figs/fig_noridge_all62_error_sigma_by_gas.png)
+![当前方案 62 点误差分布](../../../artifacts/inverse/eval_10s/figs/fig_noridge_all62_error_sigma_by_gas.png)
 
 从图上可以直接看到：
 

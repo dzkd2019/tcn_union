@@ -47,16 +47,16 @@ def _test(evaluation: dict) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("artifacts"))
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/component_ablation"))
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/analysis/ablations/component"))
     args = parser.parse_args()
 
     root = args.root
     specs = [
-        ("完整 A", "3sigma_noridge/final/p10/selection.json", "per_gas_head_ablation/per_gas_eval/evaluation.json", None),
-        ("去掉 log", "component_ablation/no_log/selection.json", "component_ablation/no_log_eval/evaluation.json", "log"),
-        ("去掉低浓度加权", "component_ablation/no_weight/selection.json", "component_ablation/no_weight_eval/evaluation.json", "weight"),
-        ("去掉边缘 VAE", "component_ablation/no_edge/selection.json", "component_ablation/no_edge_eval/evaluation.json", "edge"),
-        ("去掉逐气体头", "per_gas_head_ablation/shared/selection.json", "per_gas_head_ablation/shared_eval/evaluation.json", "head"),
+        ("完整 A", "inverse/eval_10s/final/p10/selection.json", "analysis/ablations/per_gas_head/per_gas_eval/evaluation.json", None),
+        ("去掉 log", "analysis/ablations/component/no_log/selection.json", "analysis/ablations/component/no_log_eval/evaluation.json", "log"),
+        ("去掉低浓度加权", "analysis/ablations/component/no_weight/selection.json", "analysis/ablations/component/no_weight_eval/evaluation.json", "weight"),
+        ("去掉边缘 VAE", "analysis/ablations/component/no_edge/selection.json", "analysis/ablations/component/no_edge_eval/evaluation.json", "edge"),
+        ("去掉逐气体头", "analysis/ablations/per_gas_head/shared/selection.json", "analysis/ablations/per_gas_head/shared_eval/evaluation.json", "head"),
     ]
     rows = []
     for label, selection, evaluation, key in specs:

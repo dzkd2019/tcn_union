@@ -12,7 +12,7 @@
   （验证集宏 3σ）、逐气体输出头和低浓度加权。
 * 每个折/窗口先训练四个臂，使同折比较共享同一批真实样本与同一验证折。
 
-输出目录为 artifacts/forward_augmentation/：
+输出目录为 artifacts/augmentation/protocols/forward/：
 
 * folds.csv：每 seed、窗口、折、臂的逐折指标；
 * oof.csv：每 seed、窗口、臂在 50 条开发集上的 OOF 指标；
@@ -49,7 +49,7 @@ ARMS = ("real", "forward", "pca_vae", "forward+pca_vae")
 DEFAULT_SEEDS = (20260923, 20260924, 20260925)
 DEFAULT_WINDOWS = (5, 10)
 EPOCHS = 500
-BASE = ROOT / "artifacts/forward_augmentation"
+BASE = ROOT / "artifacts/augmentation/protocols/forward"
 
 
 def _metric_values(prediction: np.ndarray, truth: np.ndarray) -> dict[str, float]:
@@ -224,7 +224,7 @@ def run(
         if arm not in ARMS:
             raise ValueError(f"未知 arm: {arm}")
     device = resolve_device("cuda")
-    rows = _read_manifest(ROOT / "artifacts/splits/manifest.csv")
+    rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     development = [row for row in rows if row["split"] == "development"]
     if len(development) != 50:
         raise ValueError(f"开发集应为 50 条，实际 {len(development)}")

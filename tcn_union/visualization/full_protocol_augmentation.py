@@ -1,6 +1,6 @@
 """完整旧 TCN 协议四臂对照图（fig19）。
 
-读取 artifacts/full_protocol_augmentation/{summary,oof_seed,fold_seed}.csv：
+读取 artifacts/augmentation/protocols/full/{summary,oof_seed,fold_seed}.csv：
 
 * (a) 10 s 宏 3σ：3 seed 均值、seed 标准差、各 seed 点；
 * (b) 10 s 宏 MAPE：同一版式；
@@ -18,7 +18,7 @@ from scipy.stats import wilcoxon
 from sensor_array.plotting.style import _save, _style
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "artifacts/full_protocol_augmentation"
+BASE = ROOT / "artifacts/augmentation/protocols/full"
 ARMS = ("real", "vae", "forward", "forward+vae")
 CANDIDATES = ("vae", "forward", "forward+vae")
 LABELS = {

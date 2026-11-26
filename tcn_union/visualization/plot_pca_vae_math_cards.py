@@ -202,7 +202,7 @@ def card_training(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成 PCA-VAE 数学卡片")
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/pca_vae_ppt_images"))
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/figures/pca_vae"))
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for name, function in (

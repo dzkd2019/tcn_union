@@ -32,18 +32,18 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 | 图号 | 输出文件 | 绘图脚本 | 绘图函数 | 数据源 | 版式 |
 |---|---|---|---|---|---|
 | fig01 | <code>figures/model/fig01_design_and_data.png/.svg</code> | <code>plotting/model.py</code> | <code>_design(experiments)</code>，由 <code>main()</code> 调用 | <code>core.data.load_experiments()</code>，原始 <code>data/0.csv</code>–<code>data/61.csv</code> | 1×2 |
-| fig03 | <code>figures/model/fig03_curve_error.png/.svg</code> | <code>plotting/model.py</code> | <code>_curve_error(curve)</code> | <code>artifacts/evaluation/curve_metrics.csv</code> | 1×2 |
+| fig03 | <code>figures/model/fig03_curve_error.png/.svg</code> | <code>plotting/model.py</code> | <code>_curve_error(curve)</code> | <code>artifacts/inverse/legacy/evaluation/curve_metrics.csv</code> | 1×2 |
 | fig07 | <code>figures/model/fig07_model_architecture.png/.svg</code> | <code>plotting/model.py</code> | <code>_architecture()</code> | 无数据依赖，固定架构 | 1×1 流程图 |
 | fig09 | <code>figures/model/fig09_concentration_design.png/.svg</code> | <code>plotting/model.py</code> | <code>_concentration_design(experiments)</code> | <code>core.data.load_experiments()</code> | 上 4 个 H₂ 切片 + 下 2 个平面汇总 |
 | fig10 | <code>figures/model/fig10_nh3_initial_drift.png/.svg</code> | <code>plotting/model.py</code> | <code>_nh3_initial_drift(experiments)</code> | <code>core.data.load_experiments()</code> | 1×2，漂移与浓度同步 |
-| fig12 | <code>figures/model/fig12_all_curves_H2.png/.svg</code> | <code>plotting/model.py</code> | <code>_all_curves(experiments)</code> | <code>artifacts/evaluation/predictions.npz</code> | 1×1，62 条灰/气体色细线 |
+| fig12 | <code>figures/model/fig12_all_curves_H2.png/.svg</code> | <code>plotting/model.py</code> | <code>_all_curves(experiments)</code> | <code>artifacts/inverse/legacy/evaluation/predictions.npz</code> | 1×1，62 条灰/气体色细线 |
 | fig13 | <code>figures/model/fig13_all_curves_NH3.png/.svg</code> | <code>plotting/model.py</code> | <code>_all_curves(experiments)</code> | 同上 | 1×1 |
 | fig14 | <code>figures/model/fig14_all_curves_NO2.png/.svg</code> | <code>plotting/model.py</code> | <code>_all_curves(experiments)</code> | 同上 | 1×1 |
 | fig15 | <code>figures/model/fig15_curve_error_sigma.png/.svg</code> | <code>plotting/model.py</code> | <code>_curve_error_sigma(experiments)</code> | <code>predictions.npz</code> + <code>curve_error_stats.csv</code> | 1×3，散点 + 均值/σ 带 |
-| fig16 | <code>figures/model/fig16_forward_augmentation.png/.svg</code> | <code>tcn_union/visualization/forward_augmentation.py</code> | <code>figure_metrics()</code>，由 <code>main()</code> 调用 | <code>artifacts/forward_augmentation/{summary,oof}.csv</code> | 2×2，3σ/MAPE × 5/10 s 柱 + seed 点 |
-| fig17 | <code>figures/model/fig17_forward_augmentation_paired.png/.svg</code> | <code>tcn_union/visualization/forward_augmentation.py</code> | <code>figure_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/forward_augmentation/folds.csv</code> | 2×3，逐折/seed 配对散点 |
-| fig18 | <code>figures/model/fig18_old_protocol_augmentation.png/.svg</code> | <code>tcn_union/visualization/old_protocol_augmentation.py</code> | <code>_bars()</code>、<code>_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/old_protocol_augmentation/{summary,folds}.csv</code> | 1×3，3σ/MAPE 柱 + 逐 seed/折配对差 |
-| fig19 | <code>figures/model/fig19_full_protocol_augmentation.png/.svg</code> | <code>tcn_union/visualization/full_protocol_augmentation.py</code> | <code>_bars()</code>、<code>_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/full_protocol_augmentation/{summary,oof_seed,fold_seed}.csv</code> | 1×3，10 s 宏 3σ/MAPE 柱 + 逐 seed/折配对差 |
+| fig16 | <code>figures/model/fig16_forward_augmentation.png/.svg</code> | <code>tcn_union/visualization/forward_augmentation.py</code> | <code>figure_metrics()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/forward/{summary,oof}.csv</code> | 2×2，3σ/MAPE × 5/10 s 柱 + seed 点 |
+| fig17 | <code>figures/model/fig17_forward_augmentation_paired.png/.svg</code> | <code>tcn_union/visualization/forward_augmentation.py</code> | <code>figure_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/forward/folds.csv</code> | 2×3，逐折/seed 配对散点 |
+| fig18 | <code>figures/model/fig18_old_protocol_augmentation.png/.svg</code> | <code>tcn_union/visualization/old_protocol_augmentation.py</code> | <code>_bars()</code>、<code>_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/old/{summary,folds}.csv</code> | 1×3，3σ/MAPE 柱 + 逐 seed/折配对差 |
+| fig19 | <code>figures/model/fig19_full_protocol_augmentation.png/.svg</code> | <code>tcn_union/visualization/full_protocol_augmentation.py</code> | <code>_bars()</code>、<code>_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/full/{summary,oof_seed,fold_seed}.csv</code> | 1×3，10 s 宏 3σ/MAPE 柱 + 逐 seed/折配对差 |
 
 ## 4. 逐图说明
 
@@ -104,7 +104,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 - 实线为 62 条实验的均值，虚线依次为 \(\bar e\pm1\sigma,2\sigma,3\sigma\)；
   图中不写样本量，也不区分 OOF/锁定。
 - 这里的 σ 是 62 条实验之间的离散度，不是单条曲线的时间噪声，不能写成 95% 置信区间。
-- 同一函数写出 <code>artifacts/evaluation/curve_error_stats.csv</code>（每气体
+- 同一函数写出 <code>artifacts/inverse/legacy/evaluation/curve_error_stats.csv</code>（每气体
   mean/median/std/p90/min/max）；这些数字不放进散点图。
 - 调整入口：<code>_curve_error_sigma()</code>；y 轴下限由 <code>set_ylim</code> 控制，
   σ 线型在 <code>(1, ":"), (2, "-."), (3, "--")</code>。
@@ -113,7 +113,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 
 - 2×2：行是 5 s / 10 s，列是宏 3σ / 宏 MAPE；四臂为仅真实、正模型、PCA-VAE、正模型 + PCA-VAE。
 - 柱高为 3 个 seed 的 mean，误差棒为 seed 标准差；空心点是各 seed 的 OOF 值。
-- 数据源：<code>artifacts/forward_augmentation/summary.csv</code>（mean/sd）与
+- 数据源：<code>artifacts/augmentation/protocols/forward/summary.csv</code>（mean/sd）与
   <code>oof.csv</code>（每个 seed 的值）；不画锁定集。
 - 调整入口：<code>figure_metrics()</code>、<code>_bars()</code>；颜色在 <code>COLORS</code>，
   柱宽在 <code>width</code>。
@@ -123,7 +123,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 - 2×3：行是 5 s / 10 s，列是正模型、PCA-VAE、正模型 + PCA-VAE；横轴仅真实，纵轴增强臂。
 - 每个点是一组 (seed, fold) 的宏 3σ；虚线是 1:1，点在对角线下方表示增强臂更好；
   左上角写改善折数与中位差。
-- 数据源：<code>artifacts/forward_augmentation/folds.csv</code>；不画锁定集。
+- 数据源：<code>artifacts/augmentation/protocols/forward/folds.csv</code>；不画锁定集。
 - 调整入口：<code>figure_paired()</code>、<code>_paired()</code>；点大小在 <code>s</code>，
   对角线线型在 <code>linestyle</code>。
 
@@ -135,7 +135,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
   的 OOF 均值，误差棒为 seed 标准差，空心点为各 seed 的值。
 - 右图每个点是一组 (seed, fold)；黑色短横线为中位差，顶部写改善折数与
   双侧 Wilcoxon p 值；零线以下表示候选更好。
-- 数据源：<code>artifacts/old_protocol_augmentation/summary.csv</code> 与
+- 数据源：<code>artifacts/augmentation/protocols/old/summary.csv</code> 与
   <code>folds.csv</code>；不画锁定集。
 - 调整入口：<code>_bars()</code>、<code>_paired()</code>；颜色在 <code>COLORS</code>，
   抖动幅度在 <code>uniform(-0.16, 0.16)</code>。
@@ -149,7 +149,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
   3× 合成、边缘浓度 ×4、两套低浓度配置和 6 checkpoint 平均，real 臂保持干净。
 - 右图每个点是一组 (seed, fold)，先平均两套低浓度配置；黑色短横线为中位差，
   顶部写改善数与双侧 Wilcoxon p 值；零线以下表示候选更好。
-- 数据源：<code>artifacts/full_protocol_augmentation/summary.csv</code>、
+- 数据源：<code>artifacts/augmentation/protocols/full/summary.csv</code>、
   <code>oof_seed.csv</code> 与 <code>fold_seed.csv</code>；不画锁定集。
 - 结果与协议见 <code>docs/full_protocol_augmentation.md</code>：PCA-VAE only
   6 checkpoint 7.47% 与旧最终 7.47% 对齐，正模型合成没有增益。

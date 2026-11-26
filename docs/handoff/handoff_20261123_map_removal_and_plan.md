@@ -37,7 +37,7 @@
 - `sensor_array/experiments/evaluate.py` 改为**只做曲线评估**：
   不再计算 MAP、downstream、区间或降级；只写
   `curve_metrics.csv`、`curve_summary.csv`、`predictions.npz` 和全量模型。
-- 删除产物：`artifacts/calibration/`、`artifacts/evaluation/downstream*.csv`、
+- 删除产物：`artifacts/calibration/`、`artifacts/inverse/legacy/evaluation/downstream*.csv`、
   `degradation*.csv`。
 - 删除图件：fig02、fig04、fig05、fig06、fig08、fig11 及其绘图函数。
 - 删除文档：`docs/汇报_数据问题与MAP实验.md`。
@@ -171,7 +171,7 @@
   real 为 15.16%，旧最终 7.47% 是 2 配置 × 3 seed 集成；因此首轮负结果不能
   否定旧 PCA-VAE 结论，需补旧协议复现臂后再下结论。锁定 12 未进入候选评估，
   `locked_forward.py` 未运行。
-- 产物：`artifacts/forward_augmentation/{folds,oof,summary,real_dup,real_dup_summary}.csv`、
+- 产物：`artifacts/augmentation/protocols/forward/{folds,oof,summary,real_dup,real_dup_summary}.csv`、
   `predictions.npz`、`run_config.json`；代码 `tcn_union/experiments/forward_augmentation.py`、
   `real_control.py`、`locked_forward.py`；图 `fig16_forward_augmentation`、
   `fig17_forward_augmentation_paired`。
@@ -194,7 +194,7 @@
   该对照只到 8.27%，不能等同旧 7.47%；完整旧协议已在 §8.8 / fig19 复刻，
   VAE-only 6 checkpoint 为 7.47%/1.79%，正模型无增益。锁定 12 仍未评估。
 - 图 `fig18_old_protocol_augmentation`；产物
-  `artifacts/old_protocol_augmentation/{folds,oof,summary}.csv`、`predictions.npz`、
+  `artifacts/augmentation/protocols/old/{folds,oof,summary}.csv`、`predictions.npz`、
   `run_config.json`。
 
 - 当前图件 13 组 26 文件（fig01、03、07、09、10、12–19），0 PDF；

@@ -34,10 +34,10 @@ COLS = ["file"] + [f"{gas}_{kind}" for gas in GASES for kind in ("true", "pred")
 
 def _load_schemes(root: Path) -> dict[str, pd.DataFrame]:
     # cutout+aux：50 个 OOF + 12 个测试，统一组装成 62 点。
-    cutout_all = root / "artifacts/error_analysis/cutout_aux_all62_predictions.csv"
+    cutout_all = root / "artifacts/analysis/error/cutout_aux_all62_predictions.csv"
     combine_predictions(
-        root / "artifacts/augmentation_final/oof/10s_raw_delta.csv",
-        root / "artifacts/evaluation_final/test_predictions.csv",
+        root / "artifacts/archive/augmentation_final/oof/10s_raw_delta.csv",
+        root / "artifacts/inverse/legacy/evaluation_final/test_predictions.csv",
         "augmented",
         10,
         "ensemble",
@@ -46,7 +46,7 @@ def _load_schemes(root: Path) -> dict[str, pd.DataFrame]:
     schemas = {
         "cutout_aux": pd.read_csv(cutout_all),
         "current": pd.read_csv(
-            root / "artifacts/final_vae_hybrid/evaluation/candidate_all62_predictions.csv"
+            root / "artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation/candidate_all62_predictions.csv"
         ),
     }
     for frame in schemas.values():
@@ -294,7 +294,7 @@ def _plot_current_abs_rel(schemes: dict[str, pd.DataFrame], output_dir: Path) ->
 def main() -> None:
     parser = argparse.ArgumentParser(description="cutout+aux 与当前方案的 62 点误差诊断")
     parser.add_argument("--root", type=Path, default=Path("."))
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/error_analysis"))
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/analysis/error"))
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     schemes = _load_schemes(args.root)

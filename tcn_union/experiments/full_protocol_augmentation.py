@@ -14,7 +14,7 @@ forward+vae 为 60 条正模型 + 60 条 VAE；边缘复制按来源等分。
 real 臂只使用真实训练折，不加噪声/合成/边缘，作为干净基线。
 锁定 12 条不参与本脚本。
 
-输出目录 artifacts/full_protocol_augmentation/：
+输出目录 artifacts/augmentation/protocols/full/：
 
 * folds.csv：逐 fold/seed/config/arm 的指标与最佳 epoch；
 * oof_seed.csv：每个 seed 的 2 配置平均 OOF；
@@ -56,7 +56,7 @@ from sensor_array.core.double_exponential import DoubleExponentialArrayModel
 from sensor_array.core.mlp_per_gas import PerGasMLPDoubleExponentialModel
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "artifacts/full_protocol_augmentation"
+BASE = ROOT / "artifacts/augmentation/protocols/full"
 ARMS = (
     "real",
     "vae",
@@ -901,7 +901,7 @@ def run(
 
     device = resolve_device("cuda")
     configure_threads(device)
-    rows = _read_manifest(ROOT / "artifacts/splits/manifest.csv")
+    rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     development = [row for row in rows if row["split"] == "development"]
     if len(development) != 50:
         raise ValueError(f"开发集应为 50 条，实际 {len(development)}")

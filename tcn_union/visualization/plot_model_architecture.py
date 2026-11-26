@@ -286,7 +286,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("artifacts/3sigma_noridge/figs"),
+        default=Path("artifacts/inverse/eval_10s/figs"),
     )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)

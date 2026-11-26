@@ -4,8 +4,8 @@
 锁定集不参与任何选择。
 
     .venv/bin/python -m tcn_union.evaluation.routing \
-        --source artifacts/full_protocol_augmentation/predictions.npz \
-        --output artifacts/routing_augmentation
+        --source artifacts/augmentation/protocols/full/predictions.npz \
+        --output artifacts/augmentation/pure_forward/routing
 """
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from tcn_union.evaluation.ensemble_evaluate import _clip_to_development_range
 from tcn_union.experiments.full_protocol_augmentation import _metric_values
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "artifacts/full_protocol_augmentation/predictions.npz"
-OUTPUT = ROOT / "artifacts/routing_augmentation"
+SOURCE = ROOT / "artifacts/augmentation/protocols/full/predictions.npz"
+OUTPUT = ROOT / "artifacts/augmentation/pure_forward/routing"
 ROUTE = ("forward+vae", "vae", "vae")
 
 

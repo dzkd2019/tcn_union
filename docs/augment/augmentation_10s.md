@@ -2,7 +2,7 @@
 
 > 历史说明：本文件保留 cutout 时期的消融记录。当前分支 `feature/gan-augmentation` 已按老师意见删除 cutout，改用 GAN 扩充；新方案见 [`gan_augmentation_plan.md`](gan_augmentation_plan.md)。
 
-本分支（`feature/augmentation-10s`）只使用现有 62 次实验和锁定划分：50 次开发实验做五折选择与最终重训，12 次测试实验在最终方案冻结后评估。原始 CSV、`artifacts/splits/manifest.csv`、测试 ID 均未改动。
+本分支（`feature/augmentation-10s`）只使用现有 62 次实验和锁定划分：50 次开发实验做五折选择与最终重训，12 次测试实验在最终方案冻结后评估。原始 CSV、`artifacts/data/splits/manifest.csv`、测试 ID 均未改动。
 
 ## 1. 结论
 
@@ -63,7 +63,7 @@ loss = SmoothL1(pred_10s, y) + 0.5 * SmoothL1(pred_5s, y)
 
 ### 3.3 训练与选择协议
 
-- 五折仍使用 `artifacts/splits/manifest.csv` 的固定开发折；每折 40 训练 / 10 干净验证。
+- 五折仍使用 `artifacts/data/splits/manifest.csv` 的固定开发折；每折 40 训练 / 10 干净验证。
 - 输入/标签 scaler 只用当前折的真实训练特征拟合；增强视图只参与梯度更新。
 - 早停和最佳权重选择只看干净验证集；最多 500 epoch，patience 50。
 - 五折最佳 epoch 的中位数向上取整作为全开发集重训轮数。最终 10 秒方案为 **193 epoch**，5 秒 clean 为 **231 epoch**。
@@ -135,11 +135,11 @@ loss = SmoothL1(pred_10s, y) + 0.5 * SmoothL1(pred_5s, y)
 
 最终 10 秒方案在三个种子上都低于同种子的 5 秒 clean；集成为 `0.018321`。这与 OOF 的 seed 24 回退并不矛盾：OOF 是 40 个训练实验、早停后的单折模型，最终模型是 50 个开发实验、固定 193 epoch 的重训模型；两者不是同一估计对象。
 
-![测试集 macro-NMAE 对比](../artifacts/evaluation_final/figures/test_macro_nmae_comparison.png)
+![测试集 macro-NMAE 对比](../../artifacts/inverse/legacy/evaluation_final/figures/test_macro_nmae_comparison.png)
 
-![测试集逐气体 NMAE](../artifacts/evaluation_final/figures/test_nmae_by_gas.png)
+![测试集逐气体 NMAE](../../artifacts/inverse/legacy/evaluation_final/figures/test_nmae_by_gas.png)
 
-![新 10 秒模型逐气体预测](../artifacts/evaluation_final/figures/test_predictions_augmented_10s.png)
+![新 10 秒模型逐气体预测](../../artifacts/inverse/legacy/evaluation_final/figures/test_predictions_augmented_10s.png)
 
 配对 bootstrap（以 12 个实验为单位，2000 次）：
 
@@ -157,33 +157,33 @@ loss = SmoothL1(pred_10s, y) + 0.5 * SmoothL1(pred_5s, y)
 ```bash
 # 1) 开发集五折 OOF：最终 10 秒方案（cutout 2s + 5s 辅助 0.5）
 uv run python -m tcn_union.augmentation_search \
-  --manifest artifacts/splits/manifest.csv \
+  --manifest artifacts/data/splits/manifest.csv \
   --output-dir artifacts/aug_search/final_10s \
   --seconds 10 --recipes cutout_1.0_2s --seed 20260923 \
   --aux-positions 25 --aux-weight 0.5 --ema-decay 0.99
 
 # 2) 全开发集重训：5 秒 clean + 10 秒最终方案，三个固定种子
 uv run python -m tcn_union.augmentation_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/augmentation_final
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/archive/augmentation_final
 
 # 3) 冻结后评估锁定测试集（同时报告单种子和三 seed 集成）
 uv run python -m tcn_union.evaluation.augmentation_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn \
-  --model-dir artifacts/augmentation_final \
-  --output-dir artifacts/evaluation_final
+  --manifest artifacts/data/splits/manifest.csv \
+  --baseline-dir artifacts/inverse/models \
+  --model-dir artifacts/archive/augmentation_final \
+  --output-dir artifacts/inverse/legacy/evaluation_final
 
 # 4) 结果图
 uv run python -m tcn_union.plot_augmentation \
-  --results-dir artifacts/evaluation_final \
-  --output-dir artifacts/evaluation_final/figures
+  --results-dir artifacts/inverse/legacy/evaluation_final \
+  --output-dir artifacts/inverse/legacy/evaluation_final/figures
 
 # 5) 回归测试
 uv run python -m unittest discover -s tests -v
 ```
 
-说明：第 2 步会对 5 秒和 10 秒都重新跑五折并重训三个种子；如果只想复用已冻结的 `artifacts/augmentation_final`，第 3 步可直接运行。`artifacts/augmentation_final/selection.json` 记录最终 recipe、辅助位置/权重、epoch、OOF 文件和三 seed checkpoint 路径。
+说明：第 2 步会对 5 秒和 10 秒都重新跑五折并重训三个种子；如果只想复用已冻结的 `artifacts/archive/augmentation_final`，第 3 步可直接运行。`artifacts/archive/augmentation_final/selection.json` 记录最终 recipe、辅助位置/权重、epoch、OOF 文件和三 seed checkpoint 路径。
 
 ## 7. 限制
 

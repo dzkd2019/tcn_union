@@ -119,21 +119,21 @@
 .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 --configs 1.0 \
   --arms real vae forward_seen --real-scaler \
-  --output artifacts/forward_seen_pilot
+  --output artifacts/augmentation/diagnostics/forward_seen_pilot
 
 # 三种子（只跑 vae / forward_seen；real 基线可复用同协议结果）
 .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 20260924 20260925 --configs 1.0 \
   --arms vae forward_seen --real-scaler \
-  --output artifacts/forward_seen_seeds
+  --output artifacts/augmentation/diagnostics/forward_seen_seeds
 ```
 
 - 代码：`tcn_union/experiments/full_protocol_augmentation.py`
   - 新增 `forward_seen` 臂；
   - 新增 `_training_concentrations`（从训练标签有放回抽样，不产生新组合）。
-- pilot 结果：`artifacts/forward_seen_pilot/`
-- 三种子逐折日志：`artifacts/forward_seen_seeds.log`
-- 由日志解析的逐折表：`artifacts/forward_seen_seeds/folds_from_log.csv`
+- pilot 结果：`artifacts/augmentation/diagnostics/forward_seen_pilot/`
+- 三种子逐折日志：`artifacts/augmentation/diagnostics/forward_seen_seeds.log`
+- 由日志解析的逐折表：`artifacts/augmentation/diagnostics/forward_seen_seeds/folds_from_log.csv`
 - 本次代码改动尚未提交。
 
 ## 8. 下一步建议

@@ -163,13 +163,13 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("artifacts/3sigma_noridge/all62_predictions.csv"),
+        default=Path("artifacts/inverse/eval_10s/all62_predictions.csv"),
         help="62 点预测 CSV，需包含六列 true/pred",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("artifacts/3sigma_noridge/figs"),
+        default=Path("artifacts/inverse/eval_10s/figs"),
     )
     args = parser.parse_args()
     plot_current_relative_error(args.predictions, args.output_dir)

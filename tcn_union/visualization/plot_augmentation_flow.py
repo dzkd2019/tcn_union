@@ -228,7 +228,7 @@ def draw_pca_vae(output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="绘制 GAN 与 PCA-VAE 数据增强结构图")
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/augmentation_manuscript"))
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/augmentation/vae_gan/manuscript"))
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     draw_gan(args.output_dir / "fig_gan_flow")

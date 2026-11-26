@@ -74,7 +74,7 @@ joint10 的 seed 方差大于 VAE，宏平均差异小于 seed 波动。
 
 - joint10 把联合 PCA 高斯采样换成训练折经验残差 bootstrap：全量 3 seed
   集成宏 3σ 8.826%、MAPE 2.078%，H2/NH3/NO2 8.560/5.678/12.240%；
-  比 joint10 差，已弃用，产物保留在 artifacts/joint_boot_full/。
+  比 joint10 差，已弃用，产物保留在 artifacts/augmentation/pure_forward/joint_boot/。
 - 16 主成分、协方差收缩 1.0、normal/bootstrap 50/50、逐气体拼接等
   5 折单 seed 均未稳定超过 joint10；未进入 3 seed 全量。
 - 单 seed 筛选多次误导（joint5 曾 7.61、bootstrap NO2 曾 8.03），
@@ -98,12 +98,12 @@ joint10 的 seed 方差大于 VAE，宏平均差异小于 seed 波动。
 
 保留：
 
-- artifacts/joint10_full/：主结果，含 folds.csv、fold_seed.csv、oof.csv、
+- artifacts/augmentation/pure_forward/joint10/：主结果，含 folds.csv、fold_seed.csv、oof.csv、
   summary.csv、paired.csv、predictions.npz、run_config.json；
   report/{real,vae,forward_prob_joint,forward_prob_joint10}/ 各含
   metrics.csv、predictions.csv、run_config.json 与 figs/ 三张图；
-- artifacts/pure_forward_full/：joint5 全量与 3 臂报告；
-- artifacts/joint_boot_full/：bootstrap 负结果与报告。
+- artifacts/augmentation/pure_forward/base/：joint5 全量与 3 臂报告；
+- artifacts/augmentation/pure_forward/joint_boot/：bootstrap 负结果与报告。
 
 已删除所有 screen/smoke 目录（joint10_screen、joint16_screen、
 joint_mix_screen、joint_pergas_screen、resid_screen、pure_smoke 等）。
@@ -122,7 +122,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
   --folds 5 --seeds 20260923 20260924 20260925 \
   --configs 1.0 0,0.3,1.0 \
   --arms real vae forward_prob_joint forward_prob_joint10 \
-  --real-scaler --output artifacts/joint10_full
+  --real-scaler --output artifacts/augmentation/pure_forward/joint10
 ```
 
 报告：
@@ -131,8 +131,8 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
 for arm in real vae forward_prob_joint forward_prob_joint10; do
   MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
     -m tcn_union.evaluation.final_report \
-    --source artifacts/joint10_full/predictions.npz \
-    --output artifacts/joint10_full/report/$arm \
+    --source artifacts/augmentation/pure_forward/joint10/predictions.npz \
+    --output artifacts/augmentation/pure_forward/joint10/report/$arm \
     --arm $arm --window 10 --run-name joint10_full
 done
 ```

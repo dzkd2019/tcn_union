@@ -31,7 +31,7 @@ from sensor_array.plotting.style import GAS_COLORS, _style
 GASES = ("H2", "NH3", "NO2")
 GAS_UNICODE = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE = ROOT / "artifacts/full_protocol_augmentation/predictions.npz"
+DEFAULT_SOURCE = ROOT / "artifacts/augmentation/protocols/full/predictions.npz"
 
 
 def _relative(prediction: np.ndarray, truth: np.ndarray) -> np.ndarray:

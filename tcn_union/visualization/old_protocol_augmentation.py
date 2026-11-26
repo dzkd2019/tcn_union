@@ -1,6 +1,6 @@
 """旧协议增强来源对照图（fig18）。
 
-读取 artifacts/old_protocol_augmentation/{summary,folds}.csv，输出：
+读取 artifacts/augmentation/protocols/old/{summary,folds}.csv，输出：
 
 * (a) 10 s 宏 3σ 柱：均值、seed 标准差、各 seed 空心点；
 * (b) 10 s 宏 MAPE 柱；
@@ -18,7 +18,7 @@ from scipy.stats import wilcoxon
 from sensor_array.plotting.style import _save, _style
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "artifacts/old_protocol_augmentation"
+BASE = ROOT / "artifacts/augmentation/protocols/old"
 ARMS = ("real", "vae", "forward", "forward+vae")
 CANDIDATES = ("vae", "forward", "forward+vae")
 LABELS = {

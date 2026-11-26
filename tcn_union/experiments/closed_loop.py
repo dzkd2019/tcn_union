@@ -5,7 +5,7 @@
   2. 用正模型生成合成曲线（训练浓度 + 均匀随机浓度），用真实 R0 重建绝对响应；
   3. 训练逆 TCN：仅真实 vs 真实+合成，比较 OOF 50 的 3σ / MAPE。
 
-锁定 12 条不参与本实验。输出 ``artifacts/closed_loop/closed_loop.csv``。
+锁定 12 条不参与本实验。输出 ``artifacts/analysis/closed_loop/closed_loop.csv``。
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ GASES = ("H2", "NH3", "NO2")
 WINDOWS = (5, 10)
 EPOCHS = 500
 SEED = 20260923
-BASE = ROOT / "artifacts/closed_loop"
+BASE = ROOT / "artifacts/analysis/closed_loop"
 
 
 def _three_sigma(values: np.ndarray) -> float:
@@ -95,7 +95,7 @@ def _forward_curves(
 def main() -> None:
     device = resolve_device("cuda")
     configure_threads(device)
-    rows = _read_manifest(ROOT / "artifacts/splits/manifest.csv")
+    rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     development = [row for row in rows if row["split"] == "development"]
     experiments = {experiment.file_id: experiment for experiment in load_experiments()}
     time = experiments[0].time

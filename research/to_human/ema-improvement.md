@@ -128,27 +128,27 @@ EMA 的三个种子都优于对应 5 秒；集成比当前 10 秒进一步降低
 ```bash
 # EMA 0.99 的 OOF（seed 24 先验证）
 uv run python -m tcn_union.augmentation_search \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/improvement/ema099_seed24 \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/archive/improvement/ema099_seed24 \
   --seconds 10 --recipes cutout_1.0_2s --seed 20260924 \
   --aux-positions 25 --aux-weight 0.5 --ema-decay 0.99
 
 # 全开发集重训：5 秒 clean + 10 秒 EMA
 uv run python -m tcn_union.augmentation_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/improvement/final_ema
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/archive/improvement/final_ema
 
 # 冻结后测试
 uv run python -m tcn_union.augmentation_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn \
-  --model-dir artifacts/improvement/final_ema \
-  --output-dir artifacts/improvement/evaluation_ema
+  --manifest artifacts/data/splits/manifest.csv \
+  --baseline-dir artifacts/inverse/models \
+  --model-dir artifacts/archive/improvement/final_ema \
+  --output-dir artifacts/archive/improvement/evaluation_ema
 ```
 
 产物：
 
-- `artifacts/improvement/ema099_seed23/`、`ema099_seed24/`、`ema099_seed25/`：三种子 OOF；
-- `artifacts/improvement/final_ema/`：最终 EMA checkpoints；
-- `artifacts/improvement/evaluation_ema/`：锁定测试指标与预测；
+- `artifacts/archive/improvement/ema099_seed23/`、`ema099_seed24/`、`ema099_seed25/`：三种子 OOF；
+- `artifacts/archive/improvement/final_ema/`：最终 EMA checkpoints；
+- `artifacts/archive/improvement/evaluation_ema/`：锁定测试指标与预测；
 - `research/to_human/ema_improvement.png`：对比图。

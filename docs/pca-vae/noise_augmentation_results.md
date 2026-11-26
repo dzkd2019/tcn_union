@@ -95,7 +95,7 @@
 三个种子的测试 macro-NMAE：`0.024546 / 0.025581 / 0.021651`；集成后 `0.018002`。
 
 逐气体 RMSE 散点图：
-[`artifacts/final_noise/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png`](../artifacts/final_noise/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png)
+[`artifacts/augmentation/vae_gan/final_noise/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png`](../../artifacts/augmentation/vae_gan/final_noise/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png)
 
 ## 6. GAN 为什么没有采用
 
@@ -126,23 +126,23 @@
 ```bash
 # 开发集 OOF
 uv run python -m tcn_union.training.gan_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/final_noise \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/final_noise \
   --modes noise --noise-scale 0.1 --noise-copies 1 \
   --max-epochs 500 --oof-only
 
 # 三 seed 最终模型
 uv run python -m tcn_union.training.gan_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/final_noise \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/final_noise \
   --modes noise --noise-scale 0.1 --noise-copies 1 \
   --max-epochs 500
 
 # 锁定测试集 + RMSE 散点图
 uv run python -m tcn_union.evaluation.augmentation_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn \
-  --model-dir artifacts/final_noise/noise \
-  --output-dir artifacts/final_noise/evaluation \
+  --manifest artifacts/data/splits/manifest.csv \
+  --baseline-dir artifacts/inverse/models \
+  --model-dir artifacts/augmentation/vae_gan/final_noise/noise \
+  --output-dir artifacts/augmentation/vae_gan/final_noise/evaluation \
   --windows 10 --rmse-plots
 ```

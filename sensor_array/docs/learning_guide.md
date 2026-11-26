@@ -946,14 +946,14 @@ P5 在旧一阶 + 低秩正模型上做 5 seed × 5 折、5/10 s 两窗口的公
 
 ### 9.3 产物
 
-- artifacts/evaluation/curve_metrics.csv、curve_summary.csv、predictions.npz、curve_error_stats.csv；
+- artifacts/inverse/legacy/evaluation/curve_metrics.csv、curve_summary.csv、predictions.npz、curve_error_stats.csv；
 - artifacts/comparison/skeleton_metrics.csv、skeleton_summary.csv、predictions_<model>.npz；
 - artifacts/models/double.json、mlp_per_gas.json；
-- 根目录 `artifacts/forward_augmentation/`：TCN 四臂 folds/oof/summary、
+- 根目录 `artifacts/augmentation/protocols/forward/`：TCN 四臂 folds/oof/summary、
   real_dup 对照、predictions.npz、run_config.json；
-- 根目录 `artifacts/old_protocol_augmentation/`：旧训练协议增强来源对照的
+- 根目录 `artifacts/augmentation/protocols/old/`：旧训练协议增强来源对照的
   folds/oof/summary、predictions.npz、run_config.json；
-- 根目录 `artifacts/full_protocol_augmentation/`：完整旧协议四臂的
+- 根目录 `artifacts/augmentation/protocols/full/`：完整旧协议四臂的
   folds/fold_seed/oof_seed/oof/summary/paired、predictions.npz、summary.md；
 - figures/model/fig01、fig03、fig07、fig09、fig10、fig12–fig19（PNG + SVG）。
 

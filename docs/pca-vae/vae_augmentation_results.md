@@ -43,7 +43,7 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比：[`生成式增�
 
 ### 论文版架构图
 
-- 矢量 PDF：[`figures/fig_tcn_architecture.pdf`](../figures/fig_tcn_architecture.pdf)
+- 矢量 PDF：[`figures/fig_tcn_architecture.png`](../../artifacts/figures/architecture/tcn_architecture.png)
 - PNG：[`figures/fig_tcn_architecture.png`](../figures/fig_tcn_architecture.png)
 
 图中包含：逐折数据构造、GasTCN 主结构、残差块内部数据流、五折 OOF 与三 seed 推理协议。5 秒辅助头以虚线标出，并注明最终方案未启用。
@@ -68,7 +68,7 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比：[`生成式增�
 末端 MAE `34` vs `109`。视觉上合成曲线与真实曲线的形态、初值、上升/下降趋势
 基本一致。
 
-图：[`artifacts/vae_quality/gan_samples.png`](../artifacts/vae_quality/gan_samples.png)
+图：[`artifacts/augmentation/vae_gan/vae_quality/gan_samples.png`](../../artifacts/augmentation/vae_gan/vae_quality/gan_samples.png)
 
 ## 4. 开发集 OOF
 
@@ -123,7 +123,7 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比：[`生成式增�
 | NH3 | −30.9% | −24.8% | −28.0% |
 | NO2 | −34.2% | −34.3% | −42.2% |
 
-![最终方案逐气体 MAPE/NMAE/NRMSE](../artifacts/final_vae_hybrid/evaluation/figures/fig_final_gas_metrics.png)
+![最终方案逐气体 MAPE/NMAE/NRMSE](../../artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation/figures/fig_final_gas_metrics.png)
 
 说明：
 
@@ -142,9 +142,9 @@ GAN / PCA / VAE / PCA+VAE 的生成质量与下游测试对比：[`生成式增�
 逐气体评估图保留两种：
 
 - 原来的“真实浓度 vs 预测浓度”RMSE 散点图：
-  [`candidate_10s_rmse_scatter_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png)
+  [`candidate_10s_rmse_scatter_by_gas.png`](../../artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation/figures/candidate_10s_rmse_scatter_by_gas.png)
 - 新增的“相对误差 vs Points + mean/±1σ/±2σ/±3σ”分布图（参考 `example/pic_1.png`）：
-  [`candidate_10s_error_sigma_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_10s_error_sigma_by_gas.png)
+  [`candidate_10s_error_sigma_by_gas.png`](../../artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation/figures/candidate_10s_error_sigma_by_gas.png)
 
 baseline 的两张图也保留在同一个 `figures/` 目录。
 
@@ -152,8 +152,8 @@ baseline 的两张图也保留在同一个 `figures/` 目录。
 
 为了增加散点数量，另用 **50 个开发集 OOF 预测 + 12 个锁定测试预测** 合成 62 个点：
 
-- candidate：[`candidate_all62_error_sigma_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/candidate_all62_error_sigma_by_gas.png)
-- baseline：[`baseline_all62_error_sigma_by_gas.png`](../artifacts/final_vae_hybrid/evaluation/figures/baseline_all62_error_sigma_by_gas.png)
+- candidate：[`candidate_all62_error_sigma_by_gas.png`](../../artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation/figures/candidate_all62_error_sigma_by_gas.png)
+- baseline：[`baseline_all62_error_sigma_by_gas.png`](../../artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation/figures/baseline_all62_error_sigma_by_gas.png)
 
 注意：
 
@@ -192,15 +192,15 @@ TCN 训练（10 秒，3 个固定 seed）
 ```bash
 # 生成质量检查
 uv run python -m tcn_union.evaluation.gan_quality \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/vae_quality \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/vae_quality \
   --samples 100 --gan-epochs 300 --generator vae \
   --vae-components 6 --vae-beta 0.1
 
 # 开发集 OOF：noise 0.1 + VAE 3×
 uv run python -m tcn_union.training.gan_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/final_vae_hybrid \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/final_vae_hybrid \
   --modes noise_gan \
   --generator vae --vae-components 6 --vae-beta 0.1 \
   --noise-scale 0.1 --noise-copies 1 \
@@ -209,8 +209,8 @@ uv run python -m tcn_union.training.gan_train \
 
 # 三 seed 最终模型 + 测试评估
 uv run python -m tcn_union.training.gan_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/final_vae_hybrid \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/final_vae_hybrid \
   --modes noise_gan \
   --generator vae --vae-components 6 --vae-beta 0.1 \
   --noise-scale 0.1 --noise-copies 1 \
@@ -218,10 +218,10 @@ uv run python -m tcn_union.training.gan_train \
   --max-epochs 500
 
 uv run python -m tcn_union.evaluation.augmentation_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn \
-  --model-dir artifacts/final_vae_hybrid/noise_gan \
-  --output-dir artifacts/final_vae_hybrid/evaluation \
+  --manifest artifacts/data/splits/manifest.csv \
+  --baseline-dir artifacts/inverse/models \
+  --model-dir artifacts/augmentation/vae_gan/final_vae_hybrid/noise_gan \
+  --output-dir artifacts/augmentation/vae_gan/final_vae_hybrid/evaluation \
   --windows 10 --rmse-plots
 ```
 

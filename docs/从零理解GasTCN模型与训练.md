@@ -23,7 +23,7 @@
 
 对应的论文版架构图：
 
-- [fig_tcn_architecture.pdf](../figures/fig_tcn_architecture.pdf)
+- [fig_tcn_architecture.pdf](../figures/fig_tcn_architecture.png)
 - [fig_tcn_architecture.png](../figures/fig_tcn_architecture.png)
 
 ---

@@ -17,9 +17,9 @@
 
 ## 2. 解释方差与重构误差
 
-![PCA 主成分数证据](../artifacts/pca_analysis/fig_pca_k_evidence.png)
+![PCA 主成分数证据](../../artifacts/augmentation/vae_gan/pca/fig_pca_k_evidence.png)
 
-![PCA 解释方差与重构误差](../artifacts/pca_analysis/fig_pca_component_selection.png)
+![PCA 解释方差与重构误差](../../artifacts/augmentation/vae_gan/pca/fig_pca_component_selection.png)
 
 核心数值：
 
@@ -147,18 +147,18 @@ K=6 的最终方案（noise 0.1 + PCA-VAE 3×，三 seed 预测平均）在锁�
 ```bash
 # 解释方差 + 五折重构误差
 uv run python -m tcn_union.evaluation.analyze_pca_components \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/pca_analysis
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/pca
 
 # 汇总图（含下游 OOF）
 uv run python -m tcn_union.visualization.plot_pca_k_selection \
-  --components artifacts/pca_analysis/pca_components.csv \
-  --output-dir artifacts/pca_analysis
+  --components artifacts/augmentation/vae_gan/pca/pca_components.csv \
+  --output-dir artifacts/augmentation/vae_gan/pca
 
 # 单个 K 的下游 OOF
 uv run python -m tcn_union.training.gan_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/pca_analysis/k4 \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/augmentation/vae_gan/pca/k4 \
   --modes noise_gan --generator vae --vae-components 4 \
   --noise-scale 0.1 --synthetic-ratio 3.0 \
   --gan-epochs 300 --max-epochs 500 --seed 20260923 --oof-only
@@ -166,6 +166,6 @@ uv run python -m tcn_union.training.gan_train \
 
 产物：
 
-- [fig_pca_k_evidence.png](../artifacts/pca_analysis/fig_pca_k_evidence.png)
-- [fig_pca_k_evidence.pdf](../artifacts/pca_analysis/fig_pca_k_evidence.pdf)
-- [pca_components.csv](../artifacts/pca_analysis/pca_components.csv)
+- [fig_pca_k_evidence.png](../../artifacts/augmentation/vae_gan/pca/fig_pca_k_evidence.png)
+- [fig_pca_k_evidence.png](../../artifacts/augmentation/vae_gan/pca/fig_pca_k_evidence.png)
+- [pca_components.csv](../../artifacts/augmentation/vae_gan/pca/pca_components.csv)

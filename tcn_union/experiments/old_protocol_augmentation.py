@@ -17,7 +17,7 @@
   与旧 cross_validate 一致。每个臂各自拟合 scaler（旧 _train_network
   默认行为），不共享真实折 scaler。
 
-输出 artifacts/old_protocol_augmentation/：
+输出 artifacts/augmentation/protocols/old/：
 
 * folds.csv：逐 seed/折/臂的指标与最佳 epoch；
 * oof.csv：50 条开发集的 OOF 指标；
@@ -50,7 +50,7 @@ from sensor_array.core.double_exponential import DoubleExponentialArrayModel
 from sensor_array.core.mlp_per_gas import PerGasMLPDoubleExponentialModel
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "artifacts/old_protocol_augmentation"
+BASE = ROOT / "artifacts/augmentation/protocols/old"
 ARMS = ("real", "vae", "forward", "forward+vae")
 DEFAULT_SEEDS = (20260923, 20260924, 20260925)
 EPOCHS = 500
@@ -176,7 +176,7 @@ def run(
     if seconds < 2 or seconds > 10:
         raise ValueError("seconds 必须在 2–10 之间")
     device = resolve_device("cuda")
-    rows = _read_manifest(ROOT / "artifacts/splits/manifest.csv")
+    rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     development = [row for row in rows if row["split"] == "development"]
     if len(development) != 50:
         raise ValueError(f"开发集应为 50 条，实际 {len(development)}")

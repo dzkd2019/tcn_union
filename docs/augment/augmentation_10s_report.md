@@ -61,7 +61,7 @@ $$
 | 初值 NH3 vs NH3 标签（控制文件编号） | −0.026 | 相关性基本消失 |
 | 初值 H2 vs NH3 标签（控制文件编号） | 0.197 | 大幅减弱 |
 
-![图 2 初值相关性诊断](../artifacts/report/ppt_figures/fig3b_初值相关性诊断.png)
+![图 2 初值相关性诊断](../../artifacts/figures/report/ppt_figures/fig3b_初值相关性诊断.png)
 
 **图 2**：初值 NH3 与 NH3 标签表面强相关，但初值随文件编号单调漂移；控制文件编号后，偏相关几乎为 0。文件编号只能作为采集顺序的代理变量，不能从 CSV 证明具体采集时间，但单调漂移和 NH3 标签随编号递增已经足以提示批次/顺序混杂。
 
@@ -97,7 +97,7 @@ $$
 
 最终方案由三部分组成：训练时对原始 10 秒响应做 cutout；同一个因果 TCN 在 5 秒位置增加辅助监督；推理时对三个固定种子的预测取平均。框图见图 1。
 
-![图 1 数据增强与多前缀监督流程](../artifacts/report/figures/fig1_augmentation_pipeline.png)
+![图 1 数据增强与多前缀监督流程](../../artifacts/figures/report/figures/fig1_augmentation_pipeline.png)
 
 **图 1**：(a) 训练时在原始响应内部随机选一段，用两端线性桥替换；(b) 10 秒主输出与 5 秒辅助输出共享同一个因果 TCN，推理只使用主输出。
 
@@ -189,15 +189,15 @@ $$
 
 **为什么 NH3 改善最大：**旧 10 秒主种子在 `data/2.csv` 上把 NH3=10 预测成 12.97（APE 29.68%），该实验占 NH3 MAPE 的 42.34%；新 10 秒主种子在同一实验上 APE 降到 **3.34%**，占比降到 11.93%。`data/7.csv` 的 NH3 APE 也从 16.60% 降到 6.27%。这说明新方案确实修正了“末端曲线误判低浓度”的问题，而不是只在平均值上做平滑。
 
-![图 3 OOF 与测试集 macro-MAPE 对比](../artifacts/report/figures/fig2_mape_summary.png)
+![图 3 OOF 与测试集 macro-MAPE 对比](../../artifacts/figures/report/figures/fig2_mape_summary.png)
 
 **图 3**：开发集 OOF 与锁定测试集的三 seed 集成 macro-MAPE。新 10 秒方案在两组评估上均低于 5 秒 clean 和旧 10 秒 clean。
 
-![图 4 测试集逐气体 NMAE](../artifacts/evaluation_final/figures/test_nmae_by_gas.png)
+![图 4 测试集逐气体 NMAE](../../artifacts/inverse/legacy/evaluation_final/figures/test_nmae_by_gas.png)
 
 **图 4**：锁定测试集逐气体 NMAE，新 10 秒方案在 H2、NH3、NO2 三个气体上均低于 5 秒 clean。
 
-![图 5 新 10 秒模型预测散点](../artifacts/evaluation_final/figures/test_predictions_augmented_10s.png)
+![图 5 新 10 秒模型预测散点](../../artifacts/inverse/legacy/evaluation_final/figures/test_predictions_augmented_10s.png)
 
 **图 5**：新 10 秒三 seed 集成的逐气体预测与真实值。
 
@@ -287,27 +287,27 @@ $$
 ```bash
 # 1) 五折 OOF：cutout 2s + 5 秒辅助监督 0.5
 uv run python -m tcn_union.augmentation_search \
-  --manifest artifacts/splits/manifest.csv \
+  --manifest artifacts/data/splits/manifest.csv \
   --output-dir artifacts/aug_search/final_10s \
   --seconds 10 --recipes cutout_1.0_2s --seed 20260923 \
   --aux-positions 25 --aux-weight 0.5 --ema-decay 0.99
 
 # 2) 全开发集重训：5 秒 clean + 10 秒最终方案，三个固定种子
 uv run python -m tcn_union.augmentation_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/augmentation_final
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/archive/augmentation_final
 
 # 3) 冻结后评估锁定测试集并绘图
 uv run python -m tcn_union.evaluation.augmentation_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --baseline-dir artifacts/tcn --model-dir artifacts/augmentation_final \
-  --output-dir artifacts/evaluation_final
+  --manifest artifacts/data/splits/manifest.csv \
+  --baseline-dir artifacts/inverse/models --model-dir artifacts/archive/augmentation_final \
+  --output-dir artifacts/inverse/legacy/evaluation_final
 uv run python -m tcn_union.plot_augmentation \
-  --results-dir artifacts/evaluation_final \
-  --output-dir artifacts/evaluation_final/figures
+  --results-dir artifacts/inverse/legacy/evaluation_final \
+  --output-dir artifacts/inverse/legacy/evaluation_final/figures
 ```
 
-- 最终模型与 OOF：[`artifacts/augmentation_final/selection.json`](../artifacts/augmentation_final/selection.json)
-- 测试指标与预测：[`artifacts/evaluation_final/evaluation.json`](../artifacts/evaluation_final/evaluation.json)
-- 搜索汇总：[`artifacts/augmentation_search/summary.csv`](../artifacts/augmentation_search/summary.csv)
+- 最终模型与 OOF：[`artifacts/archive/augmentation_final/selection.json`](../../artifacts/archive/augmentation_final/selection.json)
+- 测试指标与预测：[`artifacts/inverse/legacy/evaluation_final/evaluation.json`](../../artifacts/inverse/legacy/evaluation_final/evaluation.json)
+- 搜索汇总：[`artifacts/archive/augmentation_search/summary.csv`](../../artifacts/archive/augmentation_search/summary.csv)
 - 简化版说明：[`docs/augmentation_10s.md`](augmentation_10s.md)

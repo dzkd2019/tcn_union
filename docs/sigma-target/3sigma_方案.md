@@ -168,7 +168,7 @@ loss = Σ_{i,g} w_i,g · SmoothL1(pred_i,g, target_i,g) / Σ_{i,g} w_i,g
 
 代价是**有效样本量下降**：p=1.0 时，按 `ESS=(Σw)²/Σw²` 计算，H2 为 41.5/50、NH3 为 36.5/50、NO2 为 36.5/50；这正是需要“裁剪上界 + 两配置平均 + 多 seed”来抵消方差的原因。
 
-![低浓度损失加权示意](../../artifacts/3sigma_noridge/figs/fig_low_conc_weighting.png)
+![低浓度损失加权示意](../../../artifacts/inverse/eval_10s/figs/fig_low_conc_weighting.png)
 
 图：(a) p=0.3/0.5/1.0/2.0 的权重曲线与 0.25–4 裁剪边界；(b) p=1.0 时低/高浓度半区的样本占比与损失质量占比；(c) OOF 上 H2/NO2 的权衡与两配置平均的稳健性。
 
@@ -300,7 +300,7 @@ for batch in loader:
 ### 4.1 数据与划分
 
 - 数据：62 个响应实验，每个实验 0.2 s 采样、完整时序 + 三气体浓度标签；
-- 划分：`artifacts/splits/manifest.csv` 锁定 **50 个开发实验 / 12 个锁定测试实验**，manifest 记录每文件 SHA256 与标签，评估时校验，防止测试文件被替换；
+- 划分：`artifacts/data/splits/manifest.csv` 锁定 **50 个开发实验 / 12 个锁定测试实验**，manifest 记录每文件 SHA256 与标签，评估时校验，防止测试文件被替换；
 - 输入：实验开始后 **10 秒**前缀（`round(10/0.2)+1 = 51` 个采样点，含 t=0），严格因果，不使用未来采样；
 - 测试集只在候选冻结后评估，训练/早停/超参选择不使用测试集。
 
@@ -342,7 +342,7 @@ for batch in loader:
 
 输出是 z-score 空间的浓度；训练/推理端用 checkpoint 里的 `x/y` 统计量和 `target_transform` 还原。
 
-![GasTCN 模型架构图](../../artifacts/3sigma_noridge/figs/fig_model_architecture.png)
+![GasTCN 模型架构图](../../../artifacts/inverse/eval_10s/figs/fig_model_architecture.png)
 
 > 图：当前 3σ 方案使用的 GasTCN 架构（中文标注）。左侧主框架为 10 s 原始响应（以及仅训练时使用的 PCA-VAE 数据扩充）→ raw_delta 6 通道 → 3 个因果卷积块（k=5，d=1/2/4）→ 最后时刻隐藏向量 → 三路逐气体头 → 三种气体浓度；右侧两个面板分别给出训练目标与损失（H2/NO2 的 log 变换、NH3 原空间、低浓度加权 SmoothL1）和因果卷积块内部结构。图中不展开多 seed 平均，也不展开低浓度加权的两套配置；绘图脚本 `tcn_union/visualization/plot_model_architecture.py`（PNG+SVG）。
 
@@ -435,7 +435,7 @@ OOF 逐气体全部 <10%；相比 Ridge 方案 OOF 变差 0.41 pp，但逐气体
 
 > NMAE = MAE / 开发集浓度量程，NRMSE = RMSE / 开发集浓度量程；量程分别为 H2 24000、NH3 40、NO2 8。宏平均为三种气体指标的算术平均。
 
-![当前方案逐气体测试指标](../../artifacts/3sigma_noridge/figs/fig_current_per_gas_metrics.png)
+![当前方案逐气体测试指标](../../../artifacts/inverse/eval_10s/figs/fig_current_per_gas_metrics.png)
 
 ### 5.3 62 点合并口径（教师原始 `error_analysis` 图口径）
 
@@ -445,9 +445,9 @@ OOF 逐气体全部 <10%；相比 Ridge 方案 OOF 变差 0.41 pp，但逐气体
 | 旧 Ridge 方案 | 8.08 | 4.01 | 9.22 | 7.45 |
 | **无 Ridge 当前方案** | **8.86** | **5.05** | **8.59** | **7.69** |
 
-![当前方案 62 点误差散点](../../artifacts/3sigma_noridge/figs/fig_noridge_all62_error_sigma_by_gas.png)
+![当前方案 62 点误差散点](../../../artifacts/inverse/eval_10s/figs/fig_noridge_all62_error_sigma_by_gas.png)
 
-![旧方案 vs 当前方案 62 点对比](../../artifacts/3sigma_noridge/figs/fig_noridge_vs_baseline_all62.png)
+![旧方案 vs 当前方案 62 点对比](../../../artifacts/inverse/eval_10s/figs/fig_noridge_vs_baseline_all62.png)
 
 横轴 0–49 为 OOF、50–61 为锁定测试（浅黄底色），水平线为均值 ±1σ/±2σ/±3σ。H2/NO2 的离散带相比旧方案显著收窄；NO2 测试段仍有 2 个点接近 +10%，是全图最紧的部分。
 
@@ -509,10 +509,10 @@ OOF 逐气体全部 <10%；相比 Ridge 方案 OOF 变差 0.41 pp，但逐气体
 
 ```text
 python -m tcn_union.evaluation.ensemble_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --model-dirs artifacts/3sigma_noridge/final/p10/noise_gan \
-               artifacts/3sigma_noridge/final/q/noise_gan \
-  --output-dir artifacts/3sigma_noridge/evaluation \
+  --manifest artifacts/data/splits/manifest.csv \
+  --model-dirs artifacts/inverse/eval_10s/final/p10/noise_gan \
+               artifacts/inverse/eval_10s/final/q/noise_gan \
+  --output-dir artifacts/inverse/eval_10s/evaluation \
   --device cuda --windows 10 \
   --seeds 20260923 20260924 20260925 \
   --clip-to-development-range
@@ -521,7 +521,7 @@ python -m tcn_union.evaluation.ensemble_evaluate \
 ### 6.3 产物
 
 ```text
-artifacts/3sigma_noridge/
+artifacts/inverse/eval_10s/
 ├── oof/seed_2026092{3,4,5}/noise_gan/oof.csv   # 两配置平均后的逐 seed OOF
 ├── final/p10/noise_gan/10s/seed_*.pt           # 配置 A 的 3 个 checkpoint
 ├── final/q/noise_gan/10s/seed_*.pt             # 配置 B 的 3 个 checkpoint
@@ -545,8 +545,8 @@ export UV_NO_SYNC=1   # 或所有命令加 uv run --no-sync
 # 1) 配置 A：5 折 OOF（3 seed）
 for SEED in 20260923 20260924 20260925; do
   uv run --no-sync python -m tcn_union.training.gan_train \
-    --manifest artifacts/splits/manifest.csv \
-    --output-dir artifacts/3sigma_noridge/oof_raw/p10/seed_${SEED} \
+    --manifest artifacts/data/splits/manifest.csv \
+    --output-dir artifacts/inverse/eval_10s/oof_raw/p10/seed_${SEED} \
     --device cuda --seed ${SEED} --oof-only \
     --modes noise_gan --generator vae --vae-components 6 --vae-beta 0.1 \
     --noise-scale 0.1 --synthetic-ratio 3.0 --edge-copies 4 \
@@ -559,8 +559,8 @@ done
 
 # 3) 最终重训（每配置 3 seed；以配置 A 为例）
 uv run --no-sync python -m tcn_union.training.gan_train \
-  --manifest artifacts/splits/manifest.csv \
-  --output-dir artifacts/3sigma_noridge/final/p10 \
+  --manifest artifacts/data/splits/manifest.csv \
+  --output-dir artifacts/inverse/eval_10s/final/p10 \
   --device cuda --seed 20260923 \
   --final-seeds 20260923 20260924 20260925 \
   --modes noise_gan --generator vae --vae-components 6 --vae-beta 0.1 \
@@ -570,21 +570,21 @@ uv run --no-sync python -m tcn_union.training.gan_train \
 # 配置 B 同理，输出 final/q，--low-conc-power 0,0.3,1.0
 
 # 4) 两配置逐 seed OOF 平均
-uv run --no-sync python artifacts/3sigma_noridge/scripts/build_oof.py
+uv run --no-sync python artifacts/inverse/eval_10s/scripts/build_oof.py
 
 # 5) 锁定测试评估（第 7 次读取；已有 evaluation.json 时不要重复跑）
 uv run --no-sync python -m tcn_union.evaluation.ensemble_evaluate \
-  --manifest artifacts/splits/manifest.csv \
-  --model-dirs artifacts/3sigma_noridge/final/p10/noise_gan \
-               artifacts/3sigma_noridge/final/q/noise_gan \
-  --output-dir artifacts/3sigma_noridge/evaluation \
+  --manifest artifacts/data/splits/manifest.csv \
+  --model-dirs artifacts/inverse/eval_10s/final/p10/noise_gan \
+               artifacts/inverse/eval_10s/final/q/noise_gan \
+  --output-dir artifacts/inverse/eval_10s/evaluation \
   --device cuda --windows 10 \
   --seeds 20260923 20260924 20260925 \
   --clip-to-development-range
 
 # 6) 图（PNG+SVG）
-uv run --no-sync python artifacts/3sigma_noridge/scripts/plot_low_conc.py
-uv run --no-sync python artifacts/3sigma_noridge/scripts/plot_all62.py
+uv run --no-sync python artifacts/inverse/eval_10s/scripts/plot_low_conc.py
+uv run --no-sync python artifacts/inverse/eval_10s/scripts/plot_all62.py
 ```
 
 ---

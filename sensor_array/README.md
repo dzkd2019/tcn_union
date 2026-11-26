@@ -156,7 +156,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.visualization.full_protocol_augmentation
 ~~~
 
-`--folds 3` 可用于快速调试。全量评估会重写 `artifacts/evaluation/curve_metrics.csv`、
+`--folds 3` 可用于快速调试。全量评估会重写 `artifacts/inverse/legacy/evaluation/curve_metrics.csv`、
 `curve_summary.csv`、`predictions.npz` 和 `artifacts/models/*.json`。
 
 ## 6. 目录

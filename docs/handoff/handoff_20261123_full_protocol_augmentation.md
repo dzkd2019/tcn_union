@@ -15,7 +15,7 @@
 
 ## 1. 本轮任务与边界
 
-用户要求：保留已有的 `artifacts/old_protocol_augmentation/`（旧训练协议、等 120 条合成、
+用户要求：保留已有的 `artifacts/augmentation/protocols/old/`（旧训练协议、等 120 条合成、
 无噪声/边缘的来源对照），再补一整轮**完整旧协议**实验，加入 0.1 噪声、边缘复制、
 两套低浓度配置，重新比较 real / PCA-VAE / 正模型 / 正模型 + PCA-VAE，写结果文档，
 最后写 handoff 并 commit + push。
@@ -27,7 +27,7 @@
 - 本轮只用 50 条开发集的 5 折 OOF；锁定 12 条未评估。
 - 浓度单位未注明，写“原始单位”，不写 ppm。
 - 图件只出 PNG 300 dpi + SVG，不出 PDF。
-- 不修改旧 `artifacts/old_protocol_augmentation/`，新结果写新目录。
+- 不修改旧 `artifacts/augmentation/protocols/old/`，新结果写新目录。
 
 ## 2. 结果
 
@@ -114,7 +114,7 @@ VAE 对 forward：12/15、中位 −2.20、p=0.0043；混合对 forward：11/15�
 
 数据：
 
-- `artifacts/full_protocol_augmentation/folds.csv`：逐 fold/seed/config/arm；
+- `artifacts/augmentation/protocols/full/folds.csv`：逐 fold/seed/config/arm；
 - `fold_seed.csv`：每 seed/折先平均两配置后的指标（配对用）；
 - `oof_seed.csv`：每 seed 的两配置平均 OOF；
 - `oof.csv`：6 checkpoint 平均后的 OOF 与分气体指标；
@@ -197,6 +197,6 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.visualization.full_protocol_
 
 - 当前分支 `experiment/forward-augmented-tcn`；本次提交见 `git log -1`。
 - 工作区应 clean；若有未提交改动，先确认是否为本 handoff 之后的编辑。
-- 不要删除 `artifacts/old_protocol_augmentation/` 与
-  `artifacts/full_protocol_augmentation/`；前者是简化协议对照，后者是完整复刻。
+- 不要删除 `artifacts/augmentation/protocols/old/` 与
+  `artifacts/augmentation/protocols/full/`；前者是简化协议对照，后者是完整复刻。
 - 不要用锁定 12 条做模型选择；不要补测/补采；不要写 ppm。

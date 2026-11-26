@@ -431,10 +431,10 @@ def main() -> None:
         description="Plot locked test-set TCN results"
     )
     parser.add_argument(
-        "--results-dir", type=Path, default=Path("artifacts/evaluation")
+        "--results-dir", type=Path, default=Path("artifacts/inverse/legacy/evaluation")
     )
     parser.add_argument(
-        "--output-dir", type=Path, default=Path("artifacts/evaluation/figures")
+        "--output-dir", type=Path, default=Path("artifacts/inverse/legacy/evaluation/figures")
     )
     args = parser.parse_args()
     for path in make_figures(args.results_dir, args.output_dir):

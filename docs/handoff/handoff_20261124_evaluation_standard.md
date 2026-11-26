@@ -87,16 +87,16 @@
 .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 --configs 1.0 \
   --arms real vae forward_seen --real-scaler \
-  --output artifacts/forward_seen_pilot
+  --output artifacts/augmentation/diagnostics/forward_seen_pilot
 
 # forward_seen 三种子（只跑 vae/forward_seen；real 基线复用同协议结果）
 .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
   --folds 5 --seeds 20260923 20260924 20260925 --configs 1.0 \
   --arms vae forward_seen --real-scaler \
-  --output artifacts/forward_seen_seeds
+  --output artifacts/augmentation/diagnostics/forward_seen_seeds
 ```
 
-- 数据/预测：`artifacts/forward_seen_pilot/`、`artifacts/forward_seen_seeds/`、`artifacts/forward_seen_seeds.log`、`artifacts/forward_seen_seeds/folds_from_log.csv`
+- 数据/预测：`artifacts/augmentation/diagnostics/forward_seen_pilot/`、`artifacts/augmentation/diagnostics/forward_seen_seeds/`、`artifacts/augmentation/diagnostics/forward_seen_seeds.log`、`artifacts/augmentation/diagnostics/forward_seen_seeds/folds_from_log.csv`
 - 对比文档：`sensor_array/docs/forward_seen_vs_vae.md`
 - 评估规范：`AGENTS.md` §10；图目录：`docs/plotting_guide_tcn_10s.md`
 

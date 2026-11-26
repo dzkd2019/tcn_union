@@ -10,7 +10,7 @@ import numpy as np
 from sensor_array.plotting.style import _save, _style
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = ROOT / "artifacts/forward_augmentation"
+BASE = ROOT / "artifacts/augmentation/protocols/forward"
 ARMS = ("real", "forward", "pca_vae", "forward+pca_vae")
 LABELS = {
     "real": "仅真实",

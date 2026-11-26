@@ -70,8 +70,8 @@ d94820e 闭环协议修正 + 结果
 
 ### 2.3 10 s 相对误差 95% CI 图
 
-- 图：`artifacts/3sigma_noridge/figs/fig_10s_relative_error_ci95.{png,svg}`
-- 脚本：`artifacts/3sigma_noridge/scripts/plot_ci95_10s.py`
+- 图：`artifacts/inverse/eval_10s/figs/fig_10s_relative_error_ci95.{png,svg}`
+- 脚本：`artifacts/inverse/eval_10s/scripts/plot_ci95_10s.py`
 - 索引：`docs/plotting_guide_tcn_10s.md`
 - 定义：每组相对误差的均值 ± \(t_{0.975,n-1}s/\sqrt n\)；OOF 50 与锁定 12 分列。画的是**均值的 CI**，不是单次实验的 95% 预测区间；单次波动看散点、标准差或 3σ。
 
@@ -85,23 +85,23 @@ d94820e 闭环协议修正 + 结果
 - 旧交接（sensor_array 主模型）：`docs/handoff/handoff_20261119_mlp_per_gas.md`
 
 产物：
-- `artifacts/3sigma_5s/`：`oof/`、`final/`、`evaluation/`、`all62_predictions.csv`、`all62_error_stats.csv`、`figs/`、`scripts/`
-- `artifacts/prefix/6s..9s/`
-- `artifacts/closed_loop/closed_loop.csv`
-- 10 s 既有产物：`artifacts/3sigma_noridge/`（未改动，保留）
+- `artifacts/inverse/eval_5s/`：`oof/`、`final/`、`evaluation/`、`all62_predictions.csv`、`all62_error_stats.csv`、`figs/`、`scripts/`
+- `artifacts/inverse/prefix/6s..9s/`
+- `artifacts/analysis/closed_loop/closed_loop.csv`
+- 10 s 既有产物：`artifacts/inverse/eval_10s/`（未改动，保留）
 
 ## 4. 复现命令
 
 ```bash
 # 5 s 闭环对照（GPU 推荐；当前脚本 5 折 × 2 窗口 × 3 臂，约 15 min）
-mkdir -p artifacts/closed_loop
+mkdir -p artifacts/analysis/closed_loop
 .venv/bin/python -m tcn_union.experiments.closed_loop
 
 # 5 s 误差图
-.venv/bin/python artifacts/3sigma_5s/scripts/plot_all62_5s.py
+.venv/bin/python artifacts/inverse/eval_5s/scripts/plot_all62_5s.py
 
 # 10 s 95% CI 图
-.venv/bin/python artifacts/3sigma_noridge/scripts/plot_ci95_10s.py
+.venv/bin/python artifacts/inverse/eval_10s/scripts/plot_ci95_10s.py
 
 # 回归测试
 .venv/bin/python -m unittest discover -s tests

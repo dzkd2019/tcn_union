@@ -143,13 +143,13 @@ bootstrap 在 seed 20260923 单 seed 筛选时看起来更好（NO2 8.03），
 
 产物：
 
-- artifacts/joint10_full/：joint10 全量 folds.csv、fold_seed.csv、
+- artifacts/augmentation/pure_forward/joint10/：joint10 全量 folds.csv、fold_seed.csv、
   oof.csv、summary.csv、paired.csv、predictions.npz、run_config.json；
-- artifacts/joint10_full/report/{real,vae,forward_prob_joint,forward_prob_joint10}/：
+- artifacts/augmentation/pure_forward/joint10/report/{real,vae,forward_prob_joint,forward_prob_joint10}/：
   按 AGENTS.md §10 生成的 metrics.csv、predictions.csv 与
   figs/fig_abs_error、fig_rel_error、fig_ci95（PNG+SVG）；
-- artifacts/pure_forward_full/：joint5 全量与报告；
-- artifacts/joint_boot_full/：bootstrap 负结果。
+- artifacts/augmentation/pure_forward/base/：joint5 全量与报告；
+- artifacts/augmentation/pure_forward/joint_boot/：bootstrap 负结果。
 
 复现 joint10：
 
@@ -160,7 +160,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python \\
   --folds 5 --seeds 20260923 20260924 20260925 \\
   --configs 1.0 0,0.3,1.0 \\
   --arms real vae forward_prob_joint forward_prob_joint10 \\
-  --real-scaler --output artifacts/joint10_full
+  --real-scaler --output artifacts/augmentation/pure_forward/joint10
 \`\`\`
 
 生成报告：
@@ -169,8 +169,8 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python \\
 for arm in real vae forward_prob_joint forward_prob_joint10; do
   MPLCONFIGDIR=/tmp/mpl .venv/bin/python \\
     -m tcn_union.evaluation.final_report \\
-    --source artifacts/joint10_full/predictions.npz \\
-    --output artifacts/joint10_full/report/$arm \\
+    --source artifacts/augmentation/pure_forward/joint10/predictions.npz \\
+    --output artifacts/augmentation/pure_forward/joint10/report/$arm \\
     --arm $arm --window 10 --run-name joint10_full
 done
 \`\`\`

@@ -86,7 +86,7 @@ P4 区间校准（10 s，90%）：
 
 这不是“50 条训练并冻结、12 条盲测”的严格协议；TCN 的 7.11% / 1.67% 才是该协议的结果。
 
-当前 3σ/MAPE 数字是从 `sensor_array/artifacts/evaluation/downstream.csv` 按 TCN 同一公式重算的，尚未改动 `evaluation.md`。
+当前 3σ/MAPE 数字是从 `sensor_array/artifacts/inverse/legacy/evaluation/downstream.csv` 按 TCN 同一公式重算的，尚未改动 `evaluation.md`。
 
 结论：**当前中位误差低，但尾部仍不如 TCN；TCN 的响应加速、计算摊销和尾部优化意义都还在。**
 
@@ -112,7 +112,7 @@ P4 区间校准（10 s，90%）：
 
 ## 5. 产物与文档
 
-- 评估：`sensor_array/artifacts/evaluation/{curve_metrics,curve_summary,downstream,downstream_summary}.csv`、
+- 评估：`sensor_array/artifacts/inverse/legacy/evaluation/{curve_metrics,curve_summary,downstream,downstream_summary}.csv`、
   `predictions.npz`；
 - 模型：`sensor_array/artifacts/models/double.json`、`mlp_per_gas.json`；
 - 校准：`sensor_array/artifacts/calibration/{intervals,summary,by_group}.csv`；

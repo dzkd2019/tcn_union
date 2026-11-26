@@ -124,12 +124,12 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("artifacts/3sigma_noridge/all62_predictions.csv"),
+        default=Path("artifacts/inverse/eval_10s/all62_predictions.csv"),
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("artifacts/data_distribution"),
+        default=Path("artifacts/data/concentration"),
     )
     args = parser.parse_args()
     plot_distribution(args.predictions, args.output_dir)

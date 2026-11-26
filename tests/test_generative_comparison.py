@@ -13,7 +13,7 @@ from tcn_union.training.train import _read_manifest
 
 
 def _rows(count: int = 8) -> list[dict]:
-    rows = _read_manifest(Path("artifacts/splits/manifest.csv"))
+    rows = _read_manifest(Path("artifacts/data/splits/manifest.csv"))
     return [row for row in rows if row["split"] == "development"][:count]
 
 

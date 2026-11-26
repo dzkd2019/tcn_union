@@ -6,7 +6,7 @@
 
 ## 做法
 
-- 数据与划分：固定 `artifacts/splits/manifest.csv`，50 开发 / 12 测试。
+- 数据与划分：固定 `artifacts/data/splits/manifest.csv`，50 开发 / 12 测试。
 - 模型与增强：10 秒、raw_delta、cutout_1.0_2s、5 秒辅助监督位置 25、权重 0.5。
 - 对比：无 EMA / EMA decay 0.99 / EMA decay 0.995。
 - 评价：五折 OOF macro-NMAE，先跑 seed 20260924（当前最差），再决定是否扩到 seed 23/25。

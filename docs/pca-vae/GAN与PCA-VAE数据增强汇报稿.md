@@ -60,7 +60,7 @@ G 想让 D 把假曲线判成真，D 想识别出假曲线；两者互相提高�
 
 ### 2.3 结构框图
 
-![GAN 数据增强结构](../artifacts/augmentation_manuscript/fig_gan_flow.png)
+![GAN 数据增强结构](../../artifacts/augmentation/vae_gan/manuscript/fig_gan_flow.png)
 
 > 图 1：左边是 GAN 的生成原理，右边是它在项目中的使用流程。
 
@@ -127,7 +127,7 @@ G 想让 D 把假曲线判成真，D 想识别出假曲线；两者互相提高�
 
 ### 4.1 生成曲线不自然
 
-![真实与生成曲线对比](../artifacts/generative_comparison/fig_generated_curves_comparison.png)
+![真实与生成曲线对比](../../artifacts/augmentation/vae_gan/comparisons/generative/fig_generated_curves_comparison.png)
 
 > 图 2：真实曲线、GAN、PCA、VAE、PCA+VAE 的生成曲线对比。GAN 曲线出现折线、交叉和不自然抖动。
 
@@ -198,7 +198,7 @@ PCA-VAE 不是直接生成 153 维曲线，而是：
 
 ### 5.2 结构框图
 
-![PCA-VAE 数据增强结构](../artifacts/augmentation_manuscript/fig_pca_vae_flow.png)
+![PCA-VAE 数据增强结构](../../artifacts/augmentation/vae_gan/manuscript/fig_pca_vae_flow.png)
 
 > 图 3：左边是 PCA+VAE 的生成原理，右边是它在项目中的使用流程。
 
@@ -325,8 +325,8 @@ OOF macro-NMAE = 0.023672
 
 ## 12. 图表文件
 
-- GAN 结构图：[fig_gan_flow.png](../artifacts/augmentation_manuscript/fig_gan_flow.png)
-- PCA-VAE 结构图：[fig_pca_vae_flow.png](../artifacts/augmentation_manuscript/fig_pca_vae_flow.png)
-- 生成曲线对比：[fig_generated_curves_comparison.png](../artifacts/generative_comparison/fig_generated_curves_comparison.png)
-- 生成质量指标：[fig_generative_metrics.png](../artifacts/generative_comparison/fig_generative_metrics.png)
-- 下游结果对比：[fig_downstream_comparison.png](../artifacts/downstream_comparison/fig_downstream_comparison.png)
+- GAN 结构图：[fig_gan_flow.png](../../artifacts/augmentation/vae_gan/manuscript/fig_gan_flow.png)
+- PCA-VAE 结构图：[fig_pca_vae_flow.png](../../artifacts/augmentation/vae_gan/manuscript/fig_pca_vae_flow.png)
+- 生成曲线对比：[fig_generated_curves_comparison.png](../../artifacts/augmentation/vae_gan/comparisons/generative/fig_generated_curves_comparison.png)
+- 生成质量指标：[fig_generative_metrics.png](../../artifacts/augmentation/vae_gan/comparisons/generative/fig_generative_metrics.png)
+- 下游结果对比：[fig_downstream_comparison.png](../../artifacts/augmentation/vae_gan/comparisons/downstream/fig_downstream_comparison.png)

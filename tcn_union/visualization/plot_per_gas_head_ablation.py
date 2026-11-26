@@ -45,11 +45,11 @@ def _test_ensemble(evaluation: dict) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--shared-dir", type=Path, default=Path("artifacts/per_gas_head_ablation/shared"))
-    parser.add_argument("--per-gas-dir", type=Path, default=Path("artifacts/3sigma_noridge/final/p10"))
-    parser.add_argument("--shared-eval", type=Path, default=Path("artifacts/per_gas_head_ablation/shared_eval/evaluation.json"))
-    parser.add_argument("--per-gas-eval", type=Path, default=Path("artifacts/per_gas_head_ablation/per_gas_eval/evaluation.json"))
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/per_gas_head_ablation"))
+    parser.add_argument("--shared-dir", type=Path, default=Path("artifacts/analysis/ablations/per_gas_head/shared"))
+    parser.add_argument("--per-gas-dir", type=Path, default=Path("artifacts/inverse/eval_10s/final/p10"))
+    parser.add_argument("--shared-eval", type=Path, default=Path("artifacts/analysis/ablations/per_gas_head/shared_eval/evaluation.json"))
+    parser.add_argument("--per-gas-eval", type=Path, default=Path("artifacts/analysis/ablations/per_gas_head/per_gas_eval/evaluation.json"))
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/analysis/ablations/per_gas_head"))
     args = parser.parse_args()
 
     shared = {"oof": _oof_macro(_load(args.shared_dir / "selection.json")), **_test_ensemble(_load(args.shared_eval))}

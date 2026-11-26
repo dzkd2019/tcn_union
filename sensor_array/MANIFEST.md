@@ -3,14 +3,14 @@
 本文件记录当前分支 `experiment/forward-augmented-tcn` 的 `sensor_array/artifacts/` 与
 `sensor_array/figures/model/` 内容。MAP 反演、区间校准与降级产物已删除；旧模型
 代码与图件只保留在 `docs/archive/` 作历史归档。逆问题 TCN 的新产物在仓库根
-`artifacts/forward_augmentation/`、`artifacts/old_protocol_augmentation/`
-与 `artifacts/full_protocol_augmentation/`，不属于本快照的 SHA 校验范围。
+`artifacts/augmentation/protocols/forward/`、`artifacts/augmentation/protocols/old/`
+与 `artifacts/augmentation/protocols/full/`，不属于本快照的 SHA 校验范围。
 
 ## 范围
 
 | 目录 | 文件数 | 说明 |
 |---|---:|---|
-| `artifacts/evaluation/` | 4 | 62 折曲线指标、汇总、预测与逐文件 σ 统计 |
+| `artifacts/inverse/legacy/evaluation/` | 4 | 62 折曲线指标、汇总、预测与逐文件 σ 统计 |
 | `artifacts/models/` | 2 | 三路独立（推荐）、双指数骨架（对照） |
 | `artifacts/models/comparison/` | 10 | 骨架筛选模型：double/first 各 1+3 seed，second/second2 各 1 seed |
 | `artifacts/comparison/` | 7 | 骨架对照汇总与四个骨架的 62 折预测 |
@@ -26,10 +26,10 @@ fig02/04/05/06/08/11 已删除。
 
 ## 内容
 
-- `artifacts/evaluation/curve_metrics.csv`：逐文件、逐模型的曲线 nRMSE；
-- `artifacts/evaluation/curve_summary.csv`：曲线均值/中位/p90；
-- `artifacts/evaluation/predictions.npz`：62 折曲线预测；
-- `artifacts/evaluation/curve_error_stats.csv`：逐气体误差离散度；
+- `artifacts/inverse/legacy/evaluation/curve_metrics.csv`：逐文件、逐模型的曲线 nRMSE；
+- `artifacts/inverse/legacy/evaluation/curve_summary.csv`：曲线均值/中位/p90；
+- `artifacts/inverse/legacy/evaluation/predictions.npz`：62 折曲线预测；
+- `artifacts/inverse/legacy/evaluation/curve_error_stats.csv`：逐气体误差离散度；
 - `artifacts/models/mlp_per_gas.json`：双指数 + 三路独立 MLP，**推荐模型**；
 - `artifacts/models/double.json`：纯双指数骨架，对照模型；
 - `artifacts/comparison/skeleton_summary.csv`：四骨架 1 seed 与
@@ -53,11 +53,11 @@ fig02/04/05/06/08/11 已删除。
 - `figures/model/fig19_full_protocol_augmentation.png/.svg`：完整旧协议
   （0.1×噪声 + 边缘 ×4 + 两套低浓度 + 6 checkpoint）的四臂对照。
 
-根目录 `artifacts/forward_augmentation/` 另含 TCN 四臂的 `folds.csv`、`oof.csv`、
+根目录 `artifacts/augmentation/protocols/forward/` 另含 TCN 四臂的 `folds.csv`、`oof.csv`、
 `summary.csv`、`real_dup.csv`、`real_dup_summary.csv`、`predictions.npz`、
-`run_config.json`；根目录 `artifacts/old_protocol_augmentation/` 含增强来源对照的
+`run_config.json`；根目录 `artifacts/augmentation/protocols/old/` 含增强来源对照的
 `folds.csv`、`oof.csv`、`summary.csv`、`predictions.npz`、`run_config.json`；
-根目录 `artifacts/full_protocol_augmentation/` 含完整旧协议四臂的
+根目录 `artifacts/augmentation/protocols/full/` 含完整旧协议四臂的
 `folds.csv`、`fold_seed.csv`、`oof_seed.csv`、`oof.csv`、`summary.csv`、
 `paired.csv`、`predictions.npz`、`summary.md`、`run_config.json`；
 它们不在 `sensor_array/SHA256SUMS` 中。

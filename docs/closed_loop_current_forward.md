@@ -86,12 +86,12 @@
 ## 5. 产物与复现
 
 ```bash
-mkdir -p artifacts/closed_loop
+mkdir -p artifacts/analysis/closed_loop
 .venv/bin/python -m tcn_union.experiments.closed_loop
 ```
 
-- `artifacts/closed_loop/closed_loop.csv`：5 折 × 2 窗口 × 3 臂的逐折指标。
-- `artifacts/closed_loop/closed_loop.log`：运行日志。
+- `artifacts/analysis/closed_loop/closed_loop.csv`：5 折 × 2 窗口 × 3 臂的逐折指标。
+- `artifacts/analysis/closed_loop/closed_loop.log`：运行日志。
 
 ## 6. 局限
 

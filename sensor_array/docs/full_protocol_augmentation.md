@@ -192,7 +192,7 @@ VAE 的主要收益来自 NH3 与 NO2，H2 不显著。
 
 ## 8. 产物与复现
 
-产物目录 `artifacts/full_protocol_augmentation/`：
+产物目录 `artifacts/augmentation/protocols/full/`：
 
 - `folds.csv`：逐 fold/seed/config/arm 的指标与最佳 epoch；
 - `fold_seed.csv`：每 seed/折先平均两配置后的指标（配对统计用）；

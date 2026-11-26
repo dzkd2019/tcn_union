@@ -12,19 +12,19 @@
 
 | 图号 | 文件 | 绘图脚本 / 函数 | 数据源 | 版式 | 输出目录 |
 |---|---|---|---|---|---|
-| 10s-F1 | `fig_10s_relative_error_ci95.{png,svg}` | `artifacts/3sigma_noridge/scripts/plot_ci95_10s.py::main` | `artifacts/3sigma_noridge/all62_predictions.csv`（50 OOF + 12 锁定） | 1×3，H2/NH3/NO2；散点=单个实验，黑菱形/竖线=均值及 95% t 置信区间；OOF 与锁定分列 | `artifacts/3sigma_noridge/figs/` |
-| 10s-F2 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/full_protocol_augmentation/predictions.npz`，arm=real | 3 张 1×3：绝对误差散点、相对误差散点、均值 95% CI；每张列为 H2/NH3/NO2；散点用 ensemble，CI 每 seed 一点；OOF 50，n=50 | `artifacts/full_protocol_augmentation/report/real/figs/` |
-| 10s-F3 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | 同上，arm=vae | 同上 | `artifacts/full_protocol_augmentation/report/vae/figs/` |
-| 10s-F4 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/routing_augmentation/predictions.npz`，arm=routing | 同上；routing 为 H2 用 forward+vae、NH3/NO2 用 vae | `artifacts/routing_augmentation/report/figs/` |
-| 10s-F5 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/h2_augmentation_full/predictions.npz`，arm=forward_cond_h2 | 同上；H2-only 正模型 + VAE，3 seed × 2 配置 | `artifacts/h2_augmentation_full/report/forward_cond_h2/figs/` |
-| 10s-F6 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/joint10_full/predictions.npz`，arm=real | 3 张 1×3；OOF 50，n=50 | `artifacts/joint10_full/report/real/figs/` |
-| 10s-F7 | 同上 | 同上 | 同上，arm=vae | 同上 | `artifacts/joint10_full/report/vae/figs/` |
-| 10s-F8 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 纯正模型，5 主成分 | `artifacts/joint10_full/report/forward_prob_joint/figs/` |
-| 10s-F9 | 同上 | 同上 | 同上，arm=forward_prob_joint10 | joint10 纯正模型，10 主成分，主结果 | `artifacts/joint10_full/report/forward_prob_joint10/figs/` |
-| 10s-F10 | 同上 | 同上 | `artifacts/joint_boot_full/predictions.npz`，arm=forward_prob_joint10 | 残差 bootstrap 负结果 | `artifacts/joint_boot_full/report/forward_prob_joint10/figs/` |
-| 10s-F11 | 同上 | 同上 | `artifacts/pure_forward_full/predictions.npz`，arm=real | joint5 全量的仅真实基线 | `artifacts/pure_forward_full/report/real/figs/` |
-| 10s-F12 | 同上 | 同上 | 同上，arm=vae | joint5 全量的 PCA-VAE | `artifacts/pure_forward_full/report/vae/figs/` |
-| 10s-F13 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 全量主结果 | `artifacts/pure_forward_full/report/forward_prob_joint/figs/` |
+| 10s-F1 | `fig_10s_relative_error_ci95.{png,svg}` | `artifacts/inverse/eval_10s/scripts/plot_ci95_10s.py::main` | `artifacts/inverse/eval_10s/all62_predictions.csv`（50 OOF + 12 锁定） | 1×3，H2/NH3/NO2；散点=单个实验，黑菱形/竖线=均值及 95% t 置信区间；OOF 与锁定分列 | `artifacts/inverse/eval_10s/figs/` |
+| 10s-F2 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/augmentation/protocols/full/predictions.npz`，arm=real | 3 张 1×3：绝对误差散点、相对误差散点、均值 95% CI；每张列为 H2/NH3/NO2；散点用 ensemble，CI 每 seed 一点；OOF 50，n=50 | `artifacts/augmentation/protocols/full/report/real/figs/` |
+| 10s-F3 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | 同上，arm=vae | 同上 | `artifacts/augmentation/protocols/full/report/vae/figs/` |
+| 10s-F4 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/augmentation/pure_forward/routing/predictions.npz`，arm=routing | 同上；routing 为 H2 用 forward+vae、NH3/NO2 用 vae | `artifacts/augmentation/pure_forward/routing/report/figs/` |
+| 10s-F5 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/augmentation/pure_forward/h2/predictions.npz`，arm=forward_cond_h2 | 同上；H2-only 正模型 + VAE，3 seed × 2 配置 | `artifacts/augmentation/pure_forward/h2/report/forward_cond_h2/figs/` |
+| 10s-F6 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/augmentation/pure_forward/joint10/predictions.npz`，arm=real | 3 张 1×3；OOF 50，n=50 | `artifacts/augmentation/pure_forward/joint10/report/real/figs/` |
+| 10s-F7 | 同上 | 同上 | 同上，arm=vae | 同上 | `artifacts/augmentation/pure_forward/joint10/report/vae/figs/` |
+| 10s-F8 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 纯正模型，5 主成分 | `artifacts/augmentation/pure_forward/joint10/report/forward_prob_joint/figs/` |
+| 10s-F9 | 同上 | 同上 | 同上，arm=forward_prob_joint10 | joint10 纯正模型，10 主成分，主结果 | `artifacts/augmentation/pure_forward/joint10/report/forward_prob_joint10/figs/` |
+| 10s-F10 | 同上 | 同上 | `artifacts/augmentation/pure_forward/joint_boot/predictions.npz`，arm=forward_prob_joint10 | 残差 bootstrap 负结果 | `artifacts/augmentation/pure_forward/joint_boot/report/forward_prob_joint10/figs/` |
+| 10s-F11 | 同上 | 同上 | `artifacts/augmentation/pure_forward/base/predictions.npz`，arm=real | joint5 全量的仅真实基线 | `artifacts/augmentation/pure_forward/base/report/real/figs/` |
+| 10s-F12 | 同上 | 同上 | 同上，arm=vae | joint5 全量的 PCA-VAE | `artifacts/augmentation/pure_forward/base/report/vae/figs/` |
+| 10s-F13 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 全量主结果 | `artifacts/augmentation/pure_forward/base/report/forward_prob_joint/figs/` |
 
 ## 统一规范
 
@@ -41,7 +41,7 @@
 ## 复现
 
 ```bash
-.venv/bin/python artifacts/3sigma_noridge/scripts/plot_ci95_10s.py
+.venv/bin/python artifacts/inverse/eval_10s/scripts/plot_ci95_10s.py
 ```
 
 ## 相关文档
@@ -109,12 +109,12 @@ PNG 300 dpi + 同名 SVG，不输出 PDF；不写 `ppm`。
 ```bash
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.routing
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
-    --source artifacts/routing_augmentation/predictions.npz \
-    --output artifacts/routing_augmentation/report --arm routing \
+    --source artifacts/augmentation/pure_forward/routing/predictions.npz \
+    --output artifacts/augmentation/pure_forward/routing/report --arm routing \
     --run-name routing_augmentation
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
-    --source artifacts/h2_augmentation_full/predictions.npz \
-    --output artifacts/h2_augmentation_full/report/forward_cond_h2 \
+    --source artifacts/augmentation/pure_forward/h2/predictions.npz \
+    --output artifacts/augmentation/pure_forward/h2/report/forward_cond_h2 \
     --arm forward_cond_h2 --run-name h2_augmentation_full
 ```
 
@@ -125,8 +125,8 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
 ### 2026-11-25 纯正模型 joint10
 
 - 结果文档：`sensor_array/docs/pure_forward_augmentation.md`
-- 主结果：`artifacts/joint10_full/`；joint5 全量：`artifacts/pure_forward_full/`；
-  bootstrap 负结果：`artifacts/joint_boot_full/`
+- 主结果：`artifacts/augmentation/pure_forward/joint10/`；joint5 全量：`artifacts/augmentation/pure_forward/base/`；
+  bootstrap 负结果：`artifacts/augmentation/pure_forward/joint_boot/`
 - 复现：
 
 ```bash
@@ -136,7 +136,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
   --folds 5 --seeds 20260923 20260924 20260925 \
   --configs 1.0 0,0.3,1.0 \
   --arms real vae forward_prob_joint forward_prob_joint10 \
-  --real-scaler --output artifacts/joint10_full
+  --real-scaler --output artifacts/augmentation/pure_forward/joint10
 ```
 
 - 每个 run 的指标见 `report/<arm>/metrics.csv`；图统一为

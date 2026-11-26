@@ -30,7 +30,7 @@
   \]
   分母是训练折该通道相对响应的 RMS；宏平均为三路算术平均。
 - 预测数组、逐文件指标和汇总表分别写入：
-  `artifacts/evaluation/predictions.npz`、`curve_metrics.csv`、`curve_summary.csv`。
+  `artifacts/inverse/legacy/evaluation/predictions.npz`、`curve_metrics.csv`、`curve_summary.csv`。
 
 ## 3. 曲线结果
 
@@ -50,7 +50,7 @@
 
 ### 3.1 逐文件误差的离散度
 
-图 15 与 <code>artifacts/evaluation/curve_error_stats.csv</code> 把每个文件的曲线误差
+图 15 与 <code>artifacts/inverse/legacy/evaluation/curve_error_stats.csv</code> 把每个文件的曲线误差
 按“62 条实验合并的逐气体尺度”归一化，用来看 62 条实验之间的离散度；
 它与上表的均值相差约 0.01 百分点，因为上表分母是每折训练折尺度。
 两种尺度不能混用；这里只作描述性统计。
@@ -266,7 +266,7 @@ seed 或独立的等曝光对照把“更多更新”与“合成数据”分开
 - 代码：<code>tcn_union/experiments/forward_augmentation.py</code>（四臂 OOF）、
   <code>tcn_union/experiments/real_control.py</code>（双倍真实样本对照）、
   <code>tcn_union/experiments/locked_forward.py</code>（锁定 12 的一次性评估，本轮未用）。
-- 结果：<code>artifacts/forward_augmentation/{folds,oof,summary}.csv</code>、
+- 结果：<code>artifacts/augmentation/protocols/forward/{folds,oof,summary}.csv</code>、
   <code>real_dup.csv</code>、<code>real_dup_summary.csv</code>、<code>predictions.npz</code>、
   <code>run_config.json</code>。
 - 图：[fig16_forward_augmentation](../figures/model/fig16_forward_augmentation.png)、
@@ -338,7 +338,7 @@ p90 中位 −2.09、13/15 改善，p=0.00116。
    单配置 3 seed 集成，两者不能直接等同；本表也没有复现旧 final 的噪声、
    边缘采样和两套低浓度配置。
 
-产物：`artifacts/old_protocol_augmentation/{folds,oof,summary}.csv`、
+产物：`artifacts/augmentation/protocols/old/{folds,oof,summary}.csv`、
 `predictions.npz`、`run_config.json`；图
 [fig18_old_protocol_augmentation](../figures/model/fig18_old_protocol_augmentation.png)。
 复现命令：
