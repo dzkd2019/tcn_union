@@ -66,7 +66,7 @@
 - in-sample 的 0.40% 不能当作泛化误差，它主要说明“已知该实验的增益/时间尺度/漂移时能拟合多好”；
 - 这也说明 62 条实验的实验间差异，并不能用 3 个标量随机效应在未见实验上稳定预测。
 
-图：`sensor_array/figures/model/fig20_hierarchical_lofo_62_curves.{png,svg}`
+图：`sensor_array/figures/model/fig21_hierarchical_lofo_H2.{png,svg}`、`fig22_hierarchical_lofo_NH3.{png,svg}`、`fig23_hierarchical_lofo_NO2.{png,svg}`
 （62 条实测深蓝、62 条留一生成橙色；图中不写 nRMSE）。
 
 ## 6. 复现

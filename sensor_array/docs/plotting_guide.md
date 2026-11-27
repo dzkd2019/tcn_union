@@ -44,7 +44,7 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 | fig17 | <code>figures/model/fig17_forward_augmentation_paired.png/.svg</code> | <code>tcn_union/visualization/forward_augmentation.py</code> | <code>figure_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/forward/folds.csv</code> | 2×3，逐折/seed 配对散点 |
 | fig18 | <code>figures/model/fig18_old_protocol_augmentation.png/.svg</code> | <code>tcn_union/visualization/old_protocol_augmentation.py</code> | <code>_bars()</code>、<code>_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/old/{summary,folds}.csv</code> | 1×3，3σ/MAPE 柱 + 逐 seed/折配对差 |
 | fig19 | <code>figures/model/fig19_full_protocol_augmentation.png/.svg</code> | <code>tcn_union/visualization/full_protocol_augmentation.py</code> | <code>_bars()</code>、<code>_paired()</code>，由 <code>main()</code> 调用 | <code>artifacts/augmentation/protocols/full/{summary,oof_seed,fold_seed}.csv</code> | 1×3，10 s 宏 3σ/MAPE 柱 + 逐 seed/折配对差 |
-| fig20 | <code>figures/model/fig20_hierarchical_lofo_62_curves.png/.svg</code> | <code>experiments/plot_hierarchical_lofo.py</code> | <code>main()</code> | <code>artifacts/evaluation/predictions.npz</code> 的 <code>{file}_hierarchical</code> | 3×1，62 条实测深蓝 + 62 条留一生成橙色 |
+| fig21–23 | <code>figures/model/fig21_hierarchical_lofo_H2.png/.svg</code>、<code>fig22_hierarchical_lofo_NH3.png/.svg</code>、<code>fig23_hierarchical_lofo_NO2.png/.svg</code> | <code>experiments/plot_hierarchical_lofo.py</code> | <code>main()</code> | <code>artifacts/evaluation/predictions.npz</code> 的 <code>{file}_hierarchical</code> | 每气体 1×1，62 条实测灰 + 62 条留一生成气体色 |
 
 ## 4. 逐图说明
 
@@ -166,9 +166,10 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
 5. 若新增数据文件，在 <code>evaluation.md</code> 与 <code>README.md</code> 中同步数值和路径。
 6. TCN 逆问题的评估图不放在本目录：按 <code>docs/plotting_guide_tcn_10s.md</code> 的“最终评估图件与目录规范”，每次运行一个 <code>artifacts/&lt;run_name&gt;/figs/</code> 子目录；本文件只维护正问题图。
 
-### fig20 分层正模型 62 折留一曲线
+### fig21–fig23 分层正模型 62 折留一曲线（每气体一张）
 
-- 三行 H₂/NH₃/NO₂；每行 62 条实测（深蓝 <code>#2F4B7C</code>，lw 1.7，alpha 0.72）与 62 条 62 折留一生成（橙 <code>#E07B39</code>，lw 1.15，alpha 0.9）。
+- 每气体一张，版式参照 fig12–fig14：1×1、标题“H₂：62 条实测与留一生成”、y 轴“相对响应 / %”。
+- 62 条实测灰色（<code>#7F7F7F</code>，lw 0.95，alpha 0.80）；62 条 62 折留一生成用该气体颜色（lw 1.15，alpha 0.75）。
 - 生成曲线不含真值随机效应，只用训练 61 条拟合的条件均值；图中不写 nRMSE/σ 等统计文字。
-- 图例在底部，只写“实测（62 条）/生成（62 折留一）”。
+- 图例在左上或右上，白底、无边框；只写“实测/生成”。
 - 数据源：<code>artifacts/evaluation/predictions.npz</code> 的 <code>{file}_hierarchical</code>；指标写入同目录 <code>hierarchical_lofo_metrics.csv</code>。

@@ -1,4 +1,4 @@
-"""绘制 62 折留一的分层正模型曲线，并输出逐实验 nRMSE。"""
+"""绘制 62 折留一的分层正模型曲线（每气体一张），并输出逐实验 nRMSE。"""
 from __future__ import annotations
 
 import numpy as np
@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 
 from ..core.data import GASES, load_experiments
 from ..paths import EVALUATION, FIGURES_MODEL
-from ..plotting.style import _save, _style
+from ..plotting.style import GAS_COLORS, _save, _style
 
-OBSERVED_COLOR = "#2F4B7C"
-GENERATED_COLOR = "#E07B39"
+OBSERVED_COLOR = "#7F7F7F"
+GAS_LABELS = {"H2": "H$_2$", "NH3": "NH$_3$", "NO2": "NO$_2$"}
 
 
 def _metrics(prediction: np.ndarray, truth: np.ndarray) -> pd.DataFrame:
@@ -20,6 +20,62 @@ def _metrics(prediction: np.ndarray, truth: np.ndarray) -> pd.DataFrame:
     frame = pd.DataFrame(nrmse, columns=list(GASES))
     frame["macro"] = frame.mean(axis=1)
     return frame
+
+
+def _figure(
+    time: np.ndarray,
+    observed: np.ndarray,
+    generated: np.ndarray,
+    gas: str,
+    index: int,
+    legend_loc: str,
+    filename: str,
+) -> None:
+    figure, axis = plt.subplots(figsize=(7.2, 4.3))
+    for experiment in observed:
+        axis.plot(
+            time,
+            experiment[:, index],
+            color=OBSERVED_COLOR,
+            linewidth=0.95,
+            alpha=0.80,
+        )
+    for curve in generated:
+        axis.plot(
+            time,
+            curve[:, index],
+            color=GAS_COLORS[gas],
+            linewidth=1.15,
+            alpha=0.75,
+        )
+    axis.set_title(
+        f"{GAS_LABELS[gas]}：62 条实测与留一生成",
+        fontsize=11.5,
+        pad=8,
+    )
+    axis.set_xlabel("时间 / s", fontsize=10.5)
+    axis.set_ylabel("相对响应 / %", fontsize=10.5)
+    axis.tick_params(labelsize=10)
+    axis.set_xlim(time[0], time[-1])
+    axis.grid(alpha=0.18, linewidth=0.6)
+    for spine in axis.spines.values():
+        spine.set_linewidth(1.0)
+    handles = [
+        plt.Line2D([], [], color=OBSERVED_COLOR, lw=1.1, label="实测"),
+        plt.Line2D([], [], color=GAS_COLORS[gas], lw=1.3, label="生成"),
+    ]
+    axis.legend(
+        handles=handles,
+        loc=legend_loc,
+        frameon=True,
+        facecolor="white",
+        framealpha=0.92,
+        edgecolor="none",
+        fontsize=10,
+        handlelength=1.8,
+    )
+    figure.tight_layout()
+    _save(figure, filename, FIGURES_MODEL)
 
 
 def main() -> None:
@@ -38,43 +94,24 @@ def main() -> None:
     metrics = _metrics(generated, truth)
     metrics.insert(0, "file", [experiment.file_id for experiment in experiments])
     metrics.to_csv(EVALUATION / "hierarchical_lofo_metrics.csv", index=False)
-    base_metrics = _metrics(base, truth)
     print("hierarchical LOFO nRMSE mean:")
     print(metrics[list(GASES) + ["macro"]].mean().round(4).to_string())
     print("base MLP LOFO nRMSE mean:")
-    print(base_metrics[list(GASES) + ["macro"]].mean().round(4).to_string())
+    print(_metrics(base, truth)[list(GASES) + ["macro"]].mean().round(4).to_string())
 
-    figure, axes = plt.subplots(3, 1, figsize=(8.2, 9.0), sharex=True)
-    for gas_index, (gas, axis) in enumerate(zip(GASES, axes)):
-        for experiment in experiments:
-            axis.plot(
-                time,
-                experiment.relative[:, gas_index],
-                color=OBSERVED_COLOR,
-                linewidth=1.7,
-                alpha=0.72,
-            )
-        for curve in generated:
-            axis.plot(
-                time,
-                curve[:, gas_index],
-                color=GENERATED_COLOR,
-                linewidth=1.15,
-                alpha=0.9,
-            )
-        axis.set_ylabel(f"{gas} 相对响应 / %")
-        axis.set_title({"H2": "H$_2$", "NH3": "NH$_3$", "NO2": "NO$_2$"}[gas])
-        axis.grid(alpha=0.18, linewidth=0.6)
-        axis.set_xlim(time[0], time[-1])
-    axes[-1].set_xlabel("时间 / s")
-    handles = [
-        plt.Line2D([], [], color=OBSERVED_COLOR, lw=1.8, label="实测（62 条）"),
-        plt.Line2D([], [], color=GENERATED_COLOR, lw=1.3, label="生成（62 折留一）"),
-    ]
-    figure.legend(handles=handles, loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.005))
-    figure.suptitle("62 折留一：生成曲线与实测曲线", fontsize=10.5, y=0.995)
-    figure.tight_layout(rect=(0, 0.03, 1, 0.97))
-    _save(figure, "fig20_hierarchical_lofo_62_curves", FIGURES_MODEL)
+    names = {"H2": "H2", "NH3": "NH3", "NO2": "NO2"}
+    legend = {"H2": "upper left", "NH3": "upper left", "NO2": "upper right"}
+    for index, gas in enumerate(GASES):
+        _figure(
+            time,
+            truth,
+            generated,
+            gas,
+            index,
+            legend[gas],
+            f"fig21_hierarchical_lofo_{names[gas]}" if index == 0 else
+            f"fig2{index + 1}_hierarchical_lofo_{names[gas]}",
+        )
 
 
 if __name__ == "__main__":
