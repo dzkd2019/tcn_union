@@ -12,6 +12,7 @@ import pandas as pd
 
 from ..core.data import GASES, Experiment, load_experiments
 from ..core.double_exponential import DoubleExponentialArrayModel
+from ..core.hierarchical import HierarchicalRandomEffectsModel
 from ..core.metrics import curve_metrics
 from ..core.mlp_per_gas import PerGasMLPDoubleExponentialModel
 from ..core.shapes import fit_experiment_shapes
@@ -60,9 +61,18 @@ def run(folds: int = 62, max_iter: int = 600, batch_size: int = 0) -> None:
             epochs=max_iter, batch_size=batch_size
         ).fit(train, skeleton=double)
         combined.name = "mlp_per_gas"
+        hierarchical = HierarchicalRandomEffectsModel().fit(combined, train)
+        hierarchical.name = "hierarchical"
         scale = np.sqrt(np.mean(np.stack([item.relative for item in train]) ** 2, axis=(0, 1)))
-        for model in (double, combined):
-            prediction = model.predict_relative(test.concentration[None, :], test.time)[0]
+        for model in (double, combined, hierarchical):
+            if model is hierarchical:
+                prediction = hierarchical.predict_relative(
+                    combined, test.concentration[None, :], test.time
+                )[0]
+            else:
+                prediction = model.predict_relative(
+                    test.concentration[None, :], test.time
+                )[0]
             curve_rows.append(_curve_rows(test, model, prediction, scale))
             predictions[f"{test.file_id}_{model.name}"] = prediction
         elapsed = time.time() - started

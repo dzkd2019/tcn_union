@@ -46,11 +46,35 @@
 - NH₃/NO₂ 的改善较小（0.32→0.27、0.47→0.38），说明它们的剩余误差更多是**曲线形状**，不是三个标量随机效应能完全吸收的。
 - 这只说明“在已知这条实验的随机效应时，模型能拟合得多好”。对未见实验，随机效应未知，必须从条件先验采样；那部分的误差应看留一实验，而不是这张图。
 
-## 5. 复现
+## 5. 62 折留一：公平的泛化检查
+
+上面的 0.40% 是 in-sample 后验重构。为了回答“未见实验能到多好”，做了 62 折留一：
+
+- 每折用 61 条训练双指数 + 三路 MLP；
+- 在 61 条上拟合 `HierarchicalRandomEffectsModel`；
+- 留出实验只用**条件均值随机效应**（不采样、不用真值）生成曲线；
+- nRMSE 的分母仍用训练折该气体的相对响应 RMS。
+
+| 模型 | H₂ / % | NH₃ / % | NO₂ / % | 宏 / % |
+|---|---:|---:|---:|---:|
+| 仅浓度 MLP（62 折） | 2.023 | 1.012 | 1.405 | 1.480 |
+| 加实验级随机效应（62 折） | 1.968 | 1.031 | 1.402 | **1.467** |
+
+结论：
+
+- 公平留一后，随机效应带来的宏平均改善只有 **0.013 pp**（1.480→1.467），H₂ 略好、NH₃ 略差、NO₂ 基本不变；
+- in-sample 的 0.40% 不能当作泛化误差，它主要说明“已知该实验的增益/时间尺度/漂移时能拟合多好”；
+- 这也说明 62 条实验的实验间差异，并不能用 3 个标量随机效应在未见实验上稳定预测。
+
+图：`sensor_array/figures/model/fig20_hierarchical_lofo_62_curves.{png,svg}`
+（62 条实测深蓝、62 条留一生成橙色；图中不写 nRMSE）。
+
+## 6. 复现
 
 ```bash
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.evaluate_hierarchical_curves
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.plot_hierarchical_lofo
 ```
 
 输出：`sensor_array/artifacts/evaluation/hierarchical_curves.csv`、
-`hierarchical_curve_predictions.npz` 与上述两图。
+`hierarchical_lofo_metrics.csv`、`predictions.npz` 与上述图。

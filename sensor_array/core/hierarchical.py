@@ -120,6 +120,31 @@ class HierarchicalRandomEffectsModel:
         )
         return result.x
 
+
+    def predict_relative(
+        self,
+        model,
+        labels: np.ndarray,
+        time: np.ndarray,
+    ) -> np.ndarray:
+        """用条件均值随机效应生成相对响应（不采样）。"""
+        labels = np.asarray(labels, dtype=float)
+        design = _design(labels)
+        design[:, 1:] = (design[:, 1:] - self.design_mean_) / self.design_scale_
+        mean = design @ self.coefficients_
+        effects = np.clip(mean, self.low_, self.high_).reshape(len(labels), 3, 3)
+        time = np.asarray(time, dtype=float)
+        baseline = model.predict_relative(labels, time)
+        relative = np.empty_like(baseline)
+        for gas in range(3):
+            gain = np.exp(effects[:, gas, 0])
+            time_scale = np.exp(effects[:, gas, 1])
+            drift = effects[:, gas, 2]
+            for index in range(len(labels)):
+                scaled = np.interp(time / time_scale[index], time, baseline[index, :, gas])
+                relative[index, :, gas] = gain[index] * scaled + drift[index] * time
+        return relative
+
     def sample(
         self,
         model,
