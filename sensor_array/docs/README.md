@@ -34,6 +34,7 @@ P1–P6 路线图、旧章节草稿、旧绘图指南）可在 git 历史中找�
 | [forward_seen_vs_vae.md](forward_seen_vs_vae.md) | 11-24 | 只用已有 40 个浓度标签时，正模型 10.12% 未超过 PCA-VAE 9.26% |
 | [pure_forward_augmentation.md](pure_forward_augmentation.md) | 11-25 | 纯正模型 joint10：7.87%，略优于 VAE 7.99%，但分气体不全面占优 |
 | [hierarchical_augmentation.md](hierarchical_augmentation.md) | 11-26 | 方案 1 分层随机效应：相对仅真实显著改善，但 full 协议下未超过 VAE；详细结果已并入协议消融文档 |
+| [no2_preserving_augmentation.md](no2_preserving_augmentation.md) | 11-27 | NO2 保持的 H2 头微调（guard）：冻结 VAE 骨干/两头，仅 H2 头吸收 H2-only 样本；宏 3σ 10.17→9.51，NO2 不变 |
 | [archive/protocol_augmentation_20261126.md](archive/protocol_augmentation_20261126.md) | 11-26 | 四协议消融：full+VAE 7.59% 最强；gas+VAE 7.88% 但 hier 退化；分层只在 H2 稳定占优 |
 | [combined_augmentation.md](combined_augmentation.md) | 11-26 | VAE + H2-only 正模型拼接：最好 7.70%，与 VAE 7.59% 打平；H2 更好、NO2 更差 |
 

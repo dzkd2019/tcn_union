@@ -1,0 +1,7 @@
+/home/mrawa/code/graduate/tcn_union/.venv/lib/python3.14/site-packages/torch/cuda/__init__.py:228: UserWarning: CUDA initialization: Unexpected error from cudaGetDeviceCount(). Did you run some cuda functions before calling NumCudaDevices() that might have already set an error? Error 803: system has unsupported display driver / cuda driver combination (Triggered internally at /__w/pytorch/pytorch/c10/cuda/CUDAFunctions.cpp:119.)
+  return torch._C._cuda_getDeviceCount() > 0
+fold 0 done (373s)
+fold 1 done (838s)
+fold 2 done (1336s)
+fold 3 done (1806s)
+fold 4 done (2357s)
