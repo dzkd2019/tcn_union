@@ -25,6 +25,12 @@
 | 10s-F11 | 同上 | 同上 | `artifacts/augmentation/pure_forward/base/predictions.npz`，arm=real | joint5 全量的仅真实基线 | `artifacts/augmentation/pure_forward/base/report/real/figs/` |
 | 10s-F12 | 同上 | 同上 | 同上，arm=vae | joint5 全量的 PCA-VAE | `artifacts/augmentation/pure_forward/base/report/vae/figs/` |
 | 10s-F13 | 同上 | 同上 | 同上，arm=forward_prob_joint | joint5 全量主结果 | `artifacts/augmentation/pure_forward/base/report/forward_prob_joint/figs/` |
+| 10s-F14 | `fig_protocol_3sigma.{png,svg}` | `tcn_union/visualization/protocol_augmentation.py::_metric_bars` | `artifacts/archive/protocol_augmentation_20261126/fullrun_comparison/ensemble_metrics.csv`、`seed_metrics.csv` | 1×3，H2/NH3/NO2；四协议 × 三增强臂的宏 3σ 柱，空心点为单个 seed；real 为虚线 | `artifacts/archive/protocol_augmentation_20261126/fullrun_comparison/figs/` |
+| 10s-F15 | `fig_protocol_mape.{png,svg}` | 同上 | 同上 | 同上，指标换为宏 MAPE | 同上 |
+| 10s-F16 | `fig_protocol_delta_3sigma.{png,svg}` | `tcn_union/visualization/protocol_augmentation.py::_paired_delta` | `artifacts/archive/protocol_augmentation_20261126/fullrun_comparison/paired_within_protocol.csv` | 1×3，H2/NH3/NO2；hier/hier+VAE 相对 PCA-VAE 的宏 3σ 配对差与 95% CI | 同上 |
+| 10s-F17 | `{fig_abs_error,fig_rel_error,fig_ci95}.{png,svg}` | `tcn_union/evaluation/final_report.py::run` | `artifacts/augmentation/combined_full180/predictions.npz`，arm=real | 3 张 1×3；OOF 50，n=50 | `artifacts/augmentation/combined_full180/report/real/figs/` |
+| 10s-F18 | 同上 | 同上 | 同上，arm=vae | 同上 | `artifacts/augmentation/combined_full180/report/vae/figs/` |
+| 10s-F19 | 同上 | 同上 | 同上，arm=union_h2_180 | 同上；VAE 120 + 正模型 H2-only 180 | `artifacts/augmentation/combined_full180/report/union_h2_180/figs/` |
 
 ## 统一规范
 
@@ -142,3 +148,61 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
 - 每个 run 的指标见 `report/<arm>/metrics.csv`；图统一为
   `fig_abs_error`、`fig_rel_error`、`fig_ci95` 三张 1×3，
   ensemble 散点、CI 每 seed 一点。锁定 12 条未参与本轮评估。
+
+### 2026-11-26 训练协议消融
+
+- 结果文档：`sensor_array/docs/archive/protocol_augmentation_20261126.md`
+- 协议：syn（真实+合成）、noise_syn（真实+0.1×MAD 噪声+合成）、
+  full（噪声+合成+边缘）、gas（噪声+H2 扩充+H2-only 边缘）。
+- 主结果：full + PCA-VAE 宏 3σ 7.59%、MAPE 1.89%；gas + VAE 7.88%；
+  full + hier+VAE 7.94%；noise_syn + hier+VAE 8.11%。锁定 12 条未参与。
+- 图（三张 1×3）：
+  - `artifacts/archive/protocol_augmentation_20261126/fullrun_comparison/figs/fig_protocol_3sigma.{png,svg}`
+  - `.../fig_protocol_mape.{png,svg}`
+  - `.../fig_protocol_delta_3sigma.{png,svg}`
+- 最终候选标准评估：
+  `artifacts/archive/protocol_augmentation_20261126/fullrun_full/report/vae/`
+  （`fig_abs_error`、`fig_rel_error`、`fig_ci95`，各 PNG+SVG）。
+- 复现见结果文档 §8；每个协议独立运行，再用 `compare_protocols` 合并。
+
+```bash
+.venv/bin/python -m tcn_union.experiments.compare_protocols \
+  --root artifacts/augmentation/hierarchical --prefix fullrun_ \
+  --output artifacts/archive/protocol_augmentation_20261126/fullrun_comparison
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python \
+  -m tcn_union.visualization.protocol_augmentation \
+  --comparison artifacts/archive/protocol_augmentation_20261126/fullrun_comparison
+```
+
+### 2026-11-26 正模型 + PCA-VAE 组合增强
+
+- 结果文档：`sensor_array/docs/combined_augmentation.md`
+- 主结果：`artifacts/augmentation/combined_full180/`；120 条版本：
+  `artifacts/augmentation/combined_full/`；样本量扫描：`combined_tune/`、
+  `combined_tune2/`、`combined_bal/`
+- 协议：完整旧协议（real 40 + 0.1×MAD 噪声 40 + 合成 + 边缘），
+  合成 = 120/180 条 PCA-VAE 全气体 + 120/180 条分层正模型 H2-only；
+  3 seed × 2 配置，6 checkpoint 集成。
+- 结果：VAE 宏 3σ 7.59%；union_h2_180 7.70%（p=0.454）；
+  union_h2 7.71%（p=0.934）；仅真实 11.23%。组合 H2 更好、NO2 更差，
+  宏平均与 VAE 打平。锁定 12 条未参与。
+- 图（三张 1×3）：`artifacts/augmentation/combined_full180/report/union_h2_180/figs/`
+  的 `fig_abs_error`、`fig_rel_error`、`fig_ci95`（各 PNG+SVG）。
+- 复现：
+
+```bash
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.hierarchical_augmentation \
+  --folds 5 --seeds 20260923 20260924 20260925 --configs 1.0 0,0.3,1.0 \
+  --arms real vae union_h2_180 --protocol full \
+  --output artifacts/augmentation/combined_full180
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.combined_report \
+  --source artifacts/augmentation/combined_full180/predictions.npz \
+  --folds artifacts/augmentation/combined_full180/folds.csv \
+  --output artifacts/augmentation/combined_full180/report \
+  --candidates union_h2_180 --baselines real vae
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
+  --source artifacts/augmentation/combined_full180/predictions.npz \
+  --arm union_h2_180 --run-name combined_full180 \
+  --output artifacts/augmentation/combined_full180/report/union_h2_180
+```

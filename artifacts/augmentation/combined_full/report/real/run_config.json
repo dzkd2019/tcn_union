@@ -1,0 +1,13 @@
+{
+  "run_name": "combined_full_real",
+  "arm": "real",
+  "window_s": 10.0,
+  "source": "artifacts/augmentation/combined_full/predictions.npz",
+  "range_source": "development_50",
+  "n": 50,
+  "seeds": [
+    "20260923",
+    "20260924",
+    "20260925"
+  ]
+}

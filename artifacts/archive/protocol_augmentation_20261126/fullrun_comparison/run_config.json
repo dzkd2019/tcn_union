@@ -1,0 +1,33 @@
+{
+  "protocols": [
+    "syn",
+    "noise_syn",
+    "full",
+    "gas"
+  ],
+  "prefix": "fullrun_",
+  "protocols_found": [
+    "full",
+    "gas",
+    "noise_syn",
+    "syn"
+  ],
+  "arms": [
+    "real",
+    "vae",
+    "hier",
+    "hier+vae"
+  ],
+  "metrics": [
+    "macro_three_sigma",
+    "macro_mape",
+    "H2_three_sigma",
+    "NH3_three_sigma",
+    "NO2_three_sigma",
+    "H2_mape",
+    "NH3_mape",
+    "NO2_mape"
+  ],
+  "paired_unit": "seed x fold, config averaged",
+  "bootstrap": 100000
+}

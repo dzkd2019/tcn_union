@@ -7,7 +7,7 @@
 
 正向问题（给定浓度组合，预测三路 0–60 s 响应曲线）见 [`sensor_array/README.md`](sensor_array/README.md)，文档总索引见 [`sensor_array/docs/README.md`](sensor_array/docs/README.md)。当前正式模型是双指数骨架 + 三路独立 MLP 残差：62 折留一曲线宏 nRMSE 为 **1.48%**（纯骨架 3.30%），逐气体 H₂/NH₃/NO₂ 为 2.02%/1.01%/1.40%。当前分支只做前向曲线预测，MAP 反演、区间校准与降级代码已删除。
 
-逆模型增强按完整旧 TCN 协议评估（10 s、50 条开发集、5 折、3 seed × 2 配置、6 checkpoint）：仅真实 11.24%、PCA-VAE **7.83%**、方案 1 分层随机效应 8.99%、方案 1+VAE 8.35%（宏 3σ）。方案 1 相对仅真实显著改善（−2.92 pp，p<0.001，三气体都下降），但没有超过 PCA-VAE；纯正模型 joint10 在另一轮完整协议中为 7.87%，与 VAE 7.99% 接近，分气体不全面占优。细节、复现命令与限制见 `sensor_array/docs/` 下的 model/evaluation 与增强实验文档。
+逆模型增强的训练协议消融（10 s、50 条开发集、5 折、3 seed × 2 配置、6 checkpoint）：仅真实 11.23%、PCA-VAE **7.59%**、方案 1 分层随机效应 9.11%、方案 1+VAE 7.94%（宏 3σ）。去掉噪声/边缘后 VAE 退化到 9.00/10.38%，说明 full 协议的增益主要来自噪声+边缘；gas（H2 扩充）VAE 7.88%，但 hier/hier+VAE 退化。full + VAE 是宏平均与 NO2 最好的组合；分层随机效应只在 H2 稳定占优。纯正模型 joint10 在另一轮完整协议中为 7.87%，与 VAE 7.99% 接近，分气体不全面占优。正模型 + VAE 数据层拼接最好 7.70%（union_h2_180），与 VAE 7.59% 打平（p=0.454）：H2 7.94% 更好、NO2 9.55% 更差。细节、复现命令与限制见 `sensor_array/docs/archive/protocol_augmentation_20261126.md`、`combined_augmentation.md`、`pure_forward_augmentation.md` 与 `evaluation.md`。
 
 模型、实验与结论只针对 H₂、NH₃、NO₂ 三种气体；62 条实验不可扩充，不补测、不补采；锁定 12 条未参与上述选择。
 

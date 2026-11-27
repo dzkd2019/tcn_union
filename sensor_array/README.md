@@ -64,13 +64,25 @@
   joint10−VAE 宏 8/15、p=0.76，没有一种气体显著超过 VAE。严格目标
   “纯正模型三气体都明显超过 VAE”未达成；bootstrap 残差采样更差。
   详见 [`docs/pure_forward_augmentation.md`](docs/pure_forward_augmentation.md)。
-- 方案 1（2026-11-26，分层随机效应）：把每条实验的增益/时间尺度/漂移作为
+- 方案 1（分层随机效应，full 协议）：把每条实验的增益/时间尺度/漂移作为
   条件在浓度上的随机效应内化到正模型，3 seed × 2 配置 6 checkpoint 集成宏
-  3σ 8.99%、MAPE 2.19%，PCA-VAE 7.83%/2.07%，仅真实 11.24%/2.95%。相对
-  仅真实显著改善（−2.92 pp，23/30，p<0.001），但没有超过 PCA-VAE
-  （+0.78 pp，p=0.328）；H2 更好、NH3/NO2 更差。方案 1 + VAE 联合同样
-  没有超过 PCA-VAE（8.35%、p=0.299）。详见
-  [`docs/hierarchical_augmentation.md`](docs/hierarchical_augmentation.md)。
+  3σ 9.11%、MAPE 2.21%，PCA-VAE 7.59%/1.89%，仅真实 11.23%/2.94%。相对
+  仅真实显著改善（−2.68 pp，p=0.0026），但没有超过 PCA-VAE
+  （+1.33 pp，p=0.12）；H2 更好、NH3/NO2 更差。方案 1 + VAE 联合同样
+  没有超过 PCA-VAE（7.94%、p=0.30）。详见
+  [`docs/archive/protocol_augmentation_20261126.md`](docs/archive/protocol_augmentation_20261126.md)。
+- 训练协议消融（2026-11-26，四协议 × 四臂，3 seed × 2 配置）：
+  syn（真实+合成）VAE 10.38%、noise_syn（+0.1×MAD 噪声）9.00%、
+  full（+边缘）**7.59%**、gas（H2 扩充）7.88%；real 恒为 11.23%。
+  full + VAE 是宏平均与 NO2 最好的组合（NO2 8.15%）；full + hier+VAE
+  的 H2 最好（7.18%），但 NO2 11.32%；gas + VAE 的 NH3 最好（3.89%），
+  但 NO2 9.73%。分层随机效应只在 H2 稳定占优，gas + hier 明显退化。
+  详见 [`docs/archive/protocol_augmentation_20261126.md`](docs/archive/protocol_augmentation_20261126.md)。
+- 正模型 + PCA-VAE 数据层组合（2026-11-26）：VAE 120 条全气体 + H2-only
+  正模型 120/180 条。最好 `union_h2_180` 宏 3σ 7.70%、MAPE 1.89%，
+  VAE 7.59%/1.89%（p=0.454）；H2 7.94% 优于 VAE 9.51%，NO2 9.55%
+  差于 8.15%，宏平均打平，没有超过 VAE。详见
+  [`docs/combined_augmentation.md`](docs/combined_augmentation.md)。
 - 限制：单 seed、三路独立固定 600 轮且无早停、没有独立锁定测试；
   62 条实验、每个浓度组合 1 条、无重复；NH₃ 浓度与采集顺序高度混淆；
   H₂=32000 只有 4 条且都在 NO₂=2；这些限制不能靠模型弥补。
@@ -181,7 +193,7 @@ sensor_array/
                  beginner_guide.md  plotting_guide.md  plan_20261123.md
                  full_protocol_augmentation.md  forward_seen_vs_vae.md
                  forward_augmentation_20261125.md  pure_forward_augmentation.md
-                 hierarchical_augmentation.md
+                 hierarchical_augmentation.md  combined_augmentation.md
   tests/         test_model.py  test_hierarchical.py
 ```
 

@@ -1,0 +1,49 @@
+{
+  "protocol": "full",
+  "folds": 5,
+  "seeds": [
+    20260923
+  ],
+  "configs": [
+    "1.0"
+  ],
+  "arms": [
+    "real",
+    "vae",
+    "union_h2",
+    "vae_anchor_h2",
+    "vae_anchor_h2_full"
+  ],
+  "n_train": [
+    40,
+    320,
+    324,
+    328,
+    332,
+    560,
+    564,
+    568,
+    572
+  ],
+  "n_noise": [
+    0,
+    40
+  ],
+  "n_synthetic": [
+    0,
+    120,
+    240
+  ],
+  "n_edge": [
+    0,
+    120,
+    124,
+    128,
+    132,
+    240,
+    244,
+    248,
+    252
+  ],
+  "elapsed_seconds": 819.8
+}

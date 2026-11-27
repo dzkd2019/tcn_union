@@ -1,5 +1,8 @@
 # Handoff：方案 1 分层随机效应增强（2026-11-26）
 
+> **最新交接**：`docs/handoff/handoff_20261127_combined_augmentation.md`
+> （2026-11-27，正模型 + PCA-VAE 组合增强）。本文件保留为协议与方案 1 的历史记录。
+
 ## 0. 交接状态
 
 - 仓库：`/home/mrawa/code/graduate/tcn_union`
