@@ -15,6 +15,7 @@ P1–P6 路线图、旧章节草稿、旧绘图指南）可在 git 历史中找�
 | 4 | [double_exponential_analysis.md](double_exponential_analysis.md) | 纯双指数骨架的参数化、初值与拟合细节 |
 | 5 | [evaluation.md](evaluation.md) | 62 折 LOGO 的曲线结果、逐文件配对、限制；§8 是逆模型增强实验入口 |
 | 6 | [plotting_guide.md](plotting_guide.md) | fig01–fig19 的脚本、函数、数据源与版式 |
+| 7 | [hierarchical_forward_fit.md](hierarchical_forward_fit.md) | 加实验级随机效应后的 62 条正模型曲线拟合上界（in-sample） |
 
 > `learning_guide.md` 与 `beginner_guide.md` 中涉及 MAP / Laplace / 共形区间 /
 > 传感器降级的章节是历史方法记录；这些代码已删除，当前模型只做前向曲线预测。
@@ -50,7 +51,9 @@ P1–P6 路线图、旧章节草稿、旧绘图指南）可在 git 历史中找�
 ## 4. 当前结论（2026-11-27）
 
 - 前向曲线：双指数骨架 + 三路独立 MLP，62 折宏 nRMSE 1.48%
-  （骨架 3.30%）；H2/NH3/NO2 为 2.02/1.01/1.40%。
+  （骨架 3.30%）；H2/NH3/NO2 为 2.02/1.01/1.40%。加实验级随机效应后，
+  62 条拟合重构的 in-sample 宏 nRMSE 0.40%（旧 0.51%），但这是拟合上界，
+  不能与 1.48% 的留一误差直接比较。
 - 逆模型增强：full + PCA-VAE 最强（7.59% 宏 3σ，NO2 8.15%）；gas + VAE
   7.88%（NH3 最好 3.89%，NO2 9.73%）；full + hier+VAE 7.94%（H2 最好 7.18%，
   NO2 11.32%）；方案 1 单独 9.11%。分层随机效应只在 H2 稳定占优；joint10
