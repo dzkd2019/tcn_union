@@ -1,0 +1,13 @@
+{
+  "run_name": "comparison_20261127_vae_pure",
+  "arm": "vae_pure",
+  "window_s": 10.0,
+  "source": "/home/mrawa/code/graduate/tcn_union/artifacts/augmentation/comparison_20261127/predictions.npz",
+  "range_source": "development_50",
+  "n": 50,
+  "seeds": [
+    "20260923",
+    "20260924",
+    "20260925"
+  ]
+}

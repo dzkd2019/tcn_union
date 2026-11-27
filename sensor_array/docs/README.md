@@ -16,6 +16,7 @@ P1–P6 路线图、旧章节草稿、旧绘图指南）可在 git 历史中找�
 | 5 | [evaluation.md](evaluation.md) | 62 折 LOGO 的曲线结果、逐文件配对、限制；§8 是逆模型增强实验入口 |
 | 6 | [plotting_guide.md](plotting_guide.md) | fig01–fig19 的脚本、函数、数据源与版式 |
 | 7 | [hierarchical_forward_fit.md](hierarchical_forward_fit.md) | 加实验级随机效应后的 62 条正模型曲线拟合上界（in-sample） |
+| 8 | [augmentation_comparison_20261127.md](augmentation_comparison_20261127.md) | 四种增强方式（VAE / 仅正模型 / VAE+正模型 / guard）的统一评估与同轮配对 |
 
 > `learning_guide.md` 与 `beginner_guide.md` 中涉及 MAP / Laplace / 共形区间 /
 > 传感器降级的章节是历史方法记录；这些代码已删除，当前模型只做前向曲线预测。

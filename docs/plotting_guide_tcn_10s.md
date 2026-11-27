@@ -206,3 +206,26 @@ MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.evaluation.final_report \
   --arm union_h2_180 --run-name combined_full180 \
   --output artifacts/augmentation/combined_full180/report/union_h2_180
 ```
+
+### 2026-11-27 四种增强方式统一评估
+
+- 结果文档：`sensor_array/docs/augmentation_comparison_20261127.md`
+- run_name：`comparison_20261127_{vae,forward,union,guard,vae_pure,vae_guard}`
+- 预测与汇总：`artifacts/augmentation/comparison_20261127/predictions.npz`、
+  `summary.csv`
+- 图（每个方法一个 `figs/`，各三张 1×3，PNG+SVG）：
+  - `artifacts/augmentation/comparison_20261127/vae/figs/`
+  - `artifacts/augmentation/comparison_20261127/forward/figs/`
+  - `artifacts/augmentation/comparison_20261127/union/figs/`
+  - `artifacts/augmentation/comparison_20261127/guard/figs/`
+  - 文件：`fig_abs_error`、`fig_rel_error`、`fig_ci95`
+- 数据源：combined_full180（VAE/union）、pure_forward/joint10
+  （仅正模型）、no2_guard/full（guard）；50 条开发集 OOF、10 s、
+  6 checkpoint 集成；量程来自开发集 50 条。
+- 绘图脚本：`tcn_union/experiments/compare_augmentation.py`，复用
+  `tcn_union/evaluation/final_report.py::run`。
+- 复现：
+
+```bash
+MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.compare_augmentation
+```

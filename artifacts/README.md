@@ -33,6 +33,7 @@ artifacts/
 │   │   └── routing/              # 路由实验
 │   ├── hierarchical/            # 方案 1：分层随机效应合成
 │   ├── no2_guard/               # NO2 保持的 H2 头微调（冻结 VAE 骨干）
+│   ├── comparison_20261127/     # 四种增强方式的统一评估（VAE/仅正模型/VAE+正模型/guard）
 │   ├── diagnostics/              # forward_seen / h2 / unseen / 条件残差筛查
 │   └── vae_gan/                  # PCA-VAE、GAN、noise 与旧对比
 │
@@ -65,6 +66,7 @@ artifacts/
 | 旧协议（历史对照） | `augmentation/protocols/old/` |
 | 方案 1 分层随机效应 | `augmentation/hierarchical/` |
 | NO2 保持的 H2 头微调 | `augmentation/no2_guard/full/` |
+| 四种增强方式统一评估 | `augmentation/comparison_20261127/` |
 | 正模型诊断 | `augmentation/diagnostics/` |
 | PCA-VAE / GAN | `augmentation/vae_gan/` |
 | 误差与消融 | `analysis/` |

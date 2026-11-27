@@ -29,7 +29,7 @@ from scipy.stats import t
 from sensor_array.plotting.style import GAS_COLORS, _style
 
 GASES = ("H2", "NH3", "NO2")
-GAS_UNICODE = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}
+GAS_UNICODE = {"H2": "H$_2$", "NH3": "NH$_3$", "NO2": "NO$_2$"}
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE = ROOT / "artifacts/augmentation/protocols/full/predictions.npz"
 
@@ -146,6 +146,7 @@ def _scatter_figure(
             transform=axis.transAxes,
             va="top",
             fontsize=7.0,
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 1.2},
         )
     figure.suptitle(f"{title}（{label}）")
     _save(figure, directory, name)
@@ -204,6 +205,7 @@ def run(
     arm: str,
     window: float,
     run_name: str,
+    label: str | None = None,
 ) -> None:
     payload = np.load(source)
     truth = payload["truth"].astype(np.float64)
@@ -286,13 +288,14 @@ def run(
         (prediction for name, prediction in entries if name == "ensemble"),
         entries[0][1],
     )
+    shown = label or arm
     _scatter_figure(
-        final_prediction, truth, file_ids, figure_dir, "absolute", arm
+        final_prediction, truth, file_ids, figure_dir, "absolute", shown
     )
     _scatter_figure(
-        final_prediction, truth, file_ids, figure_dir, "relative", arm
+        final_prediction, truth, file_ids, figure_dir, "relative", shown
     )
-    _ci_figure(entries, truth, figure_dir, arm)
+    _ci_figure(entries, truth, figure_dir, shown)
     print(f"wrote {output}")
 
 
@@ -303,6 +306,7 @@ def main() -> None:
     parser.add_argument("--arm", required=True)
     parser.add_argument("--window", type=float, default=10.0)
     parser.add_argument("--run-name", required=True)
+    parser.add_argument("--label", default=None)
     args = parser.parse_args()
     run(
         Path(args.source),
@@ -310,6 +314,7 @@ def main() -> None:
         args.arm,
         args.window,
         args.run_name,
+        args.label,
     )
 
 
