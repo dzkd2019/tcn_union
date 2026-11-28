@@ -1,9 +1,8 @@
-"""NO2 保持的 H2 扩充增强：冻结 VAE 骨干，仅微调 H2 头。
+"""组合使用：PCA-VAE 与传感器模型生成的数据结合使用。
 
-思路：union_h2 让 H2-only 合成样本也更新共享卷积骨干，NO2 头因此漂移。
-本脚本先按完整协议训练 VAE-only 模型，再冻结共享骨干和 NH3/NO2 头，只用
-union 数据微调 H2 头。这样 NH3/NO2 的预测与 VAE 基线逐位一致，H2 仍可
-从 H2-only 样本获益；用于判断 H2 扩充是否能在不牺牲 NO2 的前提下成立。
+训练时先按完整协议得到 PCA-VAE 基线；随后用传感器模型与 PCA-VAE 的联合样本
+微调 H2 头，同时冻结共享卷积骨干和 NH3/NO2 头。NH3/NO2 头因此保持 VAE
+基线的预测，H2 头可从传感器模型样本获益。本脚本只评估这一种组合方式。
 """
 from __future__ import annotations
 
@@ -19,33 +18,110 @@ from torch import nn
 
 from tcn_union.augmentation.noise import NoiseConfig, noisy_features
 from tcn_union.core.device import configure_threads, resolve_device
-from tcn_union.training.gan_train import MODE, _read_manifest
+from tcn_union.training.gan_train import (
+    MODE,
+    _edge_case_labels,
+    _read_manifest,
+)
 from tcn_union.training.train import _restore_target, _train_network
 
 from tcn_union.experiments.full_protocol_augmentation import (
     DEFAULT_CONFIGS,
     DEFAULT_SEEDS,
+    EDGE_COPIES,
     EPOCHS,
     NOISE_SCALE,
+    SYNTHETIC_FACTOR,
     _clip,
     _fit_generators,
+    _forward_prob_joint_features,
+    _initial_for_labels,
     _metric_values,
     _real_features,
+    _training_concentrations,
     _vae_features,
     _write_csv,
 )
-from tcn_union.experiments.hierarchical_augmentation import (
-    _build_edge,
-    _h2_union,
-    _h2_union_edge,
-)
-from sensor_array.core.hierarchical import HierarchicalRandomEffectsModel
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "artifacts/augmentation/no2_guard"
 HEAD_EPOCHS = 200
 PATIENCE = 40
 BATCH = 8
+
+
+def _forward_features(forward, train_rows, labels, initial, seconds, rng):
+    return _forward_prob_joint_features(
+        forward, train_rows, labels, initial, seconds, rng, components=10
+    )
+
+
+def _h2_weights(count: int) -> np.ndarray:
+    return np.tile(np.array([1.0, 0.0, 0.0]), (count, 1))
+
+
+def _h2_union(
+    forward,
+    vae,
+    train_rows,
+    labels,
+    seconds,
+    seed,
+    rng,
+    n_vae: int,
+    n_forward: int,
+):
+    """VAE 三气体样本 + 传感器模型三气体样本，传感器模型样本只监督 H2。"""
+    count = max(SYNTHETIC_FACTOR * 40, n_forward)
+    target = _training_concentrations(labels, count, rng)
+    initial = _initial_for_labels(train_rows, target)
+    vae_data = _vae_features(vae, n_vae, seed + 1, seconds)
+    forward_data = _forward_features(
+        forward, train_rows, target[:n_forward], initial[:n_forward], seconds, rng
+    )
+    return (
+        np.concatenate((vae_data[0], forward_data[0]), axis=0),
+        np.concatenate((vae_data[1], forward_data[1]), axis=0),
+        np.concatenate((np.ones((n_vae, 3)), _h2_weights(n_forward)), axis=0),
+    )
+
+
+def _vae_edge(vae, train_rows, seconds, aug_seed):
+    edge_labels = _edge_case_labels(train_rows)
+    if edge_labels.size == 0:
+        return None
+    repeated = np.repeat(edge_labels, EDGE_COPIES, axis=0)
+    return _vae_features(
+        vae, len(repeated), aug_seed + 2, seconds, condition_labels=repeated
+    )
+
+
+def _h2_union_edge(
+    forward,
+    vae,
+    train_rows,
+    seconds,
+    rng,
+    aug_seed,
+    n_forward: int,
+):
+    edge_labels = _edge_case_labels(train_rows)
+    if edge_labels.size == 0:
+        return None
+    repeated = np.repeat(edge_labels, EDGE_COPIES, axis=0)
+    n_forward = min(n_forward, len(repeated))
+    initial = _initial_for_labels(train_rows, repeated)
+    vae_data = _vae_features(
+        vae, len(repeated), aug_seed + 2, seconds, condition_labels=repeated
+    )
+    forward_data = _forward_features(
+        forward, train_rows, repeated[:n_forward], initial[:n_forward], seconds, rng
+    )
+    return (
+        np.concatenate((vae_data[0], forward_data[0]), axis=0),
+        np.concatenate((vae_data[1], forward_data[1]), axis=0),
+        np.concatenate((np.ones((len(repeated), 3)), _h2_weights(n_forward)), axis=0),
+    )
 
 
 def _h2_z(y: np.ndarray, stats: dict[str, np.ndarray]) -> np.ndarray:
@@ -109,7 +185,7 @@ def _fit_h2_head(
         prediction = _restore_target(prediction, "log,none,log")
         return _metric_values(prediction, y_val)["macro_three_sigma"]
 
-    # 先评估未微调的 VAE 头，保证 guard 至少不劣于 VAE。
+    # 先评估未微调的 VAE 头，保证组合使用至少不劣于 VAE。
     best_score = validation_score()
     best_state = {
         name: value.detach().cpu().clone()
@@ -167,6 +243,7 @@ def run(
     configure_threads(device)
     rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     development = [row for row in rows if row["split"] == "development"]
+    y_dev = np.stack([row["_labels"] for row in development]).astype(np.float32)
     from sensor_array.core.data import load_experiments
 
     experiments = {
@@ -200,14 +277,9 @@ def run(
             forward, vae = _fit_generators(
                 train_rows, train_experiments, aug_seed, device, True, True
             )
-            hier = HierarchicalRandomEffectsModel().fit(
-                forward, train_experiments, seconds
-            )
             rng = np.random.default_rng(aug_seed)
-            vae_data = _vae_features(vae, 180, aug_seed + 1, seconds)
-            vae_edge = _build_edge(
-                "vae", forward, vae, None, train_rows, "full", seconds, rng, aug_seed
-            )
+            vae_data = _vae_features(vae, SYNTHETIC_FACTOR * 40, aug_seed + 1, seconds)
+            vae_edge = _vae_edge(vae, train_rows, seconds, aug_seed)
             base_x = np.concatenate(
                 (x_real, x_noise, vae_data[0], vae_edge[0]), axis=0
             )
@@ -217,17 +289,16 @@ def run(
             union = _h2_union(
                 forward,
                 vae,
-                hier,
                 train_rows,
                 labels,
                 seconds,
                 aug_seed,
                 rng,
-                180,
+                SYNTHETIC_FACTOR * 40,
                 180,
             )
             union_edge = _h2_union_edge(
-                forward, vae, hier, train_rows, seconds, rng, aug_seed, 180
+                forward, vae, train_rows, seconds, rng, aug_seed, 180
             )
             union_x = np.concatenate(
                 (x_real, x_noise, union[0], union_edge[0]), axis=0
@@ -252,7 +323,7 @@ def run(
                     per_gas_head=True,
                     low_conc_power=config,
                 )
-                base_pred = _clip(base_pred, y_val)
+                base_pred = _clip(base_pred, y_dev)
                 base_metrics = _metric_values(base_pred, y_val)
                 fold_rows.append(
                     {
@@ -282,7 +353,7 @@ def run(
                     prediction * stats["y_std"][None, :] + stats["y_mean"][None, :]
                 )
                 prediction = _restore_target(prediction, "log,none,log")
-                prediction = _clip(prediction, y_val)
+                prediction = _clip(prediction, y_dev)
                 metrics = _metric_values(prediction, y_val)
                 fold_rows.append(
                     {

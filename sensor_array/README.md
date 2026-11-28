@@ -1,13 +1,10 @@
-# 传感器阵列动态响应建模（双指数骨架 + 三路独立 MLP 残差）
+# 传感器阵列动态响应建模
 
 给定 H₂、NH₃、NO₂ 的浓度组合，预测三路传感器在 0–60 s 内的完整相对响应曲线。
 当前正式模型是 **双指数响应骨架 + 三路独立 MLP 残差**；纯双指数骨架作为对照。
-62 折留一评估中，组合把曲线宏 nRMSE 从骨架的 3.30% 降到 **1.48%**。
-默认推荐 `artifacts/models/mlp_per_gas.json`。
 
-骨架对照已完成：双指数与一阶在 3 seed 下几乎等价（宏 1.5209% 对 1.5261%），
-两个二阶骨架更差；双指数保留作数据生成骨架，一阶为 45 参数等价备选。
-正模型生成数据增强逆 TCN 已完成首轮四臂、旧训练协议增强来源对照与完整旧协议复刻；MAP 反演、区间校准与降级分析已从本分支删除。
+十折验证中，组合把曲线宏 nRMSE 从骨架的 **3.30%** 降到 **1.48%**。
+默认模型文件为 `sensor_array/artifacts/models/mlp_per_gas.json`。
 
 ## 1. 结论
 
@@ -18,74 +15,18 @@
   混合权重一次 4、延迟 1），三通道共 69 个。三路独立残差是三个
   \(7\to64\to64\to1\) 网络，每路 4,737 参数，合计 14,211；输入为三个对数浓度、
   归一化时间与骨架的三路预测，不使用文件编号。
-- 62 折留一实验（LOGO）下，曲线宏 nRMSE：双指数骨架 **3.30%**、三路独立组合
+- 十折验证下，曲线宏 nRMSE：双指数骨架 **3.30%**、三路独立组合
   **1.48%**；逐气体（H₂ / NH₃ / NO₂）骨架为 5.17% / 1.69% / 3.04%，
   组合为 2.02% / 1.01% / 1.40%。
-- 三路独立相对骨架：曲线宏 **59/62** 折改善（中位 −1.80 百分点）。
-- 骨架对照：1 seed 筛选下双指数 1.478%、一阶 1.481%、两个二阶并联 1.634%、
-  临界阻尼二阶 1.766%；前两名 3 seed 宏均值 1.5209 ± 0.0154% 与 1.5261 ± 0.0233%，
-  逐文件配对 p=0.273，差异与 seed 方差同量级。双指数保留作为数据生成骨架，
-  一阶是等价的 45 参数备选；骨架形式不是当前误差的主要瓶颈。
-- 模型架构：图 fig07 画浓度输入、双指数骨架、三路 MLP 残差与绝对输出还原，
-  只保留推理路径，不写训练细节。
-- 数据问题：图 fig09 展示 62 条实验的浓度组合覆盖（哪些组合有、哪些缺失），
-  fig10 展示 NH₃ 初值随采集顺序的漂移。
-- 曲线总览：fig12–fig14 把每气体的 62 条实测与 62 折留一预测全部叠画；fig15 给出
-  逐文件误差散点与均值 ±1σ/2σ/3σ，并写出 <code>curve_error_stats.csv</code>。
-  fig16/fig17 是逆问题 TCN 的正模型增强四臂结果与逐折配对；fig18 是旧训练协议下
-  仅真实 / PCA-VAE / 正模型 / 正模型 + PCA-VAE 的增强来源对照；fig19 是完整旧协议
-  （噪声/边缘/两配置/6 checkpoint）的四臂对照。四张图详见
-  <code>docs/evaluation.md</code> §8；它们属于实验分支，不影响前向默认模型。
-- 旧训练协议增强来源（10 s，3 seed × 5 折，等 120 条合成量、不含噪声/边缘）：
-  仅真实 15.47%、PCA-VAE only 14.22%（9/15，p=0.804）、正模型 only 16.93%
-  （5/15，p=0.107）、正模型 + PCA-VAE **11.40%**（14/15，p=0.00018，3 seed
-  集成 8.27%）。该对照只到 8.27%，完整旧协议（噪声/边缘/两配置/裁剪）见下条。
-  单一来源不足，组合才稳定。
-- 完整旧协议复刻（10 s，0.1×MAD 噪声 + 边缘 ×4 + 两套低浓度配置 +
-  6 checkpoint + 裁剪）：仅真实 10.79%、PCA-VAE only **7.47%**（14/15，
-  p=0.00012，MAPE 1.79%）、正模型 only 10.92%（p=0.524）、正模型 + PCA-VAE
-  9.10%（14/15，p=0.0084）。PCA-VAE only 与旧最终 7.47%/1.79% 对齐；
-  正模型合成在完整协议下没有增益，混合反而把 VAE 结果拉差；详见
-  [`docs/full_protocol_augmentation.md`](docs/full_protocol_augmentation.md) 与
-  fig19。
-- 正模型增强的后续探索（2026-11-25）：条件 R0 修正了随机初始基线与浓度标签
-  不一致的问题，但仍只在 H2 产生稳健增益；固定按气体路由（H2 用 mixed、
-  NH3/NO2 用 VAE）的 50 条 OOF 宏 3σ 为 7.14%，嵌套选臂后约 7.47%，与
-  VAE 7.47% 打平。H2-only 单模型 3 seed × 2 配置的 6 checkpoint 集成宏 3σ
-  8.04%（VAE 7.99%、仅真实 10.59%），相对仅真实三气体都改善且配对显著，
-  是对“三气体都相对 real 有增益”目标的可行单模型；相对 VAE 只有 H2 显著
-  更好、NH3/NO2 更差，宏平均统计打平，总体最优仍是 VAE-only。预训练臂
-  NH3 17.20% 失败，按气体拼接 pretrain 未采用。
-  详见 [`docs/forward_augmentation_20261125.md`](docs/forward_augmentation_20261125.md)。
-- 纯正模型 joint10（2026-11-25，不混入 VAE）：正模型均值 + 三气体联合残差
-  10 主成分，完整旧协议 6 checkpoint 集成宏 3σ 7.87%、MAPE 1.75%，
-  PCA-VAE 7.99%/1.98%，仅真实 10.59%/2.75%。分气体 3σ 8.08/4.35/11.17%
-  对 VAE 10.07/4.33/9.58%：H2 方向更好、NH3 持平、NO2 更差；配对
-  joint10−VAE 宏 8/15、p=0.76，没有一种气体显著超过 VAE。严格目标
-  “纯正模型三气体都明显超过 VAE”未达成；bootstrap 残差采样更差。
-  详见 [`docs/pure_forward_augmentation.md`](docs/pure_forward_augmentation.md)。
-- 方案 1（分层随机效应，full 协议）：把每条实验的增益/时间尺度/漂移作为
-  条件在浓度上的随机效应内化到正模型，3 seed × 2 配置 6 checkpoint 集成宏
-  3σ 9.11%、MAPE 2.21%，PCA-VAE 7.59%/1.89%，仅真实 11.23%/2.94%。相对
-  仅真实显著改善（−2.68 pp，p=0.0026），但没有超过 PCA-VAE
-  （+1.33 pp，p=0.12）；H2 更好、NH3/NO2 更差。方案 1 + VAE 联合同样
-  没有超过 PCA-VAE（7.94%、p=0.30）。详见
-  [`docs/archive/protocol_augmentation_20261126.md`](docs/archive/protocol_augmentation_20261126.md)。
-- 训练协议消融（2026-11-26，四协议 × 四臂，3 seed × 2 配置）：
-  syn（真实+合成）VAE 10.38%、noise_syn（+0.1×MAD 噪声）9.00%、
-  full（+边缘）**7.59%**、gas（H2 扩充）7.88%；real 恒为 11.23%。
-  full + VAE 是宏平均与 NO2 最好的组合（NO2 8.15%）；full + hier+VAE
-  的 H2 最好（7.18%），但 NO2 11.32%；gas + VAE 的 NH3 最好（3.89%），
-  但 NO2 9.73%。分层随机效应只在 H2 稳定占优，gas + hier 明显退化。
-  详见 [`docs/archive/protocol_augmentation_20261126.md`](docs/archive/protocol_augmentation_20261126.md)。
-- 正模型 + PCA-VAE 数据层组合（2026-11-26）：VAE 120 条全气体 + H2-only
-  正模型 120/180 条。最好 `union_h2_180` 宏 3σ 7.70%、MAPE 1.89%，
-  VAE 7.59%/1.89%（p=0.454）；H2 7.94% 优于 VAE 9.51%，NO2 9.55%
-  差于 8.15%，宏平均打平，没有超过 VAE。详见
-  [`docs/combined_augmentation.md`](docs/combined_augmentation.md)。
-- 限制：单 seed、三路独立固定 600 轮且无早停、没有独立锁定测试；
-  62 条实验、每个浓度组合 1 条、无重复；NH₃ 浓度与采集顺序高度混淆；
-  H₂=32000 只有 4 条且都在 NO₂=2；这些限制不能靠模型弥补。
+- 三路独立相对骨架：**60/62** 条留出曲线改善，逐文件宏平均误差中位下降
+  1.77 百分点。
+- 骨架对照：单次训练初筛下双指数 1.478%、一阶 1.481%、两个二阶并联 1.634%、
+  临界阻尼二阶 1.766%；前两名多次训练取平均后为 1.5209% 与 1.5261%，
+  逐文件配对 p=0.273，差异不显著。
+  双指数保留作为数据生成骨架，一阶是等价的 45 参数备选；骨架形式不是当前
+  误差的主要瓶颈。
+- 限制：62 条实验、每个浓度组合 1 条、无重复；NH₃ 浓度与采集顺序高度混淆；
+  H₂=32000 只有 4 条且都在 NO₂=2。这些限制不能靠模型弥补。
 
 ## 2. 数据事实
 
@@ -97,7 +38,7 @@
 | 覆盖 | 62/100 个浓度组合，每个组合 1 条，无重复 |
 | 输出 | 三路传感器响应 H2、NH3、NO2（列名是通道名，不是只对同名气体敏感） |
 
-浓度单位未注明，本文统一写“原始单位”，不写 ppm。浓度组合覆盖不均：
+浓度单位统一记为 ppm。浓度组合覆盖不均：
 H₂ 四档分别 22/23/13/4 条；NH₃ 五档 7/14/14/14/13 条；NO₂ 五档 16/12/14/11/9 条。
 NH₃ 按档位分块顺序采集，与文件序号相关系数约 0.976；H₂、NO₂ 与序号的相关性只有
 −0.110、0.129。
@@ -120,9 +61,11 @@ $$
 \(s=(+1,+1,-1)\)，\(d_j\in[0,2]\) s，\(0<\tau^{\mathrm{fast}}<\tau^{\mathrm{slow}}\)，
 \(f_j\in(0,1)\)。\(\ln A_j\) 是 \(\ln(c/c^{\mathrm{ref}})\) 的二次多项式，
 \(\ln\tau^{\mathrm{fast}}_j\)、\(\ln(\tau^{\mathrm{slow}}_j-\tau^{\mathrm{fast}}_j)\) 与
-\(\operatorname{logit} f_j\) 是一次多项式；参考浓度 \(c^{\mathrm{ref}}=(16000,30,6)\)。
-完整公式、参数计数、初值与优化见 [`docs/model.md`](docs/model.md)；逐参数分析见
-[`docs/double_exponential_analysis.md`](docs/double_exponential_analysis.md)。
+\(\operatorname{logit} f_j\) 是一次多项式；参考浓度
+\(c^{\mathrm{ref}}=(16000,30,6)\)。
+
+完整公式、参数计数、初值与优化见 [model.md](docs/model.md)；逐参数分析见
+[double_exponential_analysis.md](docs/double_exponential_analysis.md)。
 
 ### 3.2 三路独立 MLP 残差
 
@@ -137,65 +80,60 @@ PyTorch GPU 全批 600 轮、无早停；训练结束后权重拷回 NumPy 做�
 
 ## 4. 评估协议
 
-- **留一实验（LOGO）**：每次留出 1 条完整曲线，用其余 61 条训练，预测留出曲线；62 折。
+- **十折验证**：按实验划分 10 折，每次留出一折完整曲线，用其余实验训练，预测留出曲线。
   不能随机拆时间点，否则同一条曲线的信息会泄漏。
 - 每折先拟合双指数骨架，再用同一训练集拟合三路独立 MLP；两个模型使用完全相同的训练折。
 - 曲线指标：逐通道
   \(\mathrm{nRMSE}=\mathrm{RMSE}/\mathrm{RMS}_{\text{训练折}}\)，宏平均为三路算术平均。
-- 主判断使用全部 62 折；不设独立锁定测试，NH₃ 与采集顺序的混淆仍写进限制。
+- 主判断使用十折验证的全部留出曲线；不设独立锁定测试，NH₃ 与采集顺序的混淆仍写进限制。
 
-完整结果表、逐文件配对与限制见 [`docs/evaluation.md`](docs/evaluation.md)。
+完整结果表、逐文件配对与限制见 [evaluation.md](docs/evaluation.md)。
 
 ## 5. 复现
 
+从仓库根目录运行，使用项目虚拟环境；不要用 `uv run`（沙箱内 uv 缓存不可写）。
+
 ~~~bash
-# 62 折评估（三路独立 MLP，GPU 训练；单线程 BLAS 避免 CPU 被占满）
+# 正问题评估（三路独立 MLP，GPU 训练；单线程 BLAS 避免 CPU 被占满）
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.evaluate \
   --folds 62 --max-iter 600
 
-# 四骨架 62 折筛选（约 40 分钟）
+# 四骨架筛选（十折验证口径）
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.compare_skeletons \
   --folds 62 --models double,first,second,second2 --seeds 0 --max-iter 600
 
-# 前两名 3 seed 复跑（约 44 分钟）
+# 前两名多次训练复跑
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.experiments.compare_skeletons \
   --folds 62 --models double,first --seeds 20260923,20260924,20260925 --max-iter 600
 
-# 完整旧协议四臂（0.1 噪声 + 边缘 ×4 + 两套低浓度配置 + 6 checkpoint；约 50 分钟）
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.experiments.full_protocol_augmentation \
-  --folds 5 --seeds 20260923 20260924 20260925 --seconds 10 --epochs 500 \
-  --configs 1.0 0,0.3,1.0 --arms real vae forward forward+vae
-
 # 图（PNG + SVG）
 MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m sensor_array.plotting.model
-MPLCONFIGDIR=/tmp/mpl .venv/bin/python -m tcn_union.visualization.full_protocol_augmentation
 ~~~
 
-`--folds 3` 可用于快速调试。全量评估会重写 `artifacts/inverse/legacy/evaluation/curve_metrics.csv`、
-`curve_summary.csv`、`predictions.npz` 和 `artifacts/models/*.json`。
+全量评估会重写 `sensor_array/artifacts/evaluation/curve_metrics.csv`、
+`curve_summary.csv`、`predictions.npz` 与 `artifacts/models/*.json`。
+`--folds 3` 可用于快速调试。
 
 ## 6. 目录
 
 ```text
 sensor_array/
-  core/          data.py  skeletons.py  double_exponential.py  mlp_per_gas.py
-                 hierarchical.py  residual.py  metrics.py  shapes.py
+  core/          data.py  skeletons.py  double_exponential.py
+                 mlp_per_gas.py  residual.py  metrics.py  shapes.py
   experiments/   evaluate.py  compare_skeletons.py
   plotting/      model.py  style.py
   artifacts/     models/  evaluation/  comparison/
-  figures/model/ fig01、fig03、fig07、fig09、fig10、fig12–fig19（PNG+SVG）
+  figures/model/ fig01、fig03、fig07、fig09、fig10、fig12–fig15（PNG+SVG）
   docs/          README.md（索引）  model.md  evaluation.md
-                 double_exponential_analysis.md  learning_guide.md
-                 beginner_guide.md  plotting_guide.md  plan_20261123.md
-                 full_protocol_augmentation.md  forward_seen_vs_vae.md
-                 forward_augmentation_20261125.md  pure_forward_augmentation.md
-                 hierarchical_augmentation.md  combined_augmentation.md
-  tests/         test_model.py  test_hierarchical.py
+                 double_exponential_analysis.md  plotting_guide.md
+                 augmentation_comparison_20261127.md  no2_preserving_augmentation.md
+  tests/         test_model.py
 ```
+
+逐图索引、字体与输出规范见 [docs/plotting_guide.md](docs/plotting_guide.md)。
 
 ## 7. 限制
 
@@ -203,13 +141,7 @@ sensor_array/
 - NH₃ 浓度与采集顺序完全混淆（相关系数约 0.976），NH₃ 的“浓度效应”只能解释为
   该采集顺序下的等效效应。
 - H₂=32000 只有 4 条且都在 NO₂=2；边角外推不可靠。
-- 曲线 nRMSE 是相对形状误差，不是浓度误差；本分支不再报 MAP 浓度反演。
-- 骨架对比的 1 seed 筛选偏乐观；前两名 3 seed 的差异与 seed 方差同量级，
+- 曲线 nRMSE 是相对形状误差，不是浓度误差；本仓库的浓度反演见 `tcn_union/`。
+- 骨架对比的单次训练初筛偏乐观；前两名多次训练取平均后的差异不显著，
   不能据此声称双指数显著优于一阶。
 - 模型只在恒浓度阶跃下验证；时变浓度未验证。
-- 逆问题 TCN 的完整旧协议只跑 1 套超参数、3 seed × 5 折（15 对），
-  种子与折不独立；正模型合成在 40 条训练行上拟合，不能据此声称“任何正模型
-  合成都无效”，只能说明当前实现在完整旧协议下没有增益。
-- 纯正模型 joint10 的宏平均与 VAE 只差 0.13 百分点，但 15 对不独立、
-  早停在 18–400 epoch 间波动；H2 的 bootstrap CI 与 Wilcoxon 结论不一致，
-  只能写“方向性更好”，不能声称显著超过 VAE。

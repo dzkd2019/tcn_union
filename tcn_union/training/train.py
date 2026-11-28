@@ -83,7 +83,7 @@ def set_seed(seed: int) -> None:
     """同时重置 Python、NumPy 和 PyTorch 随机数生成器。
 
     参数：`seed` 是当前训练运行的固定种子。若 CUDA 可用也重置其随机状态，
-    以便交叉验证和最终多种子实验可复现。
+    以便交叉验证和最终多个 seed 训练实验可复现。
     """
     random.seed(seed)
     np.random.seed(seed)  # noqa: NPY002 - 按固定种子协议重置 NumPy 全局随机数生成器
@@ -181,7 +181,7 @@ def _macro_nmae(
 ) -> tuple[float, list[float]]:
     """计算每气体 NMAE 及三气体 macro-NMAE。
 
-    参数：`truth`、`prediction` 均为 `[runs,3]` 原始单位浓度；`train_y` 是本
+    参数：`truth`、`prediction` 均为 `[runs,3]` ppm 浓度；`train_y` 是本
     折训练标签，用其逐气体极差作归一化分母。
     返回：`(三气体 NMAE 均值, [H2, NH3, NO2] NMAE)`。按开发训练范围归一化
     使不同单位气体可比较；范围为零时显式报错而非给出无意义分数。

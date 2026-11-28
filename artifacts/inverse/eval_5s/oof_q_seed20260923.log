@@ -1,4 +1,0 @@
-[device] CUDA 13.0 · NVIDIA GeForce GTX 1650
-[mode] noise_gan
-  OOF macro-NMAE=13.388541 epochs=134
-Wrote artifacts/3sigma_5s/oof_raw/q/seed_20260923/selection.json

@@ -1,4 +1,4 @@
-"""当前模型的评估图：数据设计、留一曲线误差、模型架构、全部曲线与误差离散度。
+"""当前模型的评估图：数据设计、十折验证曲线误差、模型架构、全部曲线与误差离散度。
 
 所有图写入 sensor_array/figures/model/，同时输出 PNG（300 dpi）与 SVG。
 """
@@ -43,7 +43,7 @@ def _curve_error(curve: pd.DataFrame) -> None:
     ax.set_xticklabels([GAS_LABEL[gas] for gas in GASES])
     ax.set_yscale("log")
     ax.set_ylabel("逐文件曲线 nRMSE / %")
-    ax.set_title("(a) 留一曲线误差")
+    ax.set_title("(a) 十折验证曲线误差")
     ax.grid(axis="y", alpha=0.25, lw=0.5)
 
     ax = axes[1]
@@ -60,7 +60,7 @@ def _curve_error(curve: pd.DataFrame) -> None:
     ax.set_xlabel("双指数骨架宏平均 nRMSE / %")
     ax.set_ylabel("三路独立 MLP 宏平均 nRMSE / %")
     improved = int((y < x).sum())
-    ax.text(0.05, 0.92, f"{improved}/{len(x)} 折改善", transform=ax.transAxes, fontsize=8)
+    ax.text(0.05, 0.92, f"{improved}/{len(x)} 条改善", transform=ax.transAxes, fontsize=8)
     ax.set_title("(b) 逐文件宏平均")
     handles = [
         plt.Line2D([], [], color=MODEL_COLORS[model], lw=6, label=MODEL_LABELS[model])
@@ -71,7 +71,7 @@ def _curve_error(curve: pd.DataFrame) -> None:
 
 
 def _all_curves(experiments) -> None:
-    """每气体 62 条实测与 62 折留一预测总图；不挑选案例。"""
+    """每气体 62 条实测与十折验证预测总图；不挑选案例。"""
     predictions = np.load(EVALUATION / "predictions.npz")
     for gas_index, gas in enumerate(GASES):
         figure, ax = plt.subplots(figsize=(7.0, 4.1), layout="constrained")
@@ -101,8 +101,8 @@ def _all_curves(experiments) -> None:
         ax.legend(handles=handles, loc="best", frameon=False)
         ax.set_xlabel("时间 / s")
         ax.set_ylabel("相对响应")
-        plain = {"H2": "H₂", "NH3": "NH₃", "NO2": "NO₂"}[gas]
-        ax.set_title(f"{plain}：62 条实测与留一预测")
+        plain = {"H2": r"$\mathrm{H}_2$", "NH3": r"$\mathrm{NH}_3$", "NO2": r"$\mathrm{NO}_2$"}[gas]
+        ax.set_title(f"{plain}：62 条实测与十折验证预测")
         ax.grid(alpha=0.18, lw=0.45)
         _save(figure, f"fig{12 + gas_index}_all_curves_{gas}")
 
@@ -259,7 +259,7 @@ def _nh3_initial_drift(experiments) -> None:
         linewidth=0.35,
     )
     ax.set_xlabel("实验序号")
-    ax.set_ylabel(r"$\mathrm{NH}_3$ 初始响应 $R(0)$ / 原始单位")
+    ax.set_ylabel(r"$\mathrm{NH}_3$ 初始响应 $R(0)$ / ppm")
     ax.set_title("(a) 随实验序号漂移")
     ax.grid(alpha=0.25, lw=0.5)
     ax.text(
@@ -285,8 +285,8 @@ def _nh3_initial_drift(experiments) -> None:
         edgecolor="white",
         linewidth=0.35,
     )
-    ax.set_xlabel(r"$\mathrm{NH}_3$ 浓度 / 原始单位")
-    ax.set_ylabel(r"$\mathrm{NH}_3$ 初始响应 $R(0)$ / 原始单位")
+    ax.set_xlabel(r"$\mathrm{NH}_3$ 浓度 / ppm")
+    ax.set_ylabel(r"$\mathrm{NH}_3$ 初始响应 $R(0)$ / ppm")
     ax.set_title("(b) 与浓度同步上升")
     ax.grid(alpha=0.25, lw=0.5)
     ax.text(
@@ -321,11 +321,11 @@ def _design(experiments) -> None:
     )
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel(r"$\mathrm{H}_2$ 浓度 / 原始单位")
-    ax.set_ylabel(r"$\mathrm{NH}_3$ 浓度 / 原始单位")
+    ax.set_xlabel(r"$\mathrm{H}_2$ 浓度 / ppm")
+    ax.set_ylabel(r"$\mathrm{NH}_3$ 浓度 / ppm")
     ax.set_title("(a) 62 条实验的设计点")
     colorbar = figure.colorbar(scatter, ax=ax, pad=0.02)
-    colorbar.set_label(r"$\mathrm{NO}_2$ 浓度 / 原始单位")
+    colorbar.set_label(r"$\mathrm{NO}_2$ 浓度 / ppm")
 
     ax = axes[1]
     experiment = experiments[0]

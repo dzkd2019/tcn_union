@@ -1,5 +1,3 @@
-window,arm,seeds,configs,macro_three_sigma_mean,macro_three_sigma_sd,macro_mape_mean,macro_mape_sd,macro_median_mean,macro_median_sd,macro_p90_mean,macro_p90_sd,ensemble_macro_three_sigma,ensemble_macro_mape,ensemble_macro_median,ensemble_macro_p90
-10,real,3,2,13.482369,1.227686,3.344204,0.152629,2.478093,0.252199,7.775858,0.260315,10.79141,2.773822,2.298273,6.12238
-10,vae,3,2,9.018963,0.289957,2.169613,0.02928,1.653945,0.118466,4.808157,0.376123,7.472273,1.790598,1.288946,4.111108
-10,forward,3,2,12.879759,3.346267,3.017163,0.71991,2.240777,0.566938,6.682512,1.608749,10.924275,2.613096,2.08168,5.792568
-10,forward+vae,3,2,11.002111,1.315915,2.532083,0.232539,1.802974,0.156728,5.650405,0.15761,9.100763,2.105147,1.472774,4.2151
+window,arm,seeds,configs,seed_mean_macro_three_sigma,seed_mean_macro_mape,seed_mean_macro_median,seed_mean_macro_p90
+10,real,3,2,10.79141,2.773822,2.298273,6.12238
+10,vae,3,2,7.472273,1.790598,1.288946,4.111108

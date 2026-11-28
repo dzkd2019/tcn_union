@@ -1,9 +1,0 @@
-protocol,arm,metric,mean,std,n
-full,vae,macro_three_sigma,9.708165486653646,0.0,1
-full,vae,macro_mape,2.3182567358016968,0.0,1
-full,union_h2,macro_three_sigma,8.95891030629476,0.0,1
-full,union_h2,macro_mape,2.057034691174825,0.0,1
-full,union_h2_60,macro_three_sigma,10.51004727681478,0.0,1
-full,union_h2_60,macro_mape,2.2356148958206177,0.0,1
-full,union_h2_30,macro_three_sigma,11.010271708170572,0.0,1
-full,union_h2_30,macro_mape,2.6252787510553994,0.0,1

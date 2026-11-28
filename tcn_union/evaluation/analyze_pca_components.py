@@ -15,10 +15,9 @@ from sklearn.decomposition import PCA
 
 from tcn_union.training.train import _read_manifest
 
-plt.rcParams["font.family"] = "Noto Serif CJK SC"
-plt.rcParams["font.serif"] = ["Noto Serif CJK SC"]
+plt.rcParams["font.family"] = "Source Han Sans CN"
+plt.rcParams["font.sans-serif"] = ["Source Han Sans CN", "Noto Sans CJK SC", "SimHei"]
 plt.rcParams["axes.unicode_minus"] = False
-plt.rcParams["pdf.fonttype"] = 42
 plt.rcParams["savefig.dpi"] = 300
 
 AXES = ("H2", "NH3", "NO2")
@@ -134,7 +133,7 @@ def _plot(records: list[dict], output_dir: Path) -> None:
         fontsize=7,
         color="#555555",
     )
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = output_dir / f"fig_pca_component_selection.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")

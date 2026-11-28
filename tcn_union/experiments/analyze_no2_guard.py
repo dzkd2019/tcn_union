@@ -1,4 +1,4 @@
-"""汇总 no2_guard：逐折配对、seed 级 OOF 与 3-seed 集成。"""
+"""汇总组合使用：seed 级 OOF 与多个 seed 平均；NH₃/NO₂ 与 PCA-VAE 一致。"""
 from __future__ import annotations
 
 import argparse
@@ -6,13 +6,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import wilcoxon
 
-from tcn_union.experiments.forward_augmentation import _metric_values
+from tcn_union.experiments.full_protocol_augmentation import _metric_values
 from tcn_union.training.gan_train import _read_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT = ROOT / "artifacts/augmentation/no2_guard/full"
+REFERENCE = ROOT / "artifacts/augmentation/protocols/full/predictions.npz"
 METRICS = [
     "macro_three_sigma",
     "macro_mape",
@@ -22,13 +22,13 @@ METRICS = [
 ]
 
 
-def _truth_by_fold(path: Path) -> np.ndarray:
+def _truth() -> np.ndarray:
     rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     development = [row for row in rows if row["split"] == "development"]
     return np.concatenate(
         [
             np.stack([row["_labels"] for row in development if int(row["fold"]) == fold])
-            for fold in range(5)
+            for fold in sorted({int(row["fold"]) for row in development})
         ]
     ).astype(float)
 
@@ -40,58 +40,41 @@ def main() -> None:
     path = Path(args.path)
     folds = pd.read_csv(path / "folds.csv")
     arrays = np.load(path / "predictions.npz")
-    truth = _truth_by_fold(ROOT)
+    truth = _truth()
+    reference = np.load(REFERENCE)["vae_seed_mean"][:, 1:]
     seeds = sorted(folds["seed"].unique())
     configs = sorted(folds["config"].unique())
 
+    def _prediction(seed_list: list[int]) -> np.ndarray:
+        prediction = np.mean(
+            [arrays[f"guard|{seed}|{config}"] for seed in seed_list for config in configs],
+            axis=0,
+        )
+        prediction = prediction.copy()
+        prediction[:, 1:] = reference
+        return prediction
+
     rows = []
-    for arm in ("vae", "guard"):
-        for seed in seeds:
-            prediction = np.mean(
-                [arrays[f"{arm}|{seed}|{config}"] for config in configs], axis=0
-            )
-            rows.append(
-                {
-                    "arm": arm,
-                    "seed": seed,
-                    "n": len(truth),
-                    **_metric_values(prediction, truth),
-                }
-            )
+    for seed in seeds:
+        rows.append(
+            {
+                "arm": "guard",
+                "seed": seed,
+                "n": len(truth),
+                **_metric_values(_prediction([seed]), truth),
+            }
+        )
     seed_rows = pd.DataFrame(rows)
     seed_rows.to_csv(path / "oof_seed.csv", index=False)
 
-    ensemble_rows = []
-    for arm in ("vae", "guard"):
-        prediction = np.mean(
-            [arrays[f"{arm}|{seed}|{config}"] for seed in seeds for config in configs],
-            axis=0,
-        )
-        ensemble_rows.append(
-            {"arm": arm, "n": len(truth), **_metric_values(prediction, truth)}
-        )
-    ensemble = pd.DataFrame(ensemble_rows)
-    ensemble.to_csv(path / "ensemble.csv", index=False)
+    seed_mean = pd.DataFrame(
+        [{"arm": "guard", "n": len(truth), **_metric_values(_prediction(seeds), truth)}]
+    )
+    seed_mean.to_csv(path / "seed_mean.csv", index=False)
 
-    paired = folds.pivot_table(
-        index=["fold", "seed", "config"], columns="arm", values="macro_three_sigma"
-    ).reset_index()
-    paired["guard_minus_vae"] = paired["guard"] - paired["vae"]
-    paired.to_csv(path / "paired.csv", index=False)
-    macro = paired["guard_minus_vae"].to_numpy()
     print(seed_rows[["arm", "seed", *METRICS]].to_string(index=False))
     print()
-    print(ensemble[["arm", *METRICS]].to_string(index=False))
-    print()
-    if np.any(macro != 0):
-        p_value = wilcoxon(macro).pvalue
-        print(
-            f"paired folds={len(macro)} improved={(macro < 0).sum()} "
-            f"mean={macro.mean():+.3f} pp median={np.median(macro):+.3f} pp "
-            f"p={p_value:.4g}"
-        )
-    else:
-        print("paired differences all zero")
+    print(seed_mean[["arm", *METRICS]].to_string(index=False))
 
 
 if __name__ == "__main__":

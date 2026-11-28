@@ -9,7 +9,7 @@
         run_config.json
         figs/fig_abs_error.png/.svg
         figs/fig_rel_error.png/.svg
-        figs/fig_ci95.png/.svg
+        figs/fig_ci95.png/.svg  # 三种气体的均值与 95% CI 同图
 
 NRMSE 的浓度量程统一取开发集 50 条实验的逐气体极差，所有 seed 共用。
 """
@@ -98,7 +98,7 @@ def _scatter_figure(
 ) -> None:
     if kind == "absolute":
         values = prediction - truth
-        ylabel = "有符号绝对误差 / 原始单位"
+        ylabel = "有符号绝对误差 / ppm"
         title = "有符号绝对误差"
         name = "fig_abs_error"
     else:
@@ -153,49 +153,44 @@ def _scatter_figure(
 
 
 def _ci_figure(
-    entries: list[tuple[str, np.ndarray]],
+    prediction: np.ndarray,
     truth: np.ndarray,
     directory: Path,
     label: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 3, figsize=(11.2, 3.2), layout="constrained")
-    x = np.arange(len(entries))
-    for index, gas in enumerate(GASES):
-        axis = axes[index]
-        values = []
-        for _, prediction in entries:
-            relative = _relative(prediction, truth)[:, index]
-            n = len(relative)
-            mean = float(relative.mean())
-            half = float(
-                t.ppf(0.975, n - 1) * relative.std(ddof=1) / np.sqrt(n)
-            )
-            values.append((mean, half, n))
+    """三种气体的相对误差均值与 95% CI 画在同一张图中。"""
+    figure, axis = plt.subplots(figsize=(5.6, 3.4), layout="constrained")
+    x = np.arange(len(GASES))
+    for position, gas in enumerate(GASES):
+        relative = _relative(prediction, truth)[:, position]
+        n = len(relative)
+        mean = float(relative.mean())
+        half = float(t.ppf(0.975, n - 1) * relative.std(ddof=1) / np.sqrt(n))
         axis.errorbar(
-            x,
-            [item[0] for item in values],
-            yerr=[item[1] for item in values],
+            position,
+            mean,
+            yerr=half,
             fmt="o",
             color=GAS_COLORS[gas],
-            capsize=3,
-            markersize=5,
-            linewidth=1.0,
+            capsize=4,
+            markersize=6,
+            linewidth=1.1,
         )
-        axis.axhline(0.0, color="black", linewidth=0.9, linestyle="--")
-        axis.set_xticks(x, [name for name, _ in entries], rotation=20)
-        axis.set_ylabel("相对误差均值 / %")
-        axis.set_title(GAS_UNICODE[gas])
-        axis.grid(alpha=0.2, axis="y")
-        for position, (mean, half, n) in enumerate(values):
-            axis.text(
-                position,
-                mean + half,
-                f"n={n}",
-                ha="center",
-                va="bottom",
-                fontsize=7.0,
-            )
-    figure.suptitle(f"均值与 95% CI（{label}）")
+        axis.text(
+            position,
+            mean + half,
+            f"n={n}\n{mean:+.2f} ± {half:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=7.0,
+            color=GAS_COLORS[gas],
+        )
+    axis.axhline(0.0, color="black", linewidth=0.9, linestyle="--")
+    axis.set_xticks(x, [GAS_UNICODE[gas] for gas in GASES])
+    axis.set_ylabel("相对误差均值 / %")
+    axis.set_xlim(-0.5, len(GASES) - 0.5)
+    axis.grid(alpha=0.2, axis="y")
+    axis.set_title(f"三种气体的均值与 95% CI（{label}）")
     _save(figure, directory, "fig_ci95")
 
 
@@ -222,10 +217,10 @@ def run(
     if not seeds:
         raise ValueError(f"没有找到 arm={arm} 的逐 seed 预测")
     seeds.sort(key=lambda item: item[0])
-    ensemble_key = f"{arm}_ensemble"
+    seed_mean_key = f"{arm}_seed_mean"
     entries = list(seeds)
-    if ensemble_key in payload.files:
-        entries.append(("ensemble", payload[ensemble_key].astype(np.float64)))
+    if seed_mean_key in payload.files:
+        entries.append(("seed_mean", payload[seed_mean_key].astype(np.float64)))
 
     output.mkdir(parents=True, exist_ok=True)
     prediction_rows: list[dict] = []
@@ -285,7 +280,7 @@ def run(
     _style()
     figure_dir = output / "figs"
     final_prediction = next(
-        (prediction for name, prediction in entries if name == "ensemble"),
+        (prediction for name, prediction in entries if name == "seed_mean"),
         entries[0][1],
     )
     shown = label or arm
@@ -295,7 +290,7 @@ def run(
     _scatter_figure(
         final_prediction, truth, file_ids, figure_dir, "relative", shown
     )
-    _ci_figure(entries, truth, figure_dir, shown)
+    _ci_figure(final_prediction, truth, figure_dir, shown)
     print(f"wrote {output}")
 
 

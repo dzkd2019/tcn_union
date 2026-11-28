@@ -1,4 +1,0 @@
-window,arm,seeds,configs,macro_three_sigma_mean,macro_three_sigma_sd,macro_mape_mean,macro_mape_sd,macro_median_mean,macro_median_sd,macro_p90_mean,macro_p90_sd,ensemble_macro_three_sigma,ensemble_macro_mape,ensemble_macro_median,ensemble_macro_p90
-10,real,3,2,13.411456,1.14803,3.30324,0.135684,2.486409,0.223931,7.672145,0.209312,10.5948,2.745142,2.361324,6.177781
-10,vae,3,2,9.812416,0.406304,2.366739,0.019497,1.835302,0.11052,5.251745,0.20869,7.991714,1.98048,1.658502,4.273495
-10,forward_prob_joint,3,2,10.336784,1.300028,2.413075,0.393689,1.77564,0.390739,5.144299,0.784835,8.304025,1.984747,1.515301,4.635186

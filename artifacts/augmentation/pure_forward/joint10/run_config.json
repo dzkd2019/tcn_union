@@ -10,7 +10,6 @@
   "arms": [
     "real",
     "vae",
-    "forward_prob_joint",
     "forward_prob_joint10"
   ],
   "low_conc_configs": [

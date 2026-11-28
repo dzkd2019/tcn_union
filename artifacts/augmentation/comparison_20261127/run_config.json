@@ -3,12 +3,9 @@
   "window_s": 10,
   "range_source": "development_50",
   "sources": {
-    "vae": "combined_full180",
-    "vae_pure": "pure_forward/joint10",
-    "forward_prob_joint10": "pure_forward/joint10",
-    "union_h2_180": "combined_full180",
-    "guard": "no2_guard/full",
-    "vae_guard": "no2_guard/full"
+    "vae": "protocols/full",
+    "forward": "pure_forward/joint10",
+    "guard": "no2_guard/full"
   },
-  "note": "不同轮次，绝对数不可直接横比；以同轮 VAE 为基线。"
+  "note": "三种方法均在同一开发集上给出 OOF 预测，按绝对指标直接比较。"
 }

@@ -1,8 +1,0 @@
-candidate,reference,metric,n,wins,median_delta,mean_delta,ci_low,ci_high,wilcoxon_p
-forward_h2,real,macro_three_sigma,15,4,1.425548,1.648069,-0.772237,4.198277,0.16882324
-forward_h2,real,macro_mape,15,6,0.611654,0.157527,-0.633491,0.861599,0.5244751
-forward_h2,real,macro_median,15,7,0.553446,-0.066987,-0.88655,0.659243,0.80395508
-forward_h2,real,macro_p90,15,6,0.897736,0.699244,-0.767551,2.059082,0.30279541
-forward_h2,real,H2_three_sigma,15,9,-0.459905,-1.498491,-3.893435,1.107614,0.27685547
-forward_h2,real,NH3_three_sigma,15,4,4.39135,5.473202,1.380767,10.527383,0.03015137
-forward_h2,real,NO2_three_sigma,15,6,3.304856,0.969495,-2.078435,3.848436,0.5994873

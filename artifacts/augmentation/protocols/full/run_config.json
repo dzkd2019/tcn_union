@@ -9,9 +9,7 @@
   "epochs": 500,
   "arms": [
     "real",
-    "vae",
-    "forward",
-    "forward+vae"
+    "vae"
   ],
   "low_conc_configs": [
     "1.0",
