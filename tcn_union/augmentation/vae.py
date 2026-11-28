@@ -39,8 +39,8 @@ class VAEConfig:
     max_grad_norm: float = 10.0
 
     def __post_init__(self) -> None:
-        if self.seconds not in {5.0, 10.0}:
-            raise ValueError("VAE 只支持 5 秒或 10 秒窗口")
+        if self.seconds <= 0.0 or abs(self.seconds * 5.0 - round(self.seconds * 5.0)) > 1e-9:
+            raise ValueError("VAE 窗口必须是 0.2 s 的整数倍")
         if self.components < 1 or self.latent_dim < 1 or self.hidden_dim < 1:
             raise ValueError("VAE 维度必须为正")
         if self.epochs < 1 or self.batch_size < 2:

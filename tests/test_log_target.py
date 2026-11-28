@@ -314,7 +314,7 @@ class LogTargetInferenceTest(unittest.TestCase):
                 rtol=1e-5,
                 atol=1e-5,
             )
-            self.assertEqual(result["unit"], "original")
+            self.assertEqual(result["unit"], "ppm")
             self.assertEqual(result["seconds"], 10.0)
 
     def test_predict_restores_per_gas_concentrations_from_csv(self) -> None:

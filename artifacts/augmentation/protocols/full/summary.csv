@@ -1,0 +1,3 @@
+window,arm,seeds,configs,seed_mean_macro_three_sigma,seed_mean_macro_mape,seed_mean_macro_median,seed_mean_macro_p90
+10,real,3,2,10.79141,2.773822,2.298273,6.12238
+10,vae,3,2,7.472273,1.790598,1.288946,4.111108

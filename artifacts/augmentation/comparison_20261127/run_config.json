@@ -1,0 +1,11 @@
+{
+  "n": 50,
+  "window_s": 10,
+  "range_source": "development_50",
+  "sources": {
+    "vae": "protocols/full",
+    "forward": "pure_forward/joint10",
+    "guard": "no2_guard/full"
+  },
+  "note": "三种方法均在同一开发集上给出 OOF 预测，按绝对指标直接比较。"
+}

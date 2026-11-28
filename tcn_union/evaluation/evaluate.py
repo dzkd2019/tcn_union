@@ -83,7 +83,7 @@ def _ridge_fit(x_train: np.ndarray, y_train: np.ndarray, alpha: float) -> dict[s
 
 
 def _ridge_predict(model: dict[str, Any], x: np.ndarray) -> np.ndarray:
-    """用 sklearn Ridge 预测并还原到原始浓度单位。"""
+    """用 sklearn Ridge 预测并还原到 ppm 浓度。"""
     xz = model["x_scaler"].transform(x)
     return model["y_scaler"].inverse_transform(model["model"].predict(xz))
 
@@ -231,7 +231,7 @@ def _bootstrap_difference(
 
 
 def _tcn_predict(checkpoint_path: Path, features: np.ndarray, device: torch.device) -> tuple[np.ndarray, dict[str, Any]]:
-    """按 checkpoint 统计量运行 TCN 前向推理并还原浓度单位。
+    """按 checkpoint 统计量运行 TCN 前向推理并还原到 ppm 浓度。
 
     参数：`checkpoint_path` 是最终模型文件；`features` 为
     `[runs,channels,time]` 特征；`device` 是计算设备。

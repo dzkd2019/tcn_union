@@ -1,0 +1,4 @@
+window,arm,seeds,configs,seed_mean_macro_three_sigma,seed_mean_macro_mape,seed_mean_macro_median,seed_mean_macro_p90
+10,real,3,2,10.5948,2.745142,2.361324,6.177781
+10,vae,3,2,7.991714,1.98048,1.658502,4.273495
+10,forward_prob_joint10,3,2,7.865783,1.74593,1.269075,4.376449

@@ -5,7 +5,7 @@
 - 训练目标与损失（真实浓度标签 → log 变换 → 低浓度加权 SmoothL1）；
 - 因果卷积块（Residual block）内部结构；
 - PCA-VAE 数据扩充（训练时）作为输入侧的数据来源。
-图中不展开多 seed 平均，也不展开低浓度加权的两套配置。
+图中不展开多个 seed 取平均的细节，也不展开低浓度加权的两套配置。
 """
 from __future__ import annotations
 
@@ -286,13 +286,13 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("artifacts/3sigma_noridge/figs"),
+        default=Path("artifacts/figures/architecture"),
     )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     figure = draw_architecture()
     for suffix in ("png", "svg"):
-        path = args.output_dir / f"fig_model_architecture.{suffix}"
+        path = args.output_dir / f"tcn_architecture.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")
     plt.close(figure)

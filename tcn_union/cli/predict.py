@@ -21,7 +21,7 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
     参数：`checkpoint_path` 指向训练产物，包含网络权重及输入/标签缩放量；
     `csv_path` 是含 time/H2/NH3/NO2 的文件，可不含浓度标签；`device` 是
     `torch.device`，由 CLI 明确选择 CPU 或可用 CUDA。
-    返回：JSON 可序列化的原始浓度预测字典，含窗口秒数和原始单位标记。
+    返回：JSON 可序列化的 ppm 浓度预测字典，含窗口秒数和 ppm 标记。
     先按 checkpoint 的 mode 构造因果特征、复用训练统计量标准化，再反标准化
     网络输出；TCN 宽度由 `architecture.channels` 决定（缺键时按 16 处理，
     兼容旧 checkpoint），输出头由 `architecture.head` 决定（`"per_gas"` 时
@@ -58,7 +58,7 @@ def predict(checkpoint_path: Path, csv_path: Path, device: torch.device) -> dict
         "H2": float(prediction[0]),
         "NH3": float(prediction[1]),
         "NO2": float(prediction[2]),
-        "unit": "original",
+        "unit": "ppm",
     }
 
 

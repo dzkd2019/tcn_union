@@ -3,7 +3,7 @@
 三个面板：
 (a) 累计解释方差；
 (b) 五折验证重构误差；
-(c) 下游 OOF macro-NMAE 随 K 的变化（K=4/6/8 用三个 seed 的均值±标准差）。
+(c) 下游 OOF macro-NMAE 随 K 的变化（K=4/6/8 用多个 seed 训练后的平均）。
 """
 from __future__ import annotations
 
@@ -14,26 +14,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-plt.rcParams["font.family"] = "Noto Serif CJK SC"
-plt.rcParams["font.serif"] = ["Noto Serif CJK SC"]
+plt.rcParams["font.family"] = "Source Han Sans CN"
+plt.rcParams["font.sans-serif"] = ["Source Han Sans CN", "Noto Sans CJK SC", "SimHei"]
 plt.rcParams["axes.unicode_minus"] = False
-plt.rcParams["pdf.fonttype"] = 42
 plt.rcParams["savefig.dpi"] = 300
 
 AXES = ("H2", "NH3", "NO2")
 COLORS = {"H2": "#0072B2", "NH3": "#E69F00", "NO2": "#D55E00", "macro": "#333333"}
 
-# 单 seed（20260923）的下游 OOF；K=6 来自当前最终模型记录。
-SINGLE_SEED = {
-    2: 0.02476433999836445,
-    4: 0.021917950734496115,
-    6: 0.02401529364287853,
-    8: 0.02268291786313057,
-    10: 0.02312142662703991,
-    12: 0.023799529299139977,
-}
-# K=4/6/8 的三种子 OOF（同一协议）。
-THREE_SEED = {
+# K=4/6/8 的多次训练 OOF（同一协议），图中只画平均。
+MULTI_SEED = {
     4: [0.021917950734496115, 0.025430469959974288, 0.024208027124404907],
     6: [0.02401529364287853, 0.02304329015314579, 0.023956895247101782],
     8: [0.02268291786313057, 0.025382630154490472, 0.02595249004662037],
@@ -101,34 +91,21 @@ def main() -> None:
         linestyle="--",
         label="三气体平均",
     )
-    single_k = sorted(SINGLE_SEED)
+    multi_k = sorted(MULTI_SEED)
+    means = [float(np.mean(MULTI_SEED[k])) for k in multi_k]
     panels[2].plot(
-        single_k,
-        [SINGLE_SEED[k] for k in single_k],
-        color="#777777",
-        marker="o",
-        markersize=3,
-        linewidth=1.0,
-        label="单 seed 试点",
-    )
-    three_k = sorted(THREE_SEED)
-    means = [float(np.mean(THREE_SEED[k])) for k in three_k]
-    stds = [float(np.std(THREE_SEED[k], ddof=1)) for k in three_k]
-    panels[2].errorbar(
-        three_k,
+        multi_k,
         means,
-        yerr=stds,
         color="#2A6F77",
         marker="s",
         markersize=3.5,
         linewidth=1.3,
-        capsize=2.5,
-        label="三 seed 均值 ± SD",
+        label="多个 seed 取平均",
     )
     panels[2].axvline(6, color="#888888", linestyle=":", linewidth=0.9)
     panels[2].annotate(
-        f"K=6: {np.mean(THREE_SEED[6]):.5f}\nSD={np.std(THREE_SEED[6], ddof=1):.5f}",
-        xy=(6, np.mean(THREE_SEED[6])),
+        f"K=6: {np.mean(MULTI_SEED[6]):.5f}",
+        xy=(6, np.mean(MULTI_SEED[6])),
         xytext=(6.25, 0.0258),
         fontsize=6.5,
         color="#2A6F77",
@@ -148,7 +125,7 @@ def main() -> None:
     panels[0].legend(fontsize=6.5, frameon=False)
     panels[2].legend(fontsize=6.5, frameon=False, loc="upper left")
 
-    for suffix in ("png", "pdf"):
+    for suffix in ("png", "svg"):
         path = args.output_dir / f"fig_pca_k_evidence.{suffix}"
         figure.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
         print(f"Wrote {path}")

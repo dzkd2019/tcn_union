@@ -1,0 +1,14 @@
+{
+  "run_name": "comparison_20261127_vae",
+  "arm": "vae",
+  "window_s": 10.0,
+  "source": "/home/mrawa/code/deep-learning/tcn_union/artifacts/augmentation/comparison_20261127/predictions.npz",
+  "range_source": "development_50",
+  "n": 50,
+  "seeds": [
+    "20260923",
+    "20260924",
+    "20260925",
+    "eed_mean"
+  ]
+}

@@ -83,7 +83,7 @@ def set_seed(seed: int) -> None:
     """同时重置 Python、NumPy 和 PyTorch 随机数生成器。
 
     参数：`seed` 是当前训练运行的固定种子。若 CUDA 可用也重置其随机状态，
-    以便交叉验证和最终多种子实验可复现。
+    以便交叉验证和最终多个 seed 训练实验可复现。
     """
     random.seed(seed)
     np.random.seed(seed)  # noqa: NPY002 - 按固定种子协议重置 NumPy 全局随机数生成器
@@ -181,7 +181,7 @@ def _macro_nmae(
 ) -> tuple[float, list[float]]:
     """计算每气体 NMAE 及三气体 macro-NMAE。
 
-    参数：`truth`、`prediction` 均为 `[runs,3]` 原始单位浓度；`train_y` 是本
+    参数：`truth`、`prediction` 均为 `[runs,3]` ppm 浓度；`train_y` 是本
     折训练标签，用其逐气体极差作归一化分母。
     返回：`(三气体 NMAE 均值, [H2, NH3, NO2] NMAE)`。按开发训练范围归一化
     使不同单位气体可比较；范围为零时显式报错而非给出无意义分数。
@@ -265,6 +265,9 @@ def _train_network(
     target_transform: str | list[str] = "none",
     per_gas_head: bool = False,
     low_conc_power: float | str | list[str] | tuple[float, ...] = 0.0,
+    initial_state: dict[str, torch.Tensor] | None = None,
+    scaler_stats: dict[str, np.ndarray] | None = None,
+    sample_weight: np.ndarray | None = None,
 ) -> tuple[GasTCN, dict[str, np.ndarray], int, float | None, np.ndarray | None]:
     """训练一个网络，可选执行验证集选 epoch 与早停。
 
@@ -290,7 +293,9 @@ def _train_network(
     按 `(median_gas/y)^power_gas` 给每个样本×气体的 SmoothL1 损失加权（裁剪到
     0.25–4），可传单值或按 H2,NH3,NO2 的三个值，让训练更关注低浓度/相对误差
     大的样本；默认 0 不加权，行为与旧实现逐位一致。
-    输入与标签均仅用训练数据 z-score，避免响应尺度和 H2 数值量级主导联合回归。
+    输入与标签默认仅用当前训练数据 z-score，避免响应尺度和 H2 数值量级主导
+    联合回归；`scaler_stats` 可传入外部（如真实训练折）的统计量，用于在
+    同一尺度下做合成预训练；`initial_state` 可载入已有权重做微调。
     固定 batch size=8、AdamW(lr=1e-3, weight_decay=1e-3, betas=(0.9,0.999))；
     对标准化三目标使用 mean SmoothL1(beta=1)，相较纯平方误差对小样本异常误差
     更稳健；每步将梯度范数裁剪到 1，并在 loss/gradient 非有限时立即失败。
@@ -313,12 +318,26 @@ def _train_network(
                     np.maximum(y_train[:, axis], LOG_EPS)
                 )
     # z-score 统计量只从当前训练折拟合，验证集复用同一组统计量，避免泄漏。
-    stats = fit_scalers(x_train, y_train_fit)
+    stats = (
+        scaler_stats
+        if scaler_stats is not None
+        else fit_scalers(x_train, y_train_fit)
+    )
     x_train_z, y_train_z = _scaled(x_train, y_train_fit, stats)
 
     # 小样本训练集直接放进内存；每个 epoch 重新打乱一次。
     loss_weights = _low_conc_weights(y_train, low_conc_power)
-    weighted_loss = bool(np.any(np.asarray(_low_conc_powers(low_conc_power)) > 0.0))
+    if sample_weight is not None:
+        if sample_weight.shape != y_train.shape:
+            raise ValueError(
+                "sample_weight 形状必须与 y_train 相同："
+                f"{sample_weight.shape} != {y_train.shape}"
+            )
+        loss_weights = loss_weights * sample_weight.astype(np.float32)
+    weighted_loss = bool(
+        np.any(np.asarray(_low_conc_powers(low_conc_power)) > 0.0)
+        or (sample_weight is not None and np.any(sample_weight != 1.0))
+    )
     if weighted_loss:
         dataset = TensorDataset(
             torch.from_numpy(x_train_z),
@@ -337,6 +356,8 @@ def _train_network(
 
     # 模型输入通道数由特征决定（raw_delta 为 6、delta 为 3），隐藏宽度固定 16。
     model = GasTCN(x_train.shape[1], per_gas_head=per_gas_head).to(device)
+    if initial_state is not None:
+        model.load_state_dict(initial_state)
     if ema_decay is not None and not 0.0 < ema_decay < 1.0:
         raise ValueError("ema_decay must be in (0, 1)")
     ema_state = None

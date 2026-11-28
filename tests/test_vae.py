@@ -11,7 +11,7 @@ from tcn_union.training.train import _read_manifest
 
 
 def _rows(count: int = 6) -> list[dict]:
-    rows = _read_manifest(Path("artifacts/splits/manifest.csv"))
+    rows = _read_manifest(Path("artifacts/data/splits/manifest.csv"))
     return [row for row in rows if row["split"] == "development"][:count]
 
 
@@ -54,7 +54,7 @@ class VaeTest(unittest.TestCase):
 
     def test_invalid_config_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            VAEConfig(seconds=7.0)
+            VAEConfig(seconds=7.3)
         with self.assertRaises(ValueError):
             VAEConfig(components=0)
         with self.assertRaises(ValueError):

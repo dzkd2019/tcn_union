@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _rows(count: int = 6) -> list[dict]:
-    rows = _read_manifest(ROOT / "artifacts/splits/manifest.csv")
+    rows = _read_manifest(ROOT / "artifacts/data/splits/manifest.csv")
     return [row for row in rows if row["split"] == "development"][:count]
 
 

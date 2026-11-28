@@ -1,4 +1,4 @@
-"""生成可直接插入 PPT 的 PCA-VAE 数学卡片（16:9 PNG）。
+"""生成可直接插入 PPT 的 PCA-VAE 数学卡片（16:9 PNG + SVG）。
 
 每张卡片只讲一个主题，公式用 matplotlib mathtext 渲染。
 """
@@ -10,7 +10,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
-FONT = "WenQuanYi Micro Hei"
+FONT = "Source Han Sans CN"
 W, H = 13.333, 7.5
 INK = "#1F2933"
 MUTED = "#5F6B76"
@@ -27,8 +27,7 @@ plt.rcParams.update(
         "font.sans-serif": [FONT],
         "mathtext.fontset": "stix",
         "axes.unicode_minus": False,
-        "pdf.fonttype": 42,
-        "savefig.dpi": 220,
+        "savefig.dpi": 300,
     }
 )
 
@@ -76,6 +75,11 @@ def _arrow(ax, start, end, *, rad=0.0, color=INK):
     )
 
 
+def _save(fig, path: Path) -> None:
+    for suffix in ("png", "svg"):
+        fig.savefig(path.with_suffix(f".{suffix}"), bbox_inches="tight", facecolor="white")
+
+
 def card_overview(path: Path) -> None:
     fig, ax = _canvas(
         "PCA-VAE 数据增强｜一页总览",
@@ -95,7 +99,7 @@ def card_overview(path: Path) -> None:
     _math(ax, 0.95, 2.45, r"$X_{n,g}\in\mathbb{R}^{51},\quad g\in\{\mathrm{H2},\mathrm{NH3},\mathrm{NO2}\},\quad K=6$", 18)
     _math(ax, 0.95, 1.85, r"$\hat X_{n,g}=\bar X_g+V_{g,K}\,\left(s_g\odot(B_g^{T}\tilde z_n+\hat r_{n,g})\right)$", 19)
     ax.text(0.95, 1.20, "所有 PCA/条件均值/VAE 只在训练折上拟合；验证和测试保持真实曲线。", fontsize=11, color=MUTED)
-    fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -116,7 +120,7 @@ def card_pca(path: Path) -> None:
     ax.text(10.72, 3.28, "K=6 解释方差 99.998%", ha="center", fontsize=12, color=MUTED)
     ax.text(9.10, 2.65, "K=6 的验证重构误差\n约量程的 0.094%", ha="left", va="top", fontsize=12, color=MUTED)
     ax.text(0.95, 1.75, "PCA 的作用：把“生成曲线”变成“生成 18 个系数”，并保证曲线落在真实响应子空间。", fontsize=11.5, color=MUTED)
-    fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -138,7 +142,7 @@ def card_condition(path: Path) -> None:
     ax.text(9.20, 3.08, "标签决定的主趋势；\n剩余残差交给 VAE。", fontsize=10.5, color=MUTED, va="top")
     ax.text(9.05, 2.55, "$Z=[\\mathbf{1},z]$，$B_g$ 由最小二乘拟合。", fontsize=11, color=MUTED)
     ax.text(0.95, 1.55, "这一步把“生成系数”拆成：标签可解释的均值 + 标签解释不了的残差。", fontsize=11.5, color=MUTED)
-    fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -157,7 +161,7 @@ def card_vae(path: Path) -> None:
     _box(ax, 9.10, 3.55, 3.25, 1.00, "hidden_dim = 64", TEAL, TEAL_LIGHT, 17)
     _box(ax, 9.10, 2.25, 3.25, 1.00, "beta = 0.1", ORANGE, ORANGE_LIGHT, 17)
     ax.text(9.10, 1.70, "beta 小：更重视重建；beta 大：更强约束隐变量。", fontsize=10.5, color=MUTED, va="top")
-    fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -175,7 +179,7 @@ def card_sampling(path: Path) -> None:
     _box(ax, 8.90, 4.60, 3.45, 1.05, "可选：真实测量噪声", ORANGE, ORANGE_LIGHT, 15)
     ax.text(9.05, 4.20, "训练时额外加 0.1× 噪声视图；\n验证/测试不加合成数据。", fontsize=10.5, color=MUTED, va="top")
     ax.text(0.95, 1.65, "关键：VAE 输出的是标准化残差，要乘回 coefficient_std，再做反 PCA。", fontsize=11.5, color=MUTED)
-    fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -196,13 +200,13 @@ def card_training(path: Path) -> None:
     _math(ax, 0.95, 2.80, r"$\mathrm{OOF}: 5\ \mathrm{folds}\times(40\ \mathrm{train}+10\ \mathrm{valid})$", 17)
     _math(ax, 0.95, 2.10, r"$\mathrm{Final}: 50\ \mathrm{dev}\rightarrow3\ \mathrm{seeds}\rightarrow\mathrm{test}\ 12$", 17)
     ax.text(0.95, 1.35, "测试集只在方案冻结后评估，不参与 K、epoch、增强比例选择。", fontsize=11.5, color=MUTED)
-    fig.savefig(path.with_suffix(".png"), bbox_inches="tight", facecolor="white")
+    _save(fig, path)
     plt.close(fig)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成 PCA-VAE 数学卡片")
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/pca_vae_ppt_images"))
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/figures/pca_vae"))
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for name, function in (
@@ -215,7 +219,7 @@ def main() -> None:
     ):
         path = args.output_dir / name
         function(path)
-        print(f"Wrote {path}.png")
+        print(f"Wrote {path}.png/.svg")
 
 
 if __name__ == "__main__":

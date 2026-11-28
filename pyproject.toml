@@ -9,11 +9,12 @@ dependencies = [
     "numpy>=2.0",
     "pandas>=3.0.6",
     "scikit-learn>=1.9.1",
+    "scipy>=1.15",
     "torch>=2.3",
 ]
 
 [tool.setuptools.packages.find]
-include = ["tcn_union*"]
+include = ["tcn_union*", "sensor_array*"]
 
 [tool.ruff.lint]
 extend-select = [
